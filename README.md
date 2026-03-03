@@ -42,6 +42,7 @@ Abaixo o escopo do ecossistema estruturado em nosso front-end baseado em **Astro
 ```bash
 📦 assina-comigo
  ┣ 📂 .agents         # Skills e regras de operação estrita (ex. isolamento RLS e Lógica).
+ ┣ 📂 docs            # Documentos e Guias de Produto (PRD, UX/UI, Roadmap V1).
  ┣ 📂 src             # Core Codebase do app Astro.
  ┃ ┣ 📂 assets        # Material e mídias visuais e tipográficas raw.
  ┃ ┣ 📂 components    # Peças de UI e Botões/Toasts reutilizáveis (Guidelines Assina Comigo).
@@ -50,9 +51,6 @@ Abaixo o escopo do ecossistema estruturado em nosso front-end baseado em **Astro
  ┃ ┗ 📂 utils         # Funções auxiliares (Tracking Last-click localStorage, etc).
  ┣ 📂 public          # Favicons e rotas estáticas cruas.
  ┣ 📜 README.md       # Isso que você está lendo agora.
- ┣ 📜 Roadmap_*.md    # O mapa passo a passo da V1 em formato markdown.
- ┣ 📜 PRD_*.md        # Documento Regra de Produto e Visão base.
- ┣ 📜 UX_UI_*.md      # Toda a especificação e Tokens Estéticos e Design System.
  ┗ 📜 package.json    # Dependências do pacote.
 ```
 
