@@ -1,0 +1,39 @@
+---
+import Icon from './Icon.astro';
+
+interface Props {
+  variant?: 'primary' | 'secondary' | 'tertiary';
+  type?: 'button' | 'submit' | 'reset';
+  class?: string;
+  iconLeft?: any; // Componente de ícone Lucide
+  iconRight?: any; // Componente de ícone Lucide
+  disabled?: boolean;
+}
+
+const {
+  variant = 'primary',
+  type = 'button',
+  class: className = '',
+  iconLeft,
+  iconRight,
+  disabled = false,
+  ...rest
+} = Astro.props;
+
+// Definições de classes baseadas no UX_UI_Guidelines_Assina_Comigo.md
+const baseClasses = "inline-flex items-center justify-center font-bold rounded-lg px-8 py-4 transition-all duration-200 ease-in-out gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+
+const variantClasses = {
+  primary: "bg-[#FFB918] text-[#111827] hover:brightness-95 shadow-sm hover:shadow-md",
+  secondary: "bg-[#0062FF] text-white hover:brightness-110 shadow-sm",
+  tertiary: "bg-transparent border-2 border-[#0062FF] text-[#0062FF] hover:bg-[#F8FAFC]"
+};
+
+const finalClasses = `${baseClasses} ${variantClasses[variant]} ${className}`;
+---
+
+<button type={type} class={finalClasses} disabled={disabled} {...rest}>
+  {iconLeft && <Icon icon={iconLeft} size={20} />}
+  <slot />
+  {iconRight && <Icon icon={iconRight} size={20} />}
+</button>
