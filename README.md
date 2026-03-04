@@ -13,45 +13,48 @@
 <br/>
 
 ## 📖 Sobre o Projeto
-**Assina Comigo** nasce com a missão de eliminar panilhas e processos manuais no controle de indicações para ISPs (Provedores de Internet). 
-Um sistema leve, focado na experiência Mobile-First e altamente integrado aos canais de venda. O ecossistema promove links de compartilhamento limpos comissionamento parametrizável em reais ou pontos, painel administrador administrativo total e integração contínua (via n8n).
+**Assina Comigo** nasce com a missão de eliminar planilhas e processos manuais no controle de indicações para ISPs (Provedores de Internet). 
+Um sistema leve, focado na experiência Mobile-First e altamente integrado aos canais de venda. O ecossistema promove links de compartilhamento limpos, comissionamento parametrizável em reais ou pontos, painel administrativo blindado e integração contínua avançada (via n8n).
 
 ### ✨ Destaques
-- **🏗️ Multi-Tenant Real:** Ambientes estritamente isolados usando *Row Level Security (RLS)* diretamente na base de dados (Supabase).
+- **🏗️ Multi-Tenant Estrutural:** Ambientes estritamente isolados usando *Row Level Security (RLS)* nativo na base de dados (Supabase).
 - **🎨 White-Label Leve:** Interface personalizável (cores primárias, tipografias e logotipos) para cada Provedor Inquilino.
 - **⚡ Foco em Conversão:** Landing pages dinâmicas, altamente responsivas e otimizadas através de Diretrizes UX/UI consolidadas.
-- **🛡️ Cybersecurity First:** Atribuição à prova de balas utilizando rotinas de Last-Click e quarentena de repasses gerenciadas com integridade via webhook (n8n).
+- **🛡️ Cybersecurity First:** Atribuição à prova de balas utilizando rotinas de Last-Click via frontend e quarentena de repasses gerenciadas com integridade antifraude.
 
 ---
 
-## 🗺️ Visão do Roadmap (V1)
+## 🗺️ Status do Roadmap (V1)
 O desenvolvimento do sistema está distribuído em etapas cruciais, garantindo segurança na base e maestria no frontend. 
 
-* 🗄️ **Fase 1: Fundação & Segurança** – Isolamento, perfis RLS, restrições compostas.
-* 🎨 **Fase 2: Design System** – Tokens visuais CSS, modais expansíveis e acessibilidade (Mobile First).
-* ⚙️ **Fase 3: Funcionalidades MVP** – Login, ecossistema de captura (Landing pages) e Dashboard Comercial.
-* 🤖 **Fase 4: Automação & Resiliência** – Fluxo de aprovação/quarentena no `n8n` e integração transparente de CRM.
-* 🚀 **Fase 5: Validação e Deploy** – Simulacros, Homologação e Lançamento Real.
+- [x] 🗄️ **Fase 1: Fundação & Segurança** – Isolamento Multi-Tenant configurado, perfis RLS blindados, restrições compostas contra duplicidades implementadas no `Supabase`.
+- [ ] 🎨 **Fase 2: Design System** – Tokens visuais CSS, modais expansíveis e acessibilidade (Mobile First).
+- [ ] ⚙️ **Fase 3: Funcionalidades MVP** – Login, ecossistema de captura (Landing pages) e Dashboard Comercial.
+- [ ] 🤖 **Fase 4: Automação & Resiliência** – Fluxo de aprovação/quarentena no `n8n` e integração transparente de CRM.
+- [ ] 🚀 **Fase 5: Validação e Deploy** – Simulacros, Homologação e Lançamento Real.
 
 ---
 
-## 📂 Estrutura de Pastas e Responsabilidades
+## 📂 Estrutura do Projeto
 
-Abaixo o escopo do ecossistema estruturado em nosso front-end baseado em **Astro**:
+Ecossistema organizado em monorepo, contendo Front-end (Astro) e Back-end / DB (Supabase CLI):
 
 ```bash
 📦 assina-comigo
- ┣ 📂 .agents         # Skills e regras de operação estrita (ex. isolamento RLS e Lógica).
- ┣ 📂 docs            # Documentos e Guias de Produto (PRD, UX/UI, Roadmap V1).
+ ┣ 📂 .agents         # Skills e regras estritas da IA (ex. segurança RLS e UX/UI).
+ ┣ 📂 docs            # Documentos e Guias de Produto (PRD, Diretrizes e Roadmap V1).
  ┣ 📂 src             # Core Codebase do app Astro.
- ┃ ┣ 📂 assets        # Material e mídias visuais e tipográficas raw.
- ┃ ┣ 📂 components    # Peças de UI e Botões/Toasts reutilizáveis (Guidelines Assina Comigo).
- ┃ ┣ 📂 layouts       # Estruturas padrão (padrão Z, White-labels).
- ┃ ┣ 📂 pages         # Rotas e páginas (ex: Painel, Landing, Acesso).
- ┃ ┗ 📂 utils         # Funções auxiliares (Tracking Last-click localStorage, etc).
- ┣ 📂 public          # Favicons e rotas estáticas cruas.
- ┣ 📜 README.md       # Isso que você está lendo agora.
- ┗ 📜 package.json    # Dependências do pacote.
+ ┃ ┣ 📂 assets        # Mídias visuais e tipográficas (SVG, fontes).
+ ┃ ┣ 📂 components    # Peças de UI e Botões/Toasts reutilizáveis (Design System).
+ ┃ ┣ 📂 layouts       # Estruturas padrão globais de páginas.
+ ┃ ┣ 📂 pages         # Rotas da aplicação (ex: Painel Administrador, Landing Pages).
+ ┃ ┗ 📂 utils         # Funções auxiliares (Tracking Last-click, formatação, etc).
+ ┣ 📂 supabase        # Configurações do Banco de Dados e Migrations.
+ ┃ ┣ 📂 migrations    # Scripts SQL versionados (Fase 1 completada contendo RLS e Tabelas).
+ ┃ ┗ 📜 config.toml   # Parâmetros e porta do backend Supabase local.
+ ┣ 📂 public          # Favicons e arquivos estáticos estritos.
+ ┣ 📜 README.md       # Documentação principal do ecossistema.
+ ┗ 📜 package.json    # Dependências Node.
 ```
 
 ---
@@ -59,9 +62,9 @@ Abaixo o escopo do ecossistema estruturado em nosso front-end baseado em **Astro
 ## 🔒 Princípios de Segurança Assumidos
 
 Segundo nossa core-skill em `cybersecurity`:
-1. **Blindagem Supabase:** Nenhuma camada da aplicação tem poder de sobrepor as políticas do RLS atreladas ao `tenant_id`. Se a aplicação falhar, o Banco de dados recusa a filtragem de redes cruzadas.
-2. **Quarentena de Recebimento:** Proteção absoluta contra prejuízos financeiros para provedores que sofrem retração e churns imediatos. A automação n8n processa a fila antes de validar uma transação.
-3. **Auditoria Limpa:** Status de *timeline* rastreável que impossibilita apagões de histórico ou contestações de mudança temporal.
+1. **Blindagem Backend (Supabase RLS):** Nenhuma camada visível (front-end ou API key pública) tem o poder de sobrepor as políticas do RLS atreladas ao `tenant_id`. Se a aplicação falhar de forma externa, o Banco de dados recusa o vazamento de dados cruzados internamente.
+2. **Quarentena Financeira:** Proteção absoluta contra prejuízos financeiros para provedores que sofrem churns pós-instalação imediata. Toda comissão validada entra em período de carência (quarentena lockada na base temporal do PostgreSQL) antes de ficar disponível.
+3. **Auditoria Limpa:** Modelagem com restrições (`Constraints` compostas) e rastreabilidade que impossibilita apagões de histórico ou criação de clientes fictícios para faturamento duplo na mesma base.
 
 ---
-<p align="center">Construído com extrema dedicação e zelo. Segurança + Performance.</p>
+<p align="center">Construído com extrema dedicação, foco em performance absurda e segurança militar. ☕</p>
