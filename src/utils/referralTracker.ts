@@ -28,9 +28,9 @@ export class ReferralTracker {
 
     /**
      * Resgata o parceiro atribuído no momento do envio do formulário.
-     * @returns {string | null} ID do parceiro ou null se não houver atribuição/expirou.
+     * Retorna ID do parceiro ou null se não houver atribuição/expirou.
      */
-    static getAttributedPartner() {
+    static getAttributedPartner(): string | null {
         if (typeof window === 'undefined') return null; // Segurança SSR (Astro)
 
         const dataStr = localStorage.getItem(this.STORAGE_KEY);

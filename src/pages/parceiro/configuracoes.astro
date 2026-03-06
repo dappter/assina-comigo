@@ -1,0 +1,535 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import { partnerService } from "../../services/partnerService";
+
+const tenantId = Astro.locals.tenantId;
+const profileId = Astro.locals.profileId;
+
+if (!tenantId || !profileId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+const partner = await partnerService.getPartnerById(tenantId, profileId);
+const userName = partner?.nome || "Parceiro";
+const userAvatar = userName.substring(0, 2).toUpperCase();
+---
+
+<DashboardLayout
+    title="Configurações"
+    userName={userName}
+    userAvatar={userAvatar}
+>
+    <div class="config-page">
+        <header class="page-header">
+            <h1 class="page-title">Configurações</h1>
+            <p class="subtitle">
+                Gerencie suas preferências e segurança da conta.
+            </p>
+        </header>
+
+        <!-- Tabs -->
+        <div class="tabs" role="tablist">
+            <button
+                class="tab active"
+                id="tabConta"
+                role="tab"
+                aria-selected="true"
+                aria-controls="panelConta">Conta</button
+            >
+            <button
+                class="tab"
+                id="tabSeguranca"
+                role="tab"
+                aria-selected="false"
+                aria-controls="panelSeguranca">Segurança</button
+            >
+        </div>
+
+        <!-- Painel Conta -->
+        <div
+            id="panelConta"
+            role="tabpanel"
+            aria-labelledby="tabConta"
+            class="panel"
+        >
+            <form class="config-form" id="formConta" novalidate>
+                <div class="form-field">
+                    <label for="nomeInput" class="field-label"
+                        >Nome completo</label
+                    >
+                    <input
+                        type="text"
+                        id="nomeInput"
+                        name="nome"
+                        class="field-input"
+                        value={userName}
+                        placeholder="Seu nome completo"
+                        autocomplete="name"
+                        required
+                    />
+                </div>
+                <div class="form-field">
+                    <label for="phoneInput" class="field-label">WhatsApp</label>
+                    <input
+                        type="tel"
+                        id="phoneInput"
+                        name="phone"
+                        class="field-input"
+                        value={(partner as any)?.telefone || ""}
+                        placeholder="(00) 90000-0000"
+                        autocomplete="tel"
+                    />
+                    <span class="field-hint"
+                        >Usado para contato sobre suas comissões.</span
+                    >
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-save" id="btnSalvar">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                            ><polyline points="20 6 9 17 4 12"></polyline></svg
+                        >
+                        Salvar Alterações
+                    </button>
+                </div>
+
+                <!-- Toast de feedback -->
+                <div class="toast" id="toast" aria-live="polite" role="status">
+                </div>
+            </form>
+        </div>
+
+        <!-- Painel Segurança -->
+        <div
+            id="panelSeguranca"
+            role="tabpanel"
+            aria-labelledby="tabSeguranca"
+            class="panel hidden"
+        >
+            <div class="security-section">
+                <div class="security-item">
+                    <div class="security-info">
+                        <strong>Sair da conta</strong>
+                        <p>
+                            Encerra sua sessão em todos os dispositivos
+                            conectados.
+                        </p>
+                    </div>
+                    <button
+                        class="btn-logout-confirm"
+                        id="logoutConfirmBtn"
+                        aria-label="Sair da conta"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            ><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
+                            ></path><polyline points="16 17 21 12 16 7"
+                            ></polyline><line x1="21" y1="12" x2="9" y2="12"
+                            ></line></svg
+                        >
+                        Sair da conta
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dialog de confirmação de logout -->
+            <dialog
+                class="confirm-dialog"
+                id="logoutDialog"
+                aria-modal="true"
+                aria-labelledby="dialogTitle"
+            >
+                <div class="dialog-content">
+                    <div class="dialog-icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="32"
+                            height="32"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            ><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
+                            ></path><polyline points="16 17 21 12 16 7"
+                            ></polyline><line x1="21" y1="12" x2="9" y2="12"
+                            ></line></svg
+                        >
+                    </div>
+                    <h2 id="dialogTitle">Sair da conta?</h2>
+                    <p>
+                        Você precisará fazer login novamente para acessar o
+                        painel.
+                    </p>
+                    <div class="dialog-actions">
+                        <button class="btn-cancel" id="cancelLogout" autofocus
+                            >Cancelar</button
+                        >
+                        <button class="btn-confirm-logout" id="confirmLogout"
+                            >Sim, sair</button
+                        >
+                    </div>
+                </div>
+            </dialog>
+        </div>
+    </div>
+
+    <script>
+        // Tabs
+        const tabConta = document.getElementById("tabConta");
+        const tabSeg = document.getElementById("tabSeguranca");
+        const panelConta = document.getElementById("panelConta");
+        const panelSeg = document.getElementById("panelSeguranca");
+
+        tabConta?.addEventListener("click", () => {
+            tabConta.classList.add("active");
+            tabSeg?.classList.remove("active");
+            tabConta.setAttribute("aria-selected", "true");
+            tabSeg?.setAttribute("aria-selected", "false");
+            panelConta?.classList.remove("hidden");
+            panelSeg?.classList.add("hidden");
+        });
+        tabSeg?.addEventListener("click", () => {
+            tabSeg.classList.add("active");
+            tabConta?.classList.remove("active");
+            tabSeg.setAttribute("aria-selected", "true");
+            tabConta?.setAttribute("aria-selected", "false");
+            panelSeg?.classList.remove("hidden");
+            panelConta?.classList.add("hidden");
+        });
+
+        // Form Conta — feedback visual (sem back-end real aqui, só toast)
+        const formConta = document.getElementById("formConta");
+        const toast = document.getElementById("toast");
+        formConta?.addEventListener("submit", (e) => {
+            e.preventDefault();
+            if (toast) {
+                toast.textContent = "✓ Alterações salvas com sucesso!";
+                toast.className = "toast toast-success show";
+                setTimeout(() => {
+                    toast.className = "toast";
+                }, 3000);
+            }
+        });
+
+        // Logout dialog
+        const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
+        const logoutDialog = document.getElementById(
+            "logoutDialog",
+        ) as HTMLDialogElement | null;
+        const cancelLogout = document.getElementById("cancelLogout");
+        const confirmLogout = document.getElementById("confirmLogout");
+
+        logoutConfirmBtn?.addEventListener("click", () =>
+            logoutDialog?.showModal(),
+        );
+        cancelLogout?.addEventListener("click", () => logoutDialog?.close());
+        confirmLogout?.addEventListener("click", async () => {
+            confirmLogout.textContent = "Saindo...";
+            (confirmLogout as HTMLButtonElement).disabled = true;
+            await fetch("/api/auth/logout", { method: "POST" });
+            window.location.href = "/parceiro/login";
+        });
+        logoutDialog?.addEventListener("click", (e) => {
+            if (e.target === logoutDialog) logoutDialog.close();
+        });
+    </script>
+</DashboardLayout>
+
+<style>
+    .config-page {
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+        max-width: 600px;
+    }
+    .page-title {
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+    }
+    .subtitle {
+        color: var(--color-subtle);
+        margin-top: 0.25rem;
+    }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        gap: 0;
+        background: var(--color-bg-alt);
+        border-radius: var(--radius-lg);
+        padding: 0.375rem;
+        width: fit-content;
+    }
+    .tab {
+        padding: 0.625rem 1.5rem;
+        border-radius: var(--radius-md);
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-subtle);
+        transition: var(--transition-fast);
+        min-height: 44px;
+    }
+    .tab:hover {
+        color: var(--color-heading);
+    }
+    .tab.active {
+        background: #fff;
+        color: var(--color-brand-secondary);
+        box-shadow: var(--shadow-sm);
+    }
+    .tab:focus-visible {
+        outline: 2px solid var(--color-brand-secondary);
+    }
+
+    .panel {
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        padding: 2rem;
+        box-shadow: var(--shadow-sm);
+    }
+    .hidden {
+        display: none;
+    }
+
+    /* Form */
+    .config-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+    .form-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+    }
+    .field-label {
+        font-size: 0.825rem;
+        font-weight: 700;
+        color: var(--color-heading);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .field-input {
+        height: 48px;
+        border: 1.5px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 0 1rem;
+        font-size: 0.9rem;
+        color: var(--color-heading);
+        font-family: "Inter", sans-serif;
+        transition: var(--transition-normal);
+        background: var(--color-bg-base);
+    }
+    .field-input:focus {
+        outline: none;
+        border-color: var(--color-brand-secondary);
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1);
+    }
+    .field-hint {
+        font-size: 0.78rem;
+        color: var(--color-subtle);
+    }
+
+    .form-actions {
+        padding-top: 0.5rem;
+    }
+    .btn-save {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--color-brand-secondary);
+        color: #fff;
+        padding: 0.875rem 1.75rem;
+        border-radius: var(--radius-md);
+        font-size: 0.875rem;
+        font-weight: 700;
+        font-family: "Inter", sans-serif;
+        transition: var(--transition-fast);
+        box-shadow: 0 4px 12px rgba(0, 98, 255, 0.2);
+    }
+    .btn-save:hover {
+        background: var(--color-brand-secondary-dark);
+        transform: translateY(-1px);
+    }
+    .btn-save:active {
+        transform: scale(0.98);
+    }
+    .btn-save:focus-visible {
+        outline: 2px solid var(--color-brand-secondary);
+    }
+
+    /* Toast */
+    .toast {
+        font-size: 0.875rem;
+        font-weight: 600;
+        padding: 0.75rem 1.25rem;
+        border-radius: var(--radius-md);
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+    }
+    .toast.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    .toast.toast-success {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    /* Security */
+    .security-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .security-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+        padding: 1.25rem;
+        background: var(--color-bg-base);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border);
+        flex-wrap: wrap;
+    }
+    .security-info strong {
+        display: block;
+        font-size: 0.9rem;
+        color: var(--color-heading);
+        margin-bottom: 0.25rem;
+    }
+    .security-info p {
+        font-size: 0.825rem;
+        color: var(--color-subtle);
+    }
+    .btn-logout-confirm {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #f87171;
+        border-radius: var(--radius-md);
+        font-size: 0.875rem;
+        font-weight: 700;
+        font-family: "Inter", sans-serif;
+        transition: var(--transition-fast);
+        white-space: nowrap;
+    }
+    .btn-logout-confirm:hover {
+        background: #ff2d55;
+        color: #fff;
+        border-color: #ff2d55;
+    }
+    .btn-logout-confirm:focus-visible {
+        outline: 2px solid #ff2d55;
+    }
+
+    /* Dialog */
+    .confirm-dialog {
+        border: none;
+        border-radius: var(--radius-2xl);
+        padding: 0;
+        max-width: 400px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    }
+    .confirm-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+    }
+    .dialog-content {
+        padding: 2rem;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .dialog-icon {
+        width: 64px;
+        height: 64px;
+        background: #fee2e2;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #991b1b;
+    }
+    .dialog-content h2 {
+        font-size: 1.25rem;
+        margin: 0;
+    }
+    .dialog-content p {
+        font-size: 0.9rem;
+        color: var(--color-subtle);
+    }
+    .dialog-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+        width: 100%;
+    }
+    .btn-cancel {
+        flex: 1;
+        padding: 0.875rem;
+        border-radius: var(--radius-md);
+        background: var(--color-bg-alt);
+        color: var(--color-heading);
+        font-size: 0.875rem;
+        font-weight: 700;
+        font-family: "Inter", sans-serif;
+        border: 1px solid var(--color-border);
+        transition: var(--transition-fast);
+    }
+    .btn-cancel:hover {
+        background: var(--color-border);
+    }
+    .btn-confirm-logout {
+        flex: 1;
+        padding: 0.875rem;
+        border-radius: var(--radius-md);
+        background: #ff2d55;
+        color: #fff;
+        font-size: 0.875rem;
+        font-weight: 700;
+        font-family: "Inter", sans-serif;
+        transition: var(--transition-fast);
+    }
+    .btn-confirm-logout:hover {
+        background: #e0001e;
+    }
+    .btn-confirm-logout:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 600px) {
+        .panel {
+            padding: 1.25rem;
+        }
+        .security-item {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
+</style>

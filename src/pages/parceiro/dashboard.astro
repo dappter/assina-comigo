@@ -1,0 +1,658 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import Card from "../../components/ui/Card.astro";
+import Badge from "../../components/ui/Badge.astro";
+import Button from "../../components/ui/Button.astro";
+import {
+  Users,
+  TrendingUp,
+  Wallet,
+  CircleCheck,
+  Clock,
+  CircleX,
+  Copy,
+  Share2,
+  ChevronRight,
+} from "@lucide/astro";
+import { indicationService } from "../../services/indicationService";
+import { rewardService } from "../../services/rewardService";
+import { partnerService } from "../../services/partnerService";
+
+const tenantId = Astro.locals.tenantId;
+const profileId = Astro.locals.profileId;
+
+if (!tenantId || !profileId) {
+  return Astro.redirect("/parceiro/login");
+}
+
+const partner = await partnerService.getPartnerById(tenantId, profileId);
+const userName = partner?.nome || "Parceiro";
+const userAvatar = userName.substring(0, 2).toUpperCase();
+
+const allLeads = await indicationService.getIndications(tenantId, profileId);
+const recentLeads = allLeads.slice(0, 5);
+const referralLink = `${Astro.url.origin}/ref/${profileId}`;
+
+const indicationStats = await indicationService.getIndicationStats(
+  tenantId,
+  profileId,
+);
+const rewardStats = await rewardService.getRewardStats(tenantId, profileId);
+
+const stats = [
+  {
+    label: "Total Ganhos",
+    value: new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(rewardStats.total || 0),
+    icon: Wallet,
+    color: "blue",
+    prefix: "Recebível",
+  },
+  {
+    label: "Indicações Ativas",
+    value: String(
+      indicationStats.recebidas.length +
+        indicationStats.emContato.length +
+        indicationStats.aceitas.length,
+    ),
+    icon: Users,
+    color: "yellow",
+    prefix: "Processando",
+  },
+  {
+    label: "Convertidas",
+    value: String(indicationStats.instaladas.length),
+    icon: TrendingUp,
+    color: "green",
+    prefix: "Sucesso",
+  },
+];
+
+// Helper para formatar data
+const formatDate = (dateString: string) => {
+  if (!dateString) {
+    return "-";
+  }
+
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) {
+    return "-";
+  }
+
+  return (
+    d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) +
+    ", " +
+    d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+  );
+};
+---
+
+<DashboardLayout
+  title="Painel do Parceiro"
+  userName={userName}
+  userAvatar={userAvatar}
+>
+  <div class="dashboard-content">
+    <!-- Hero/Welcome area -->
+    <header class="page-header">
+      <div class="header-main">
+        <h1 class="greeting">Olá, {userName.split(" ")[0]}! 👋</h1>
+        <p class="subtitle">Confira como estão suas indicações hoje.</p>
+      </div>
+      <div class="header-actions">
+        <Button variant="primary" size="sm" iconLeft={Share2} id="shareModalBtn"
+          >Compartilhar Link</Button
+        >
+      </div>
+    </header>
+
+    <!-- Referral Link Box -->
+    <section class="referral-banner">
+      <div class="banner-inner">
+        <div class="banner-text">
+          <h2 class="banner-title">Seu Link de Indicação</h2>
+          <p class="banner-desc">
+            Compartilhe este link para gerar novas comissões e pontos.
+          </p>
+        </div>
+        <div class="link-action-wrap">
+          <div class="link-display">
+            <span class="url">{referralLink}</span>
+            <button
+              class="copy-btn"
+              id="copyBtn"
+              title="Copiar Link"
+              data-link={referralLink}
+            >
+              <Copy size={18} />
+            </button>
+          </div>
+          <a
+            id="whatsappShareBtn"
+            href="#"
+            class="btn btn-whatsapp"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Compartilhar link via WhatsApp"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"
+              ></path><polyline points="16 6 12 2 8 6"></polyline><line
+                x1="12"
+                y1="2"
+                x2="12"
+                y2="15"></line></svg
+            >
+            WhatsApp
+          </a>
+        </div>
+      </div>
+      <div class="banner-glow"></div>
+    </section>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      {
+        stats.map((s) => (
+          <Card variant="brand-accent" class="stat-card">
+            <div class="stat-header">
+              <div class={`stat-icon-wrap icon-${s.color}`}>
+                <s.icon size={22} />
+              </div>
+              <span class="stat-prefix">{s.prefix}</span>
+            </div>
+            <div class="stat-body">
+              <span class="stat-label">{s.label}</span>
+              <h3 class="stat-value">{s.value}</h3>
+            </div>
+          </Card>
+        ))
+      }
+    </div>
+
+    <!-- Main Data Table area -->
+    <section class="indicacoes-section">
+      <div class="section-header">
+        <h2 class="section-title">Minhas Indicações</h2>
+        <div class="header-right">
+          <a href="/parceiro/indicados" class="view-all"
+            >Ver todas <ChevronRight size={16} /></a
+          >
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table class="leads-table">
+          <thead>
+            <tr>
+              <th>Lead</th>
+              <th>Status</th>
+              <th>Data</th>
+              <th>Comissão Estimada</th>
+              <th class="text-right">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              recentLeads.length === 0 ? (
+                <tr>
+                  <td colspan="5" class="text-center py-8 text-slate-500">
+                    Nenhuma indicação encontrada ainda. Comece a compartilhar
+                    seu link!
+                  </td>
+                </tr>
+              ) : (
+                recentLeads.map((l) => (
+                  <tr>
+                    <td>
+                      <div class="lead-info">
+                        <div class="lead-initials">{(l.nome || "-").charAt(0)}</div>
+                        <div class="lead-meta">
+                          <strong>{l.nome || "Lead sem nome"}</strong>
+                          <span>{l.telefone || "Sem telefone"}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      {l.status === "Instalado" && (
+                        <Badge variant="success">
+                          <CircleCheck size={12} /> Instalado
+                        </Badge>
+                      )}
+                      {l.status === "Recebido" && (
+                        <Badge variant="warning">
+                          <Clock size={12} /> Em Análise
+                        </Badge>
+                      )}
+                      {l.status === "Em contato" && (
+                        <Badge variant="warning">
+                          <Clock size={12} /> Em Contato
+                        </Badge>
+                      )}
+                      {l.status === "Aceito" && (
+                        <Badge variant="success">
+                          <CircleCheck size={12} /> Aceito
+                        </Badge>
+                      )}
+                      {l.status === "Cancelado" && (
+                        <Badge variant="danger">
+                          <CircleX size={12} /> Cancelado
+                        </Badge>
+                      )}
+                      {!l.status && (
+                        <Badge variant="warning">
+                          <Clock size={12} /> Pendente
+                        </Badge>
+                      )}
+                    </td>
+                    <td class="td-date col-date">{formatDate(l.created_at)}</td>
+                    <td class="td-money">A definir</td>
+                    <td class="text-right">
+                      <a
+                        href={`/parceiro/indicados/${l.id}`}
+                        class="row-btn"
+                        title="Ver Detalhes"
+                        aria-label={`Ver detalhes de ${l.nome}`}
+                      >
+                        <ChevronRight size={20} />
+                      </a>
+                    </td>
+                  </tr>
+                ))
+              )
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Copiar link
+    const copyBtn = document.getElementById("copyBtn");
+    copyBtn?.addEventListener("click", () => {
+      const urlText = copyBtn.getAttribute("data-link");
+      if (urlText) {
+        navigator.clipboard.writeText(urlText).then(() => {
+          copyBtn.innerHTML =
+            '<span style="color:var(--color-alert-success); font-size: 11px; font-weight: 800">✓ Copiado!</span>';
+          setTimeout(() => {
+            copyBtn.innerHTML =
+              '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>';
+          }, 2000);
+        });
+      }
+    });
+
+    // WhatsApp share
+    const waBtn = document.getElementById("whatsappShareBtn");
+    const copyBtnLink =
+      copyBtn?.getAttribute("data-link") || window.location.href;
+    if (waBtn) {
+      const msg = encodeURIComponent(
+        `Olá! Cadastre-se como cliente através do meu link: ${copyBtnLink}`,
+      );
+      waBtn.setAttribute("href", `https://wa.me/?text=${msg}`);
+    }
+
+    // Modal de compartilhamento (abre o mesmo link WhatsApp)
+    const shareModalBtn = document.getElementById("shareModalBtn");
+    shareModalBtn?.addEventListener("click", () => {
+      if (waBtn) waBtn.click();
+    });
+  </script>
+
+  <style>
+    .dashboard-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+    }
+
+    /* Header */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .greeting {
+      font-size: 2.25rem;
+    }
+    .subtitle {
+      color: var(--color-subtle);
+      font-size: 1rem;
+      margin-top: 0.25rem;
+    }
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    /* Referral Banner */
+    .referral-banner {
+      position: relative;
+      background: #111827;
+      border-radius: var(--radius-2xl);
+      padding: 2.5rem;
+      overflow: hidden;
+      color: #fff;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    }
+    .banner-inner {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .banner-title {
+      color: #fff;
+      font-size: 1.5rem;
+    }
+    .banner-desc {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+    }
+
+    .link-action-wrap {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .link-display {
+      width: min(100%, 430px);
+      max-width: 100%;
+      height: 52px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      padding: 0 0.5rem 0 1.25rem;
+      gap: 1rem;
+    }
+    .link-display .url {
+      font-family: "Courier New", monospace;
+      font-weight: 700;
+      color: var(--color-brand-primary);
+      font-size: 0.95rem;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .copy-btn {
+      width: 36px;
+      height: 36px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      transition: var(--transition-fast);
+    }
+    .copy-btn:hover {
+      background: var(--color-brand-primary);
+      color: #111827;
+    }
+
+    .banner-glow {
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle,
+        rgba(255, 185, 24, 0.15) 0%,
+        transparent 70%
+      );
+      pointer-events: none;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+    .stat-card {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      border-left-width: 6px;
+    }
+    .stat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .stat-icon-wrap {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-blue {
+      background: #dbeafe;
+      color: #0062ff;
+    }
+    .icon-yellow {
+      background: #fff4d1;
+      color: #92400e;
+    }
+    .icon-green {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .stat-prefix {
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: var(--color-bg-base);
+      color: var(--color-body);
+    }
+    .stat-label {
+      font-size: 0.825rem;
+      font-weight: 600;
+      color: var(--color-subtle);
+      display: block;
+      margin-bottom: 0.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--color-heading);
+      letter-spacing: -0.02em;
+    }
+
+    /* Indicacoes Section */
+    .indicacoes-section {
+      margin-top: 0.5rem;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 1.5rem;
+    }
+    .section-title {
+      font-size: 1.5rem;
+    }
+    .view-all {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--color-brand-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .view-all:hover {
+      text-decoration: underline;
+    }
+
+    .table-container {
+      background: #fff;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-xl);
+      overflow-x: auto;
+      box-shadow: var(--shadow-sm);
+    }
+    .leads-table {
+      width: 100%;
+      min-width: 720px;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .btn-whatsapp {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      height: 52px;
+      border-radius: var(--radius-md);
+      padding: 0 1rem;
+      background: #25d366;
+      color: #fff;
+      font-weight: 700;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transition: var(--transition-fast);
+    }
+    .btn-whatsapp:hover {
+      background: #1eb957;
+    }
+    .leads-table th {
+      padding: 1.25rem 1.5rem;
+      background: var(--color-bg-base);
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .leads-table td {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--color-border);
+      vertical-align: middle;
+    }
+    .leads-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .lead-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .lead-initials {
+      width: 40px;
+      height: 40px;
+      background: var(--color-bg-alt);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: var(--color-body);
+      font-size: 1rem;
+    }
+    .lead-meta strong {
+      display: block;
+      font-size: 0.95rem;
+      color: var(--color-heading);
+    }
+    .lead-meta span {
+      font-size: 0.8rem;
+      color: var(--color-subtle);
+    }
+
+    .td-date {
+      font-size: 0.875rem;
+      color: var(--color-body);
+    }
+    .td-money {
+      font-weight: 700;
+      color: var(--color-heading);
+      font-size: 0.95rem;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+    .row-btn {
+      color: var(--color-subtle);
+      transition: var(--transition-fast);
+    }
+    .row-btn:hover {
+      color: var(--color-brand-secondary);
+      transform: translateX(3px);
+    }
+
+    @media (max-width: 768px) {
+      .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      .col-date {
+        display: none;
+      }
+      .banner-inner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1.25rem;
+      }
+      .link-action-wrap {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+      }
+      .link-display {
+        width: 100%;
+      }
+      .link-display .url {
+        font-size: 0.78rem;
+        word-break: break-all;
+      }
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .greeting {
+        font-size: 1.75rem;
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</DashboardLayout>

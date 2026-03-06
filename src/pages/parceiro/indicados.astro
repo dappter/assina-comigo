@@ -1,0 +1,717 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import Badge from "../../components/ui/Badge.astro";
+import { ChevronRight, CircleCheck, Clock, CircleX } from "@lucide/astro";
+import { indicationService } from "../../services/indicationService";
+import { partnerService } from "../../services/partnerService";
+
+const tenantId = Astro.locals.tenantId;
+const profileId = Astro.locals.profileId;
+
+if (!tenantId || !profileId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+const partner = await partnerService.getPartnerById(tenantId, profileId);
+const userName = partner?.nome || "Parceiro";
+const userAvatar = userName.substring(0, 2).toUpperCase();
+
+const url = new URL(Astro.request.url);
+const searchQ = url.searchParams.get("q") || "";
+// Opcional: filtro de status
+
+const allLeadsRaw = await indicationService.getIndications(tenantId, profileId);
+// Simple in-memory search
+const allLeads = searchQ
+    ? allLeadsRaw.filter(
+          (l) =>
+              l.nome.toLowerCase().includes(searchQ.toLowerCase()) ||
+              (l.telefone && l.telefone.includes(searchQ)),
+      )
+    : allLeadsRaw;
+
+const statsLocal = {
+    todos: allLeadsRaw.length,
+    pendentes: allLeadsRaw.filter(
+        (l) =>
+            l.status === "Recebido" || l.status === "Em contato" || !l.status,
+    ).length,
+    instalados: allLeadsRaw.filter((l) => l.status === "Instalado").length,
+    nao_viaveis: allLeadsRaw.filter((l) => l.status === "Cancelado").length,
+};
+
+const formatDate = (dateString: string) => {
+    const d = new Date(dateString);
+    return {
+        date: d.toLocaleDateString("pt-BR", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+        }),
+        time: d.toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+        }),
+    };
+};
+---
+
+<DashboardLayout
+    title="Meus Indicados"
+    userName={userName}
+    userAvatar={userAvatar}
+>
+    <div class="indicados-page">
+        <header class="page-header">
+            <div class="header-main">
+                <h1 class="page-title">Meus Indicados</h1>
+                <p class="subtitle">
+                    Acompanhe o progresso de cada pessoa que você indicou
+                    através do seu link.
+                </p>
+            </div>
+            <div class="header-actions">
+                <button
+                    class="btn-csv"
+                    id="exportCsvBtn"
+                    aria-label="Exportar indicados como CSV"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+                        ></path><polyline points="7 10 12 15 17 10"
+                        ></polyline><line x1="12" y1="15" x2="12" y2="3"
+                        ></line></svg
+                    >
+                    Exportar CSV
+                </button>
+            </div>
+        </header>
+
+        <!-- Filters Area -->
+        <section class="filters-section">
+            <div class="search-bar">
+                <svg
+                    class="search-icon"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><circle cx="11" cy="11" r="8"></circle><line
+                        x1="21"
+                        y1="21"
+                        x2="16.65"
+                        y2="16.65"></line></svg
+                >
+                <input
+                    type="text"
+                    placeholder="Buscar por nome ou WhatsApp..."
+                    class="search-input"
+                    id="searchInput"
+                    value={searchQ}
+                    aria-label="Buscar indicado"
+                />
+            </div>
+
+            <div
+                class="filter-pills"
+                id="filterPills"
+                role="group"
+                aria-label="Filtrar por status"
+            >
+                <button
+                    class="pill active"
+                    data-filter="todos"
+                    aria-pressed="true"
+                    >Todos ({statsLocal.todos})
+                </button>
+                <button
+                    class="pill"
+                    data-filter="pendentes"
+                    aria-pressed="false"
+                    >Pendentes ({statsLocal.pendentes})</button
+                >
+                <button
+                    class="pill"
+                    data-filter="instalados"
+                    aria-pressed="false"
+                    >Instalados ({statsLocal.instalados})
+                </button>
+                <button
+                    class="pill"
+                    data-filter="nao_viaveis"
+                    aria-pressed="false"
+                    >Não Viáveis ({statsLocal.nao_viaveis})
+                </button>
+            </div>
+        </section>
+
+        <!-- Leads Table / Grid -->
+        <div class="table-container">
+            <table class="leads-table" id="leadsTable">
+                <thead>
+                    <tr>
+                        <th>INDICADO</th>
+                        <th class="col-loc">LOCALIZAÇÃO</th>
+                        <th class="col-date">DATA DE ENVIO</th>
+                        <th>STATUS</th>
+                        <th class="text-right">AÇÕES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {
+                        allLeads.length === 0 ? (
+                            <tr>
+                                <td colspan="5" class="empty-state-cell">
+                                    <div class="empty-state">
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="40"
+                                            height="40"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.5"
+                                        >
+                                            <>
+                                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                                <circle cx="9" cy="7" r="4" />
+                                                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                                            </>
+                                        </svg>
+                                        <p>
+                                            Nenhuma indicação encontrada.
+                                            <>
+                                                <br />
+                                                <span>
+                                                    Comece compartilhando seu
+                                                    link!
+                                                </span>
+                                            </>
+                                        </p>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : (
+                            allLeads.map((l) => {
+                                const dateInfo = formatDate(l.created_at);
+                                const statusVal = l.status || "Recebido";
+                                return (
+                                    <tr
+                                        data-status={statusVal}
+                                        data-nome={l.nome.toLowerCase()}
+                                        data-telefone={l.telefone || ""}
+                                    >
+                                        <td>
+                                            <div class="lead-info">
+                                                <div class="lead-avatar">
+                                                    {l.nome.charAt(0)}
+                                                </div>
+                                                <div class="lead-details">
+                                                    <span class="lead-name">
+                                                        {l.nome}
+                                                    </span>
+                                                    <span class="lead-whatsapp">
+                                                        {l.telefone ||
+                                                            "Sem telefone"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="col-loc">
+                                            <span class="text-muted">—</span>
+                                        </td>
+                                        <td class="col-date">
+                                            <div class="date-cell">
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    width="14"
+                                                    height="14"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                    class="icon-muted"
+                                                >
+                                                    <>
+                                                        <rect
+                                                            x="3"
+                                                            y="4"
+                                                            width="18"
+                                                            height="18"
+                                                            rx="2"
+                                                            ry="2"
+                                                        />
+                                                        <line
+                                                            x1="16"
+                                                            y1="2"
+                                                            x2="16"
+                                                            y2="6"
+                                                        />
+                                                        <line
+                                                            x1="8"
+                                                            y1="2"
+                                                            x2="8"
+                                                            y2="6"
+                                                        />
+                                                        <line
+                                                            x1="3"
+                                                            y1="10"
+                                                            x2="21"
+                                                            y2="10"
+                                                        />
+                                                    </>
+                                                </svg>
+                                                <span>
+                                                    {dateInfo.date}{" "}
+                                                    <small>
+                                                        {dateInfo.time}
+                                                    </small>
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {l.status === "Instalado" && (
+                                                <Badge variant="success">
+                                                    <CircleCheck size={12} />{" "}
+                                                    Instalado
+                                                </Badge>
+                                            )}
+                                            {(l.status === "Recebido" ||
+                                                l.status === "Em contato" ||
+                                                !l.status) && (
+                                                <Badge variant="warning">
+                                                    <Clock size={12} /> Em
+                                                    Análise
+                                                </Badge>
+                                            )}
+                                            {l.status === "Cancelado" && (
+                                                <Badge variant="danger">
+                                                    <CircleX size={12} /> Não
+                                                    Viável
+                                                </Badge>
+                                            )}
+                                            {l.status === "Aceito" && (
+                                                <Badge variant="success">
+                                                    <CircleCheck size={12} />{" "}
+                                                    Aceito
+                                                </Badge>
+                                            )}
+                                        </td>
+                                        <td class="text-right">
+                                            <div class="actions-group">
+                                                <a
+                                                    href={`/parceiro/indicados/${l.id}`}
+                                                    class="action-btn"
+                                                    title="Ver Detalhes"
+                                                    aria-label={`Ver detalhes de ${l.nome}`}
+                                                >
+                                                    <ChevronRight size={18} />
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )
+                    }
+                </tbody>
+            </table>
+
+            <div class="table-footer">
+                <p class="results-count" id="resultsCount">
+                    Mostrando <strong>{allLeads.length}</strong> de <strong
+                        >{statsLocal.todos}</strong
+                    > indicações
+                </p>
+            </div>
+        </div>
+    </div>
+</DashboardLayout>
+
+<script>
+    // ===== Filtros client-side =====
+    const table = document.getElementById("leadsTable");
+    const searchInput = document.getElementById(
+        "searchInput",
+    ) as HTMLInputElement | null;
+    const filterPills = document.getElementById("filterPills");
+    const resultsCount = document.getElementById("resultsCount");
+    let currentFilter = "todos";
+    let currentSearch = searchInput?.value?.toLowerCase() || "";
+
+    function applyFilters() {
+        const rows = table?.querySelectorAll<HTMLTableRowElement>(
+            "tbody tr[data-status]",
+        );
+        let visible = 0;
+        rows?.forEach((row) => {
+            const status = row.dataset.status?.toLowerCase() || "";
+            const nome = row.dataset.nome || "";
+            const tel = row.dataset.telefone || "";
+
+            const matchSearch =
+                !currentSearch ||
+                nome.includes(currentSearch) ||
+                tel.includes(currentSearch);
+            const matchFilter =
+                currentFilter === "todos" ||
+                (currentFilter === "pendentes" &&
+                    (status === "recebido" || status === "em contato")) ||
+                (currentFilter === "instalados" && status === "instalado") ||
+                (currentFilter === "nao_viaveis" && status === "cancelado");
+
+            if (matchSearch && matchFilter) {
+                row.style.display = "";
+                visible++;
+            } else {
+                row.style.display = "none";
+            }
+        });
+        if (resultsCount) {
+            resultsCount.innerHTML = `Mostrando <strong>${visible}</strong> resultados`;
+        }
+    }
+
+    // Pills
+    filterPills?.querySelectorAll<HTMLButtonElement>(".pill").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            filterPills.querySelectorAll(".pill").forEach((b) => {
+                b.classList.remove("active");
+                b.setAttribute("aria-pressed", "false");
+            });
+            btn.classList.add("active");
+            btn.setAttribute("aria-pressed", "true");
+            currentFilter = btn.dataset.filter || "todos";
+            applyFilters();
+        });
+    });
+
+    // Busca
+    searchInput?.addEventListener("input", (e) => {
+        currentSearch = (e.target as HTMLInputElement).value.toLowerCase();
+        applyFilters();
+    });
+    searchInput?.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") applyFilters();
+    });
+
+    // ===== Exportar CSV =====
+    const exportBtn = document.getElementById("exportCsvBtn");
+    exportBtn?.addEventListener("click", () => {
+        const rows = table?.querySelectorAll<HTMLTableRowElement>(
+            "tbody tr[data-status]",
+        );
+        if (!rows?.length) return;
+
+        const lines: string[] = ["Nome,Telefone,Status"];
+        rows.forEach((row) => {
+            if (row.style.display !== "none") {
+                const nome = row.dataset.nome || "";
+                const tel = row.dataset.telefone || "";
+                const status = row.dataset.status || "";
+                lines.push(`"${nome}","${tel}","${status}"`);
+            }
+        });
+
+        const blob = new Blob([lines.join("\n")], {
+            type: "text/csv;charset=utf-8;",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "indicados.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+</script>
+
+<style>
+    .indicados-page {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    /* Header */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1.5rem;
+    }
+    .page-title {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--color-heading);
+        letter-spacing: -0.02em;
+    }
+    .subtitle {
+        color: var(--color-subtle);
+        margin-top: 0.25rem;
+        font-size: 1rem;
+    }
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    /* Filters */
+    .filters-section {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 0.5rem 0;
+        flex-wrap: wrap;
+    }
+    .search-bar {
+        position: relative;
+        flex: 1;
+        min-width: 300px;
+        max-width: 440px;
+    }
+    .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--color-muted);
+    }
+    .search-input {
+        width: 100%;
+        height: 48px;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: 0 1rem 0 3rem;
+        font-size: 0.9rem;
+        transition: var(--transition-normal);
+    }
+    .search-input:focus {
+        border-color: var(--color-brand-secondary);
+        box-shadow: 0 0 0 4px var(--color-brand-secondary-light);
+        outline: none;
+    }
+
+    .filter-pills {
+        display: flex;
+        gap: 0.5rem;
+        background: var(--color-bg-alt);
+        padding: 0.375rem;
+        border-radius: var(--radius-lg);
+    }
+    .pill {
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-md);
+        font-size: 0.825rem;
+        font-weight: 700;
+        color: var(--color-subtle);
+        transition: var(--transition-fast);
+    }
+    .pill:hover {
+        color: var(--color-heading);
+    }
+    .pill.active {
+        background: #fff;
+        color: var(--color-brand-secondary);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .filter-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: var(--color-heading);
+    }
+
+    /* Table */
+    .table-container {
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+    .leads-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .leads-table th {
+        padding: 1rem 1.5rem;
+        background: var(--color-bg-base);
+        text-align: left;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .leads-table td {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--color-border);
+        vertical-align: middle;
+    }
+    .leads-table tr:hover td {
+        background: var(--color-bg-alt);
+    }
+
+    .lead-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .lead-avatar {
+        width: 40px;
+        height: 40px;
+        background: var(--color-brand-primary-light);
+        color: var(--color-brand-primary-dark);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-md);
+        font-weight: 800;
+    }
+    .lead-details {
+        display: flex;
+        flex-direction: column;
+    }
+    .lead-name {
+        font-weight: 700;
+        color: var(--color-heading);
+        font-size: 0.95rem;
+    }
+    .lead-whatsapp {
+        font-size: 0.8rem;
+        color: var(--color-subtle);
+    }
+
+    .text-muted {
+        color: var(--color-subtle);
+        font-size: 0.875rem;
+    }
+    .icon-muted {
+        color: var(--color-muted);
+    }
+    .date-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: var(--color-body);
+    }
+    .date-cell small {
+        color: var(--color-muted);
+        font-size: 0.75rem;
+    }
+
+    .money-text {
+        font-weight: 800;
+        color: var(--color-heading);
+        font-size: 0.95rem;
+    }
+
+    .actions-group {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+    }
+    .action-btn {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        color: var(--color-muted);
+        transition: var(--transition-fast);
+    }
+    .action-btn:hover {
+        background: var(--color-bg-alt);
+        color: var(--color-brand-secondary);
+    }
+
+    .text-right {
+        text-align: right;
+    }
+
+    /* Footer / Pagination */
+    .table-footer {
+        padding: 1.25rem 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--color-bg-base);
+    }
+    .results-count {
+        font-size: 0.875rem;
+        color: var(--color-subtle);
+    }
+
+    .pagination {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .page-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: var(--color-body);
+        transition: var(--transition-fast);
+    }
+    .page-btn:hover {
+        background: #e2e8f0;
+    }
+    .page-btn.active {
+        background: var(--color-brand-secondary);
+        color: #fff;
+    }
+    .page-dots {
+        color: var(--color-muted);
+        padding: 0 0.5rem;
+    }
+
+    @media (max-width: 1024px) {
+        .leads-table th:nth-child(2),
+        .leads-table td:nth-child(2),
+        .leads-table th:nth-child(3),
+        .leads-table td:nth-child(3) {
+            display: none;
+        }
+        .filters-section {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .search-bar {
+            max-width: none;
+            width: 100%;
+        }
+        .filter-pills {
+            overflow-x: auto;
+            padding-bottom: 0.5rem;
+        }
+    }
+</style>

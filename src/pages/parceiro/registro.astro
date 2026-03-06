@@ -1,0 +1,307 @@
+---
+import { supabase } from "../../lib/supabaseClient";
+
+// Tela gerada a partir do Design System e UI do Stitch
+let errorMessage = "";
+
+if (Astro.request.method === "POST") {
+    try {
+        const data = await Astro.request.formData();
+        const nome = data.get("nome")?.toString() || "";
+        const email = data.get("email")?.toString() || "";
+        const whatsapp = data.get("whatsapp")?.toString() || "";
+        const password = data.get("password")?.toString() || "";
+
+        if (!email || !password || !nome) {
+            errorMessage = "Por favor, preencha todos os campos obrigatórios.";
+        } else {
+            // Cria a conta do usuário
+            const { data: authData, error: authError } =
+                await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: { full_name: nome, phone: whatsapp },
+                    },
+                });
+
+            if (authError) {
+                errorMessage = authError.message;
+            } else if (authData.user) {
+                // Para simplificar no teste (cada parceiro novo vira dono de seu próprio "tenant")
+                const tenantId = authData.user.id;
+
+                // Insere o profile manual caso sua trigger não o faça
+                const { error: profileError } = await supabase
+                    .from("profiles")
+                    .insert({
+                        id: authData.user.id,
+                        tenant_id: tenantId,
+                        nome: nome,
+                        email: email,
+                        tipo_usuario: "parceiro",
+                    });
+
+                if (profileError) {
+                    console.error("Erro ao criar perfil:", profileError);
+                    // continua mesmo com erro pra tentar logar
+                }
+
+                // Se a sessão já foi criada (email confirm disabled no Supabase)
+                if (authData.session) {
+                    const { access_token, refresh_token } = authData.session;
+                    Astro.cookies.set("sb-access-token", access_token, {
+                        path: "/",
+                        secure: import.meta.env.PROD,
+                        httpOnly: true,
+                        sameSite: "lax",
+                    });
+                    Astro.cookies.set("sb-refresh-token", refresh_token, {
+                        path: "/",
+                        secure: import.meta.env.PROD,
+                        httpOnly: true,
+                        sameSite: "lax",
+                    });
+                    return Astro.redirect("/sucesso");
+                } else {
+                    errorMessage =
+                        "Confirmação de e-mail está ativada no Supabase. Por favor, desative 'Confirm email' nas configurações ou verifique sua caixa de entrada.";
+                }
+            }
+        }
+    } catch (error) {
+        if (error instanceof Error) {
+            if (error.message.includes("Content-Type was not one of")) {
+                errorMessage =
+                    "Erro de conexão segura. O navegador falhou ao enviar os dados do formulário corretamente.";
+            } else {
+                errorMessage = error.message;
+            }
+        } else {
+            errorMessage = "Erro desconhecido";
+        }
+    }
+}
+---
+
+<!doctype html>
+<html class="light" lang="pt-br">
+    <head>
+        <meta charset="utf-8" />
+        <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+        <title>Cadastro de Parceiro - Assina Comigo</title>
+        <script
+            is:inline
+            src="https://cdn.tailwindcss.com?plugins=forms,container-queries"
+        ></script>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+            rel="stylesheet"
+        />
+        <script is:inline>
+            tailwind.config = {
+                darkMode: "class",
+                theme: {
+                    extend: {
+                        colors: {
+                            primary: "#FFB918",
+                            secondary: "#0062FF",
+                            "background-light": "#F8FAFC",
+                            "background-dark": "#0F172A",
+                        },
+                        fontFamily: {
+                            display: ["Inter", "sans-serif"],
+                        },
+                        borderRadius: {
+                            DEFAULT: "8px",
+                        },
+                    },
+                },
+            };
+
+            if (
+                typeof window !== "undefined" &&
+                window.matchMedia &&
+                window.matchMedia("(prefers-color-scheme: dark)").matches
+            ) {
+                document.documentElement.classList.add("dark");
+            }
+        </script>
+        <style>
+            body {
+                font-family: "Inter", sans-serif;
+                -webkit-tap-highlight-color: transparent;
+                min-height: max(884px, 100dvh);
+            }
+            .ios-shadow {
+                box-shadow:
+                    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+                    0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            }
+        </style>
+    </head>
+    <body
+        class="bg-gradient-to-br from-[#e0f2fe] to-[#f8fafc] dark:from-slate-900 dark:to-slate-950 min-h-screen flex flex-col items-center justify-start p-6"
+    >
+        <div class="h-8 w-full"></div>
+
+        <div class="w-full max-w-sm flex flex-col items-center mb-8">
+            <div
+                class="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mb-4 ios-shadow shadow-[0_0_35px_rgba(0,98,255,0.4)]"
+            >
+                <span class="material-symbols-outlined text-white text-4xl"
+                    >person_add</span
+                >
+            </div>
+            <h1 class="text-2xl font-bold text-blue-950 dark:text-white text-center">
+                Assina Comigo
+            </h1>
+            <p class="text-blue-800/70 dark:text-slate-400 text-sm mt-1 font-medium">
+                Cadastro de novo parceiro
+            </p>
+        </div>
+
+        <main
+            class="w-full max-w-sm bg-white/90 backdrop-blur-sm dark:bg-slate-800 rounded-3xl p-8 ios-shadow border border-white/50"
+        >
+            <div class="mb-8">
+                <h2 class="text-xl font-bold text-blue-950 dark:text-white">
+                    Criar conta de parceiro
+                </h2>
+                <p class="text-blue-800/70 dark:text-slate-400 text-sm mt-2">
+                    Preencha seus dados e comece a usar seu portal.
+                </p>
+            </div>
+
+            {
+                errorMessage && (
+                    <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm text-center font-medium">
+                        {errorMessage}
+                    </div>
+                )
+            }
+
+            <form class="space-y-6" method="POST" enctype="application/x-www-form-urlencoded">
+                <div class="space-y-4">
+                    <div>
+                        <label
+                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
+                            for="nome"
+                        >
+                            Nome completo
+                        </label>
+                        <input
+                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
+                            id="nome"
+                            name="nome"
+                            placeholder="Como quer ser chamado?"
+                            type="text"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
+                            for="email"
+                        >
+                            E-mail
+                        </label>
+                        <input
+                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
+                            id="email"
+                            name="email"
+                            placeholder="seu@email.com"
+                            type="email"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
+                            for="whatsapp"
+                        >
+                            WhatsApp
+                        </label>
+                        <input
+                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
+                            id="whatsapp"
+                            name="whatsapp"
+                            placeholder="(00) 00000-0000"
+                            type="tel"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
+                            for="cpf"
+                        >
+                            CPF (opcional)
+                        </label>
+                        <input
+                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
+                            id="cpf"
+                            name="cpf"
+                            placeholder="000.000.000-00"
+                            type="text"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
+                            for="password"
+                        >
+                            Crie sua senha
+                        </label>
+                        <input
+                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
+                            id="password"
+                            name="password"
+                            placeholder="Mínimo 6 caracteres"
+                            type="password"
+                            required
+                        />
+                    </div>
+                </div>
+
+                <button
+                    class="w-full bg-gradient-to-r from-yellow-400 to-primary hover:from-yellow-300 hover:to-yellow-400 active:scale-[0.98] transition-all text-blue-950 font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2"
+                    type="submit"
+                >
+                    Criar conta
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                </button>
+
+                <p class="text-[11px] font-medium text-center text-slate-400 px-2 leading-relaxed">
+                    Ao se cadastrar, você concorda com nossos Termos de Uso e Política de Privacidade.
+                </p>
+            </form>
+
+            <div class="mt-8 pt-8 border-t border-blue-100 dark:border-slate-700 text-center">
+                <p class="text-sm text-blue-800/70 dark:text-slate-400">
+                    Já tem conta?
+                    <a class="text-secondary font-bold hover:underline" href="/parceiro/login">
+                        Entrar no painel
+                    </a>
+                </p>
+            </div>
+        </main>
+
+        <footer class="mt-auto py-8 text-center">
+            <button
+                class="flex items-center justify-center gap-2 text-blue-800/60 dark:text-slate-500 text-sm font-semibold hover:text-secondary transition-colors"
+                onclick="window.location.href='/parceiro/login'"
+            >
+                <span class="material-symbols-outlined text-lg">arrow_back</span>
+                Voltar para login
+            </button>
+        </footer>
+    </body>
+</html>

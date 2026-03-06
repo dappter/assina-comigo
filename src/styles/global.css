@@ -1,0 +1,144 @@
+/* 
+  Assina Comigo - Global Design Tokens & Base Styles
+  Ref: Stage 2 Roadmap & UX/UI Guidelines
+  Inspired by: Octadesk Clean SaaS Style
+*/
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=Outfit:wght@600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand Constants */
+  --color-brand-primary: #FFB918;      /* Yellow Gold */
+  --color-brand-primary-dark: #E6A614;
+  --color-brand-primary-light: #FFF4D1;
+  
+  --color-brand-secondary: #0062FF;    /* Electric Blue */
+  --color-brand-secondary-dark: #0047CC;
+  --color-brand-secondary-light: #DBEAFE;
+
+  --color-alert-danger: #FF2D55;       /* Red/Pink Alert */
+  --color-alert-success: #10B981;
+
+  /* Typography Colors */
+  --color-heading: #111827;           /* Deep Navy */
+  --color-body: #4B5563;              /* Slate Gray */
+  --color-subtle: #9CA3AF;
+  --color-muted: #94A3B8;             /* Muted icons and hints */
+  
+  /* Backgrounds & Surfaces */
+  --color-surface: #FFFFFF;
+  --color-bg-base: #F8FAFC;           /* Ice Blue Tint */
+  --color-bg-alt: #F1F5F9;           /* Slightly darker slate */
+  --color-bg-dark: #111827;           /* Deep Navy Surface */
+  
+  /* Octadesk-like Glows & Gradients */
+  --glow-blue: radial-gradient(circle at center, rgba(0, 98, 255, 0.08) 0%, transparent 70%);
+  --glow-yellow: radial-gradient(circle at center, rgba(255, 185, 24, 0.08) 0%, transparent 70%);
+  --linear-brand: linear-gradient(135deg, var(--color-brand-primary) 0%, #F59E0B 100%);
+  --linear-action: linear-gradient(135deg, var(--color-brand-secondary) 0%, #0047CC 100%);
+
+  /* Border & Shadows */
+  --color-border: #E5E7EB;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 15, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.04), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+  --shadow-glow: 0 0 20px rgba(0, 98, 255, 0.1);
+
+  /* Transitions */
+  --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Base Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+  font-size: 16px;
+  background-color: var(--color-bg-base);
+  color: var(--color-body);
+}
+
+body {
+  min-height: 100vh;
+}
+
+/* Hierarchy Typography */
+h1, h2, h3, h4 {
+  font-family: 'Outfit', sans-serif;
+  color: var(--color-heading);
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+h1 { font-size: 2.5rem; letter-spacing: -0.025em; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.5rem; }
+
+p {
+  line-height: 1.6;
+}
+
+a {
+  color: var(--color-brand-secondary);
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-brand-secondary-dark);
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-brand-primary-light);
+  color: var(--color-brand-primary-dark);
+}
+
+/* Utilities */
+.container {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-normal);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-xl);
+  border-color: rgba(0, 98, 255, 0.1);
+}
+
+/* Buttons Base Reset */
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+}

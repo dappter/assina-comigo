@@ -1,0 +1,217 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const { title, description = 'Assina Comigo — Plataforma de Indicações' } = Astro.props;
+---
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title} | Assina Comigo</title>
+  </head>
+  <body class="public-body">
+
+    <div class="split-layout">
+      <!-- Side Hero (Octadesk inspired) -->
+      <aside class="hero-sidebar" aria-hidden="true">
+        <div class="hero-content">
+          <div class="hero-logo">
+            <span class="logo-lightning">⚡</span>
+            <span class="logo-text">Assina Comigo</span>
+          </div>
+          
+          <div class="hero-copy">
+            <h1 class="hero-title">
+              Transforme sua rede de contatos em <span class="highlight">lucro real.</span>
+            </h1>
+            <p class="hero-subtitle">
+              Indique novos clientes, acompanhe o status em tempo real e receba suas comissões com total transparência e segurança.
+            </p>
+          </div>
+
+          <!-- Social Proof / Stats -->
+          <div class="hero-stats">
+            <div class="stat-pill">
+              <strong>+R$ 1.2M</strong>
+              <span>Pagos em comissões</span>
+            </div>
+            <div class="stat-pill">
+              <strong>99.8%</strong>
+              <span>Satisfação dos parceiros</span>
+            </div>
+          </div>
+
+          <!-- Testimonial small -->
+          <div class="hero-quote">
+            <p class="quote-text">"Nunca foi tão fácil gerenciar minhas indicações. Transparência nota 10!"</p>
+            <div class="quote-author">
+              <div class="author-avatar">RM</div>
+              <div class="author-info">
+                <strong>Rafael M.</strong>
+                <span>Parceiro Ligeira</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Decorative Glows -->
+        <div class="glow-bg blue"></div>
+        <div class="glow-bg yellow"></div>
+      </aside>
+
+      <!-- Main Form Area -->
+      <main class="main-form-area" id="main-content">
+        <div class="form-container">
+          <slot />
+        </div>
+      </main>
+    </div>
+
+  </body>
+</html>
+
+<style>
+  .public-body {
+    background-color: var(--color-bg-base);
+    min-height: 100vh;
+  }
+
+  .split-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 100vh;
+  }
+
+  /* Side Hero */
+  .hero-sidebar {
+    position: relative;
+    background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem;
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  .hero-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .logo-lightning {
+    width: 42px;
+    height: 42px;
+    background: var(--color-brand-primary);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 4px 12px rgba(255, 185, 24, 0.4);
+  }
+  .logo-text {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #F1F5F9;
+  }
+
+  .hero-title {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #F1F5F9;
+    letter-spacing: -0.03em;
+  }
+  .highlight {
+    color: var(--color-brand-primary);
+  }
+  .hero-subtitle {
+    margin-top: 1.25rem;
+    font-size: 1.125rem;
+    color: #94A3B8;
+    line-height: 1.7;
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .stat-pill {
+    padding: 0.625rem 1.25rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-full);
+    display: flex;
+    flex-direction: column;
+  }
+  .stat-pill strong { font-size: 1rem; color: #F1F5F9; }
+  .stat-pill span { font-size: 0.7rem; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .hero-quote {
+    padding: 1.25rem;
+    background: rgba(255, 185, 24, 0.08);
+    border-left: 3px solid var(--color-brand-primary);
+    border-radius: 4px var(--radius-lg) var(--radius-lg) 4px;
+  }
+  .quote-text { font-size: 0.95rem; color: #CBD5E1; font-style: italic; }
+  .quote-author { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+  .author-avatar { 
+    width: 32px; height: 32px; background: var(--color-brand-primary); 
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-weight: 800; color: #111827;
+  }
+  .author-info strong { display: block; font-size: 0.825rem; color: #F1F5F9; }
+  .author-info span { font-size: 0.7rem; color: #64748B; }
+
+  /* Glows */
+  .glow-bg {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.1;
+    pointer-events: none;
+  }
+  .glow-bg.blue { background: var(--color-brand-secondary); top: -100px; right: -100px; }
+  .glow-bg.yellow { background: var(--color-brand-primary); bottom: -100px; left: -100px; }
+
+  /* Main Form Area */
+  .main-form-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem;
+  }
+  .form-container {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  @media (max-width: 900px) {
+    .split-layout { grid-template-columns: 1fr; }
+    .hero-sidebar { display: none; }
+    .main-form-area { min-height: 100vh; }
+  }
+</style>

@@ -1,0 +1,16 @@
+{
+    // Desabilita o linter nativo de CSS do VSCode para arquivos que usam Tailwind v4.
+    // As diretivas @theme, @utility, @variant, etc. são válidas no Tailwind v4,
+    // mas o linter padrão do CSS não as reconhece, gerando falsos positivos.
+    "css.lint.unknownAtRules": "ignore",
+    "scss.lint.unknownAtRules": "ignore",
+    // Associa os arquivos CSS ao plugin do Tailwind para que o IntelliSense
+    // reconheça as diretivas proprietárias corretamente.
+    "files.associations": {
+        "*.css": "tailwindcss"
+    },
+    // Garante que o Tailwind IntelliSense processe os arquivos CSS do projeto.
+    "tailwindCSS.includeLanguages": {
+        "tailwindcss": "css"
+    }
+}

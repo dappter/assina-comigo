@@ -1,0 +1,286 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import { rewardService } from "../../services/rewardService";
+import { partnerService } from "../../services/partnerService";
+
+const tenantId = Astro.locals.tenantId;
+const profileId = Astro.locals.profileId;
+
+if (!tenantId || !profileId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+const rewards = await rewardService.getRewards(tenantId, profileId);
+const stats = await rewardService.getRewardStats(tenantId, profileId);
+const partner = await partnerService.getPartnerById(tenantId, profileId);
+const userName = partner?.nome || "Parceiro";
+const userAvatar = userName.substring(0, 2).toUpperCase();
+
+const formatBR = (val: number) =>
+    new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+    }).format(val);
+
+const formatDate = (dateString: string) => {
+    const d = new Date(dateString);
+    return d.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
+};
+
+const paidRewards = rewards.filter((r) => r.status?.toLowerCase() === "pago");
+const pendingRewards = rewards.filter(
+    (r) => r.status?.toLowerCase() === "pendente",
+);
+
+const statusClass = (status: string | null) => {
+    if (!status) return "status-pending";
+    const normalized = status.toLowerCase();
+    if (normalized === "pago") return "status-paid";
+    if (normalized === "pendente") return "status-pending";
+    return "status-neutral";
+};
+---
+
+<DashboardLayout
+    title="Extrato de Ganhos"
+    userName={userName}
+    userAvatar={userAvatar}
+>
+    <div class="earnings-page">
+        <header class="page-header">
+            <h1>Extrato de Ganhos</h1>
+            <p>Visualize seus valores pagos e pendentes.</p>
+        </header>
+
+        <section class="summary-grid">
+            <article class="summary-card total">
+                <span>Total</span>
+                <strong>{formatBR(stats.total)}</strong>
+            </article>
+            <article class="summary-card pending">
+                <span>Pendente</span>
+                <strong>{formatBR(stats.pendentes)}</strong>
+            </article>
+            <article class="summary-card paid">
+                <span>Pago</span>
+                <strong>{formatBR(stats.pagas)}</strong>
+            </article>
+            <article class="summary-card neutral">
+                <span>Comissões</span>
+                <strong>{rewards.length}</strong>
+            </article>
+        </section>
+
+        <section class="list-wrapper">
+            <div class="list-header">
+                <h2>Histórico</h2>
+                <div class="header-stats">
+                    <span>{paidRewards.length} pagos</span>
+                    <span>{pendingRewards.length} pendentes</span>
+                </div>
+            </div>
+
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Comissão</th>
+                            <th>Status</th>
+                            <th>Data</th>
+                            <th class="money">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {
+                            rewards.length === 0 ? (
+                                <tr>
+                                    <td colspan="4" class="empty">Nenhuma comissão encontrada.</td>
+                                </tr>
+                            ) : (
+                                rewards.map((reward) => (
+                                    <tr>
+                                        <td>#{reward.id.slice(0, 8)}</td>
+                                        <td>
+                                            <span class={`status ${statusClass(reward.status)}`}>
+                                                {reward.status || "indefinido"}
+                                            </span>
+                                        </td>
+                                        <td>{formatDate(reward.created_at)}</td>
+                                        <td class="money">{formatBR(reward.valor || 0)}</td>
+                                    </tr>
+                                ))
+                            )
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <style>
+        .earnings-page {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .page-header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .page-header p {
+            color: var(--color-subtle);
+        }
+
+        .summary-grid {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .summary-card {
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            background: #fff;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .summary-card span {
+            font-size: 0.8rem;
+            color: var(--color-subtle);
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .summary-card strong {
+            font-size: 1.2rem;
+            color: var(--color-heading);
+        }
+
+        .summary-card.total {
+            border-left: 4px solid #0062ff;
+        }
+
+        .summary-card.pending {
+            border-left: 4px solid #f59e0b;
+        }
+
+        .summary-card.paid {
+            border-left: 4px solid #10b981;
+        }
+
+        .summary-card.neutral {
+            border-left: 4px solid #64748b;
+        }
+
+        .list-wrapper {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+        }
+
+        .list-header {
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-bg-base);
+        }
+
+        .list-header h2 {
+            font-size: 1.1rem;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 0.6rem;
+            font-size: 0.8rem;
+            color: var(--color-subtle);
+            font-weight: 600;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 640px;
+        }
+
+        th,
+        td {
+            padding: 0.9rem 1.25rem;
+            border-bottom: 1px solid var(--color-border);
+            font-size: 0.9rem;
+            text-align: left;
+        }
+
+        th {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-subtle);
+            background: #fff;
+        }
+
+        .money {
+            text-align: right;
+            font-weight: 700;
+        }
+
+        .status {
+            display: inline-flex;
+            padding: 0.2rem 0.65rem;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            text-transform: capitalize;
+            font-weight: 700;
+        }
+
+        .status-paid {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-neutral {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .empty {
+            text-align: center;
+            color: var(--color-subtle);
+            padding: 1.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            .summary-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</DashboardLayout>

@@ -1,0 +1,62 @@
+---
+import type { HTMLAttributes } from "astro/types";
+
+interface Props extends HTMLAttributes<"div"> {
+  variant?: "white" | "glass" | "brand-accent";
+  padding?: string;
+}
+
+const {
+  variant = "white",
+  class: className = "",
+  padding = "1.5rem",
+  ...rest
+} = Astro.props;
+---
+
+<div
+  class={`card variant-${variant} ${className}`}
+  style={`padding: ${padding}`}
+  {...rest}
+>
+  <slot />
+</div>
+
+<style>
+  .card {
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--color-border);
+    transition: var(--transition-normal);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Variantes */
+  .variant-white {
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .variant-white:hover {
+    box-shadow: var(--shadow-lg);
+    border-color: rgba(0, 98, 255, 0.1);
+  }
+
+  .variant-glass {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  .variant-brand-accent {
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+    border-left: 4px solid var(--color-brand-primary);
+  }
+
+  .variant-brand-accent:hover {
+    box-shadow: var(--shadow-lg);
+  }
+</style>

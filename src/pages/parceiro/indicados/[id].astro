@@ -1,0 +1,538 @@
+---
+import DashboardLayout from "../../../layouts/DashboardLayout.astro";
+import Badge from "../../../components/ui/Badge.astro";
+import { indicationService } from "../../../services/indicationService";
+import { partnerService } from "../../../services/partnerService";
+import { CircleCheck, Clock, CircleX, ArrowLeft, Phone } from "@lucide/astro";
+
+const tenantId = Astro.locals.tenantId;
+const profileId = Astro.locals.profileId;
+
+if (!tenantId || !profileId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+const { id } = Astro.params;
+if (!id) return Astro.redirect("/parceiro/indicados");
+
+const partner = await partnerService.getPartnerById(tenantId, profileId);
+const userName = partner?.nome || "Parceiro";
+const userAvatar = userName.substring(0, 2).toUpperCase();
+
+const leads = await indicationService.getIndications(tenantId, profileId);
+const lead = leads.find((l) => l.id === id);
+
+if (!lead) return Astro.redirect("/parceiro/indicados");
+
+const formatDateFull = (d: string) =>
+    new Date(d).toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+
+/** Ordem dos status para a timeline */
+const STATUS_ORDER = ["Recebido", "Em contato", "Aceito", "Instalado"];
+const currentStatusIndex = STATUS_ORDER.indexOf(lead.status || "Recebido");
+const isCancelled = lead.status === "Cancelado";
+---
+
+<DashboardLayout
+    title={`Indicado: ${lead.nome}`}
+    userName={userName}
+    userAvatar={userAvatar}
+>
+    <div class="detalhe-page">
+        <!-- Breadcrumb / Voltar -->
+        <nav class="breadcrumb" aria-label="Navegação">
+            <a
+                href="/parceiro/indicados"
+                class="back-link"
+                aria-label="Voltar para lista de indicados"
+            >
+                <ArrowLeft size={18} />
+                <span>Meus Indicados</span>
+            </a>
+            <span class="sep" aria-hidden="true">/</span>
+            <span class="current">{lead.nome}</span>
+        </nav>
+
+        <!-- Header do Lead -->
+        <div class="lead-header">
+            <div class="lead-avatar-lg">{lead.nome.charAt(0)}</div>
+            <div class="lead-header-info">
+                <h1 class="lead-name">{lead.nome}</h1>
+                <div class="lead-meta-row">
+                    {
+                        lead.telefone && (
+                            <a
+                                href={`tel:${lead.telefone}`}
+                                class="meta-chip phone-chip"
+                                aria-label="Ligar para indicado"
+                            >
+                                <Phone size={14} />
+                                {lead.telefone}
+                            </a>
+                        )
+                    }
+                    <span class="meta-chip date-chip">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            ><rect
+                                x="3"
+                                y="4"
+                                width="18"
+                                height="18"
+                                rx="2"
+                                ry="2"></rect><line
+                                x1="16"
+                                y1="2"
+                                x2="16"
+                                y2="6"></line><line x1="8" y1="2" x2="8" y2="6"
+                            ></line><line x1="3" y1="10" x2="21" y2="10"
+                            ></line></svg
+                        >
+                        Enviado em {formatDateFull(lead.created_at)}
+                    </span>
+                </div>
+            </div>
+            <div class="lead-header-status">
+                {
+                    lead.status === "Instalado" && (
+                        <Badge variant="success">
+                            <CircleCheck size={14} /> Instalado
+                        </Badge>
+                    )
+                }
+                {
+                    (lead.status === "Recebido" ||
+                        lead.status === "Em contato" ||
+                        !lead.status) && (
+                        <Badge variant="warning">
+                            <Clock size={14} /> Em Análise
+                        </Badge>
+                    )
+                }
+                {
+                    lead.status === "Aceito" && (
+                        <Badge variant="success">
+                            <CircleCheck size={14} /> Aceito
+                        </Badge>
+                    )
+                }
+                {
+                    isCancelled && (
+                        <Badge variant="danger">
+                            <CircleX size={14} /> Não Viável
+                        </Badge>
+                    )
+                }
+            </div>
+        </div>
+
+        <!-- Timeline de status -->
+        {
+            !isCancelled && (
+                <section class="timeline-card">
+                    <h2 class="card-section-title">Progresso da Indicação</h2>
+                    <div class="timeline">
+                        {STATUS_ORDER.map((s, i) => (
+                            <div
+                                class={`timeline-step ${i <= currentStatusIndex ? "done" : ""} ${i === currentStatusIndex ? "current" : ""}`}
+                            >
+                                <div class="step-dot">
+                                    {i <= currentStatusIndex && (
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="3"
+                                        >
+                                            <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                    )}
+                                </div>
+                                {i < STATUS_ORDER.length - 1 && (
+                                    <div class="step-line" />
+                                )}
+                                <span class="step-label">{s}</span>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )
+        }
+
+        {
+            isCancelled && (
+                <div class="cancelled-banner">
+                    <CircleX size={20} />
+                    <div>
+                        <strong>Indicação não viável</strong>
+                        <p>
+                            Esta indicação foi marcada como cancelada ou não
+                            viável pelo time.
+                        </p>
+                    </div>
+                </div>
+            )
+        }
+
+        <!-- Resumo dos dados -->
+        <section class="data-card">
+            <h2 class="card-section-title">Dados do Indicado</h2>
+            <div class="data-grid">
+                <div class="data-item">
+                    <span class="data-label">Nome</span>
+                    <span class="data-value">{lead.nome}</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">WhatsApp</span>
+                    <span class="data-value">{lead.telefone || "—"}</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">CPF</span>
+                    <span class="data-value"
+                        >{
+                            lead.cpf ? `***.***.***-${lead.cpf.slice(-2)}` : "—"
+                        }</span
+                    >
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Status atual</span>
+                    <span class="data-value">{lead.status || "Recebido"}</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comissão -->
+        <section class="commission-card">
+            <h2 class="card-section-title">Comissão</h2>
+            <div class="commission-info">
+                <div class="commission-status">
+                    {
+                        lead.status === "Instalado" ? (
+                            <span class="comm-badge success">
+                                Comissão gerada ✓
+                            </span>
+                        ) : (
+                            <span class="comm-badge pending">
+                                Pendente de instalação
+                            </span>
+                        )
+                    }
+                </div>
+                <p class="commission-desc">
+                    {
+                        lead.status === "Instalado"
+                            ? "Sua comissão foi ou será processada em breve. Acesse a aba Ganhos para mais detalhes."
+                            : 'A comissão é gerada automaticamente quando este lead atingir o status "Instalado".'
+                    }
+                </p>
+                <a
+                    href="/parceiro/ganhos"
+                    class="link-ganhos"
+                    aria-label="Ver extrato de ganhos"
+                >
+                    Ver extrato de ganhos →
+                </a>
+            </div>
+        </section>
+    </div>
+</DashboardLayout>
+
+<style>
+    .detalhe-page {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        max-width: 760px;
+    }
+
+    /* Breadcrumb */
+    .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+    .back-link {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        color: var(--color-brand-secondary);
+        font-weight: 600;
+        text-decoration: none;
+        transition: var(--transition-fast);
+        min-height: 44px;
+        padding: 0.25rem 0;
+    }
+    .back-link:hover {
+        gap: 0.25rem;
+    }
+    .sep {
+        color: var(--color-border);
+    }
+    .current {
+        color: var(--color-heading);
+        font-weight: 600;
+    }
+
+    /* Header */
+    .lead-header {
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        padding: 1.75rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+        box-shadow: var(--shadow-sm);
+    }
+    .lead-avatar-lg {
+        width: 64px;
+        height: 64px;
+        background: var(--color-brand-primary-light);
+        color: var(--color-brand-primary-dark);
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        font-weight: 900;
+        font-family: "Outfit", sans-serif;
+        flex-shrink: 0;
+    }
+    .lead-header-info {
+        flex: 1;
+        min-width: 200px;
+    }
+    .lead-name {
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.625rem;
+    }
+    .lead-meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .meta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 0.375rem 0.75rem;
+        border-radius: var(--radius-full);
+        background: var(--color-bg-alt);
+        color: var(--color-body);
+        text-decoration: none;
+        transition: var(--transition-fast);
+    }
+    .phone-chip:hover {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    .lead-header-status {
+        margin-left: auto;
+    }
+
+    /* Timeline */
+    .timeline-card,
+    .data-card,
+    .commission-card {
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        padding: 1.5rem;
+        box-shadow: var(--shadow-sm);
+    }
+    .card-section-title {
+        font-size: 0.875rem;
+        font-weight: 800;
+        color: var(--color-subtle);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin: 0 0 1.25rem;
+    }
+    .timeline {
+        display: flex;
+        align-items: flex-start;
+        gap: 0;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+    }
+    .timeline-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        flex: 1;
+        min-width: 80px;
+    }
+    .step-dot {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--color-bg-alt);
+        border: 2px solid var(--color-border);
+        color: #fff;
+        position: relative;
+        z-index: 1;
+        transition: var(--transition-normal);
+        flex-shrink: 0;
+    }
+    .step-line {
+        position: absolute;
+        top: 15px;
+        left: 50%;
+        width: 100%;
+        height: 2px;
+        background: var(--color-border);
+        z-index: 0;
+    }
+    .timeline-step.done .step-dot {
+        background: var(--color-alert-success);
+        border-color: var(--color-alert-success);
+    }
+    .timeline-step.done .step-line {
+        background: var(--color-alert-success);
+    }
+    .timeline-step.current .step-dot {
+        background: var(--color-brand-secondary);
+        border-color: var(--color-brand-secondary);
+        box-shadow: 0 0 0 4px rgba(0, 98, 255, 0.2);
+    }
+    .step-label {
+        margin-top: 0.625rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--color-subtle);
+        text-align: center;
+    }
+    .timeline-step.done .step-label,
+    .timeline-step.current .step-label {
+        color: var(--color-heading);
+    }
+
+    /* Cancelled banner */
+    .cancelled-banner {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.875rem;
+        background: #fff1f2;
+        border: 1px solid #fecdd3;
+        border-radius: var(--radius-xl);
+        padding: 1.25rem 1.5rem;
+        color: #9f1239;
+    }
+    .cancelled-banner strong {
+        display: block;
+        font-weight: 700;
+    }
+    .cancelled-banner p {
+        font-size: 0.875rem;
+        margin-top: 0.2rem;
+        opacity: 0.85;
+    }
+
+    /* Data grid */
+    .data-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+    }
+    .data-item {
+        padding: 0.875rem 0;
+        border-bottom: 1px solid var(--color-border);
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .data-item:nth-last-child(-n + 2) {
+        border-bottom: none;
+    }
+    .data-label {
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--color-subtle);
+    }
+    .data-value {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--color-heading);
+    }
+
+    /* Commission */
+    .commission-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+    }
+    .comm-badge {
+        display: inline-flex;
+        font-size: 0.8rem;
+        font-weight: 800;
+        padding: 0.3rem 0.875rem;
+        border-radius: var(--radius-full);
+    }
+    .comm-badge.success {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    .comm-badge.pending {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    .commission-desc {
+        font-size: 0.875rem;
+        color: var(--color-subtle);
+        line-height: 1.5;
+    }
+    .link-ganhos {
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: var(--color-brand-secondary);
+        text-decoration: none;
+    }
+    .link-ganhos:hover {
+        text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+        .data-grid {
+            grid-template-columns: 1fr;
+        }
+        .data-item:last-child {
+            border-bottom: none;
+        }
+        .lead-header {
+            flex-direction: column;
+        }
+        .lead-header-status {
+            margin-left: 0;
+        }
+        .timeline {
+            justify-content: flex-start;
+        }
+    }
+</style>

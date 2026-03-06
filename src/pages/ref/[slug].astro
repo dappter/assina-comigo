@@ -1,0 +1,569 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Button from "../../components/ui/Button.astro";
+import {
+    User,
+    Smartphone,
+    MapPin,
+    CreditCard,
+    Send,
+    Sparkles,
+} from "@lucide/astro";
+import { partnerService } from "../../services/partnerService";
+import { indicationService } from "../../services/indicationService";
+
+const { slug } = Astro.params;
+
+if (!slug) {
+    return Astro.redirect("/404");
+}
+
+const partner = await partnerService.getPartnerByIdGlobal(slug);
+
+if (!partner) {
+    // Parceiro não existe
+    return Astro.redirect("/404?error=partner_not_found");
+}
+
+const partnerName = partner.nome;
+
+let success = false;
+let errorMsg = "";
+
+if (Astro.request.method === "POST") {
+    try {
+        const data = await Astro.request.formData();
+        const nome = data.get("nome") as string;
+        const telefone = data.get("whatsapp") as string;
+        const cpf = data.get("cpf") as string;
+        const local = data.get("local") as string; // Optional: se precisar salvar local, pode ser no "cep" ou outro campo custom. O DB tem "nome, cpf, telefone, status".
+
+        if (nome && telefone) {
+            await indicationService.createIndication(partner.tenant_id, {
+                parceiro_id: partner.id,
+                nome,
+                telefone,
+                cpf: cpf || "",
+                status: "Recebido",
+            });
+            success = true;
+        } else {
+            errorMsg = "Nome e telefone são obrigatórios.";
+        }
+    } catch (error: any) {
+        errorMsg = "Ocorreu um erro ao enviar sua indicação. Tente novamente.";
+        console.error("Erro ao salvar lead:", error);
+    }
+}
+---
+
+<Layout title={`Indicação de ${partnerName}`}>
+    <div class="landing-page">
+        <!-- Slim Branding Header -->
+        <header class="landing-header">
+            <div class="header-content">
+                <div class="brand">
+                    <span class="logo">⚡</span>
+                    <span class="brand-name">Assina Comigo</span>
+                </div>
+                <div class="social-proof">
+                    <span class="emoji">🤝</span>
+                    <span
+                        >Você foi indicado por <strong>{partnerName}</strong
+                        ></span
+                    >
+                </div>
+            </div>
+        </header>
+
+        <main class="landing-main">
+            <div class="container">
+                <div class="hero-section">
+                    <div
+                        class="hero-illustration"
+                        style="margin-bottom: 1.5rem"
+                    >
+                        <img
+                            src="/src/assets/illustrations/complete-design.svg"
+                            alt="Ilustração"
+                            style="max-width: 280px; margin: 0 auto"
+                        />
+                    </div>
+                    <h1 class="hero-title">
+                        Aproveite esta <span class="highlight"
+                            >oportunidade exclusiva</span
+                        >
+                    </h1>
+                    <p class="hero-subtitle">
+                        O {partnerName} indicou você para fazer parte do nosso programa
+                        de benefícios. Preencha os dados abaixo e entraremos em contato
+                        com você em tempo recorde.
+                    </p>
+                </div>
+
+                <div class="form-card">
+                    <div class="card-header">
+                        <Sparkles
+                            size={24}
+                            color="var(--color-brand-primary)"
+                        />
+                        <h3>Solicitar Contato</h3>
+                    </div>
+
+                    <form id="leadForm" class="lead-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="nome" class="form-label"
+                                    >Nome Completo</label
+                                >
+                                <div class="input-wrapper">
+                                    <User
+                                        class="input-icon"
+                                        size={20}
+                                        color="var(--color-muted)"
+                                    />
+                                    <input
+                                        type="text"
+                                        id="nome"
+                                        name="nome"
+                                        placeholder="Seu nome"
+                                        class="form-input with-icon"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="whatsapp" class="form-label"
+                                    >WhatsApp</label
+                                >
+                                <div class="input-wrapper">
+                                    <Smartphone
+                                        class="input-icon"
+                                        size={20}
+                                        color="var(--color-muted)"
+                                    />
+                                    <input
+                                        type="tel"
+                                        id="whatsapp"
+                                        name="whatsapp"
+                                        placeholder="(11) 99999-9999"
+                                        class="form-input with-icon"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="local" class="form-label"
+                                    >Bairro / Cidade</label
+                                >
+                                <div class="input-wrapper">
+                                    <MapPin
+                                        class="input-icon"
+                                        size={20}
+                                        color="var(--color-muted)"
+                                    />
+                                    <input
+                                        type="text"
+                                        id="local"
+                                        name="local"
+                                        placeholder="Ex: Centro, São Paulo"
+                                        class="form-input with-icon"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cpf" class="form-label"
+                                    >CPF (Opcional)</label
+                                >
+                                <div class="input-wrapper">
+                                    <CreditCard
+                                        class="input-icon"
+                                        size={20}
+                                        color="var(--color-muted)"
+                                    />
+                                    <input
+                                        type="text"
+                                        id="cpf"
+                                        name="cpf"
+                                        placeholder="000.000.000-00"
+                                        class="form-input with-icon"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="lgpd-note">
+                            <p>
+                                Ao enviar, você concorda com nossos <a
+                                    href="javascript:void(0)">Termos de Uso</a
+                                > e <a href="javascript:void(0)"
+                                    >Privacidade (LGPD)</a
+                                >. Seus dados estão seguros conosco.
+                            </p>
+                        </div>
+
+                        <Button
+                            variant="primary"
+                            size="lg"
+                            iconRight={Send}
+                            fullWidth
+                            type="submit"
+                        >
+                            Quero saber mais!
+                        </Button>
+                        {
+                            errorMsg && (
+                                <div class="text-sm text-red-500 font-semibold mt-2 text-center p-2 bg-red-50 rounded-lg">
+                                    {errorMsg}
+                                </div>
+                            )
+                        }
+                    </form>
+
+                    <div
+                        class="success-message"
+                        style={`display: ${success ? "flex" : "none"};`}
+                        id="successMsg"
+                    >
+                        <div class="success-check">✓</div>
+                        <h3>Tudo pronto!</h3>
+                        <p>
+                            Recebemos seus dados. Um especialista entrará em
+                            contato com você nos próximos minutos via WhatsApp.
+                        </p>
+                        <Button variant="outline" size="md" fullWidth id="btnOk"
+                            >Entendido</Button
+                        >
+                    </div>
+                </div>
+
+                <div class="faq-simple">
+                    <h4>Por que fui indicado?</h4>
+                    <p>
+                        Nosso parceiro <strong>{partnerName}</strong> acredita que
+                        nossas soluções podem ajudar você. Esta é uma rede de confiança
+                        onde indicamos apenas o que realmente funciona.
+                    </p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="landing-footer">
+            <p>&copy; 2026 Assina Comigo • Todos os direitos reservados</p>
+        </footer>
+    </div>
+</Layout>
+
+<script is:inline>
+    // Apenas controla exibição se quiser fazer via client. O form usa POST action da página mesmo.
+    const form = document.getElementById("leadForm");
+    const successMsg = document.getElementById("successMsg");
+    const btnOk = document.getElementById("btnOk");
+
+    if (successMsg && successMsg.style.display === "flex") {
+        if (form) form.style.display = "none";
+    }
+
+    btnOk?.addEventListener("click", () => {
+        window.location.href = "https://assina.com.br"; // TODO: Redirect to company website or reset form
+    });
+</script>
+
+<style>
+    :root {
+        --header-height: 80px;
+    }
+
+    .landing-page {
+        min-height: 100vh;
+        background-color: var(--color-bg-base);
+        display: flex;
+        flex-direction: column;
+        font-family: "Inter", sans-serif;
+    }
+
+    /* Header */
+    .landing-header {
+        height: var(--header-height);
+        background: #fff;
+        border-bottom: 2px solid var(--color-bg-alt);
+        display: flex;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    .header-content {
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .logo {
+        width: 32px;
+        height: 32px;
+        background: var(--color-brand-primary);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        color: #111827;
+        box-shadow: 0 4px 10px rgba(255, 185, 24, 0.3);
+    }
+    .brand-name {
+        font-family: "Outfit", sans-serif;
+        font-weight: 800;
+        font-size: 1rem;
+        color: var(--color-heading);
+    }
+
+    .social-proof {
+        background: var(--color-bg-alt);
+        padding: 0.5rem 1rem;
+        border-radius: var(--radius-full);
+        font-size: 0.825rem;
+        color: var(--color-body);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: 1px solid var(--color-border);
+    }
+
+    /* Main */
+    .landing-main {
+        flex: 1;
+        padding: 4rem 1.5rem;
+        background:
+            radial-gradient(
+                circle at top right,
+                rgba(255, 185, 24, 0.05),
+                transparent 400px
+            ),
+            radial-gradient(
+                circle at bottom left,
+                rgba(0, 98, 255, 0.03),
+                transparent 400px
+            );
+    }
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 3rem;
+    }
+
+    .hero-section {
+        text-align: center;
+    }
+    .hero-title {
+        font-size: 2.75rem;
+        font-weight: 800;
+        color: var(--color-heading);
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+        margin-bottom: 1.25rem;
+    }
+    .highlight {
+        color: var(--color-brand-secondary);
+    }
+    .hero-subtitle {
+        font-size: 1.125rem;
+        color: var(--color-subtle);
+        line-height: 1.6;
+    }
+
+    /* Form Card */
+    .form-card {
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-2xl);
+        padding: 2.5rem;
+        box-shadow: var(--shadow-xl);
+        position: relative;
+        overflow: hidden;
+    }
+    .form-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 6px;
+        background: var(--linear-brand);
+    }
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid var(--color-bg-alt);
+        padding-bottom: 1rem;
+    }
+    .card-header h3 {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--color-heading);
+    }
+
+    .lead-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .form-label {
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: var(--color-subtle);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+    .input-icon {
+        position: absolute;
+        left: 1rem;
+        color: var(--color-muted);
+    }
+    .form-input {
+        width: 100%;
+        height: 50px;
+        background: var(--color-surface);
+        border: 1.5px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        padding: 0 1rem 0 3rem;
+        font-size: 0.95rem;
+        transition: var(--transition-normal);
+    }
+    .form-input:focus {
+        background: #fff;
+        border-color: var(--color-brand-secondary);
+        outline: none;
+        box-shadow: 0 0 0 4px var(--color-brand-secondary-light);
+    }
+
+    .lgpd-note {
+        font-size: 0.75rem;
+        color: var(--color-muted);
+        line-height: 1.5;
+        text-align: center;
+        margin: 0.5rem 0;
+    }
+    .lgpd-note a {
+        color: var(--color-brand-secondary);
+        font-weight: 600;
+    }
+
+    /* Success Message */
+    .success-message {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 1.5rem;
+        padding: 1rem 0;
+        animation: scaleIn 0.3s ease-out;
+    }
+    @keyframes scaleIn {
+        from {
+            transform: scale(0.9);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+    .success-check {
+        width: 60px;
+        height: 60px;
+        background: var(--color-alert-success);
+        color: #fff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        font-weight: 800;
+    }
+    .success-message h3 {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--color-heading);
+    }
+    .success-message p {
+        color: var(--color-subtle);
+        line-height: 1.6;
+    }
+
+    .faq-simple {
+        text-align: center;
+        padding: 1.5rem;
+        background: var(--color-brand-secondary-light);
+        border-radius: var(--radius-xl);
+        border: 1px dashed rgba(0, 98, 255, 0.2);
+    }
+    .faq-simple h4 {
+        font-size: 1rem;
+        font-weight: 800;
+        color: var(--color-brand-secondary-dark);
+        margin-bottom: 0.5rem;
+    }
+    .faq-simple p {
+        font-size: 0.9rem;
+        color: var(--color-brand-secondary-dark);
+        opacity: 0.8;
+        line-height: 1.5;
+    }
+
+    .landing-footer {
+        text-align: center;
+        padding: 3rem 1.5rem;
+        font-size: 0.8125rem;
+        color: var(--color-muted);
+        border-top: 1px solid var(--color-border);
+        margin-top: 2rem;
+    }
+
+    @media (max-width: 600px) {
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+        .hero-title {
+            font-size: 2rem;
+        }
+        .form-card {
+            padding: 1.5rem;
+        }
+        .social-proof {
+            display: none;
+        }
+    }
+</style>

@@ -1,0 +1,202 @@
+---
+// Tela gerada a partir do Design System e UI do Stitch
+---
+
+<!doctype html>
+<html class="light" lang="pt-br">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Confirmação de Sucesso - Assina Comigo</title>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons+Round"
+      rel="stylesheet"
+    />
+    <script is:inline src="https://cdn.tailwindcss.com?plugins=forms,typography"
+    ></script>
+    <script is:inline>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#3B82F6", // Vibrant Blue for ISP context
+              "background-light": "#F9FAFB",
+              "background-dark": "#111827",
+            },
+            fontFamily: {
+              display: ["Inter", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "1rem",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .ios-safe-top {
+        padding-top: env(safe-area-inset-top);
+      }
+      .ios-safe-bottom {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      .success-animation {
+        animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      }
+      @keyframes bounceIn {
+        0% {
+          transform: scale(0.3);
+          opacity: 0;
+        }
+        50% {
+          transform: scale(1.05);
+          opacity: 1;
+        }
+        70% {
+          transform: scale(0.9);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      .confetti {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background: #3b82f6;
+        border-radius: 2px;
+        animation: fall 3s infinite linear;
+      }
+      @keyframes fall {
+        0% {
+          transform: translateY(-100vh) rotate(0deg);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(100vh) rotate(720deg);
+          opacity: 0;
+        }
+      }
+    </style>
+    <style>
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+  </head>
+  <body
+    class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col overflow-hidden"
+  >
+    <div class="ios-safe-top w-full"></div>
+    <div
+      class="absolute inset-0 pointer-events-none overflow-hidden"
+      id="confetti-container"
+    >
+    </div>
+    <main
+      class="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10"
+    >
+      <div class="relative mb-8 success-animation">
+        <div
+          class="w-48 h-48 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center relative"
+        >
+          <div
+            class="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping"
+          >
+          </div>
+          <div
+            class="bg-primary text-white w-24 h-24 rounded-3xl flex items-center justify-center shadow-xl shadow-primary/40"
+          >
+            <span class="material-icons-round text-6xl">check_circle</span>
+          </div>
+        </div>
+        <div
+          class="absolute -top-4 -right-4 bg-yellow-400 w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transform rotate-12"
+        >
+          <span class="material-icons-round text-white">star</span>
+        </div>
+        <div
+          class="absolute bottom-4 -left-6 bg-pink-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transform -rotate-12"
+        >
+          <span class="material-icons-round text-white text-xl">favorite</span>
+        </div>
+      </div>
+      <h1 class="text-3xl font-bold mb-4 tracking-tight dark:text-white">
+        Recebemos seus dados!
+      </h1>
+      <p
+        class="text-slate-500 dark:text-slate-400 text-lg max-w-xs mx-auto leading-relaxed"
+      >
+        Sua indicação foi enviada com sucesso. Em breve o provedor entrará em
+        contato.
+      </p>
+      <div
+        class="mt-12 flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700"
+      >
+        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+        <span class="text-sm font-medium text-slate-600 dark:text-slate-300"
+          >Solicitação em processamento</span
+        >
+      </div>
+    </main>
+    <footer class="p-8 ios-safe-bottom w-full max-w-md mx-auto relative z-10">
+      <button
+        class="w-full bg-gradient-to-r from-blue-500 to-primary hover:from-blue-600 hover:to-blue-500 text-white py-4 px-6 rounded-2xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 group active:scale-95 shadow-lg shadow-primary/30"
+        onclick="window.location.href='/parceiro/dashboard'"
+      >
+        <span class="material-icons-round text-xl">north_east</span>
+        Seguir para dashboard
+      </button>
+      <button
+        class="w-full mt-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-4 px-6 rounded-2xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 group active:scale-95"
+        onclick="window.location.href='/parceiro/login'"
+      >
+        <span
+          class="material-icons-round text-xl group-hover:-translate-x-1 transition-transform"
+          >arrow_back</span
+        >
+        Voltar ao login
+      </button>
+      <p
+        class="mt-6 text-xs text-center text-slate-400 dark:text-slate-500 font-medium uppercase tracking-widest"
+      >
+        Assina Comigo • Gestão de Indicações
+      </p>
+    </footer>
+    <script is:inline>
+      // Simple confetti generator
+      const container = document.getElementById("confetti-container");
+      const colors = ["#3B82F6", "#FACC15", "#EC4899", "#10B981", "#6366F1"];
+      for (let i = 0; i < 40; i++) {
+        const confetti = document.createElement("div");
+        confetti.className = "confetti";
+        confetti.style.left = Math.random() * 100 + "vw";
+        confetti.style.backgroundColor =
+          colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.animationDelay = Math.random() * 3 + "s";
+        confetti.style.width = Math.random() * 6 + 4 + "px";
+        confetti.style.height = confetti.style.width;
+        confetti.style.opacity = Math.random();
+        container.appendChild(confetti);
+      }
+      // Handle iOS Dark Mode Toggle (Simulated for this demo if needed)
+      if (
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches
+      ) {
+        document.documentElement.classList.add("dark");
+      }
+    </script>
+  </body>
+</html>

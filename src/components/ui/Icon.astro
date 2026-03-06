@@ -1,15 +1,11 @@
 ---
-// Componente Wrapper para ícones Lucide garantindo o padrão UX/UI do Assina Comigo.
-// Importe o ícone desejado e passe como prop:
-// import { AlertTriangle } from 'lucide-astro';
-// <Icon icon={AlertTriangle} class="text-yellow-500" />
+import type { HTMLAttributes } from "astro/types";
 
-interface Props {
+interface Props extends HTMLAttributes<"svg"> {
   icon: any; // O componente importado da biblioteca lucide-astro
   size?: number | string;
   color?: string;
   strokeWidth?: number | string;
-  class?: string;
 }
 
 const {
