@@ -1,0 +1,201 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import Card from "../../components/ui/Card.astro";
+import { Users, TrendingUp, Wallet, CheckSquare } from "@lucide/astro";
+import { adminService } from "../../services/adminService";
+
+const tenantId = Astro.locals.tenantId;
+
+if (!tenantId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+const stats = await adminService.getDashboardStats(tenantId);
+
+const kpis = [
+    {
+        label: "Leads Recebidas",
+        value: stats.totalLeads,
+        icon: Users,
+        color: "blue",
+        prefix: "Total",
+    },
+    {
+        label: "Leads Instaladas",
+        value: stats.leadsInstaladas,
+        icon: CheckSquare,
+        color: "green",
+        prefix: "Sucesso",
+    },
+    {
+        label: "Pagamentos Pendentes",
+        value: stats.pagamentosPendentes,
+        icon: Wallet,
+        color: "yellow",
+        prefix: "Aguardando",
+    },
+    {
+        label: "Parceiros Ativos",
+        value: stats.parceirosAtivos,
+        icon: TrendingUp,
+        color: "blue",
+        prefix: "Rede",
+    },
+];
+---
+
+<AdminLayout title="Dashboard Admin">
+    <div class="dashboard-content">
+        <header class="page-header">
+            <div class="header-main">
+                <h1 class="greeting">Visão Geral do Sistema 🚀</h1>
+                <p class="subtitle">
+                    Acompanhe as métricas de indicações e parceiros da sua
+                    empresa.
+                </p>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            {
+                kpis.map((k) => (
+                    <Card variant="brand-accent" class="stat-card">
+                        <div class="stat-header">
+                            <div class={`stat-icon-wrap icon-${k.color}`}>
+                                <k.icon size={22} />
+                            </div>
+                            <span class="stat-prefix">{k.prefix}</span>
+                        </div>
+                        <div class="stat-body">
+                            <span class="stat-label">{k.label}</span>
+                            <h3 class="stat-value">{k.value}</h3>
+                        </div>
+                    </Card>
+                ))
+            }
+        </div>
+
+        <!-- Extensão futura: Gráficos e Atividades Recentes do Tenant -->
+        <section class="recent-activities">
+            <Card>
+                <h3
+                    style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--color-heading);"
+                >
+                    Dicas Rápidas de Admin
+                </h3>
+                <p style="color: var(--color-subtle); line-height: 1.6;">
+                    - Para aprovar comissões, vá até a aba <strong
+                        >Pagamentos</strong
+                    >.<br />
+                    - Quando uma indicação fechar negócio, mude o status para <strong
+                        >Instalado</strong
+                    > no funil de Indicações para gerar a recompensa automaticamente.<br
+                    />
+                    - Configure os <strong>Grupos & Níveis</strong> para escalar os
+                    ganhos dos seus melhores parceiros.
+                </p>
+            </Card>
+        </section>
+    </div>
+
+    <style>
+        .dashboard-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .greeting {
+            font-size: 2.25rem;
+            color: var(--color-heading);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+        .subtitle {
+            color: var(--color-subtle);
+            font-size: 1rem;
+            margin-top: 0.25rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+        }
+        .stat-card {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            border-left-width: 6px;
+        }
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .stat-icon-wrap {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon-blue {
+            background: #dbeafe;
+            color: #0062ff;
+        }
+        .icon-yellow {
+            background: #fff4d1;
+            color: #92400e;
+        }
+        .icon-green {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .stat-prefix {
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            background: var(--color-bg-base);
+            color: var(--color-body);
+        }
+        .stat-label {
+            font-size: 0.825rem;
+            font-weight: 600;
+            color: var(--color-subtle);
+            display: block;
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--color-heading);
+            letter-spacing: -0.02em;
+        }
+
+        @media (max-width: 1200px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .greeting {
+                font-size: 1.75rem;
+            }
+        }
+    </style>
+</AdminLayout>

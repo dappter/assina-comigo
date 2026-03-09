@@ -69,7 +69,7 @@ export const indicationService = {
 
         const stats = {
             total: data?.length || 0,
-            recebidas: data?.filter(l => l.status === 'Recebido') || [],
+            recebidas: data?.filter(l => l.status === 'Recebido' || l.status === 'PENDENTE' || l.status === 'pendente' || !l.status) || [],
             emContato: data?.filter(l => l.status === 'Em contato') || [],
             aceitas: data?.filter(l => l.status === 'Aceito') || [],
             instaladas: data?.filter(l => l.status === 'Instalado') || [],

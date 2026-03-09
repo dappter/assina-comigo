@@ -6,5 +6,11 @@ import tailwind from '@astrojs/tailwind';
 export default defineConfig({
   output: 'server',
   integrations: [tailwind()],
+  vite: {
+    server: {
+      port: 4321,
+      strictPort: true
+    }
+  },
   adapter: vercel()
 });

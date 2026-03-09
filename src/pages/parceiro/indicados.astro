@@ -34,10 +34,19 @@ const statsLocal = {
     todos: allLeadsRaw.length,
     pendentes: allLeadsRaw.filter(
         (l) =>
-            l.status === "Recebido" || l.status === "Em contato" || !l.status,
+            l.status === "Recebido" ||
+            l.status === "Em contato" ||
+            !l.status ||
+            l.status === "pendente" ||
+            l.status === "PENDENTE",
     ).length,
-    instalados: allLeadsRaw.filter((l) => l.status === "Instalado").length,
-    nao_viaveis: allLeadsRaw.filter((l) => l.status === "Cancelado").length,
+    aceitos: allLeadsRaw.filter((l) => l.status === "Aceito").length,
+    instalados: allLeadsRaw.filter(
+        (l) => l.status === "Instalado" || l.status === "instalado",
+    ).length,
+    nao_viaveis: allLeadsRaw.filter(
+        (l) => l.status === "Cancelado" || l.status === "cancelado",
+    ).length,
 };
 
 const formatDate = (dateString: string) => {
@@ -143,6 +152,9 @@ const formatDate = (dateString: string) => {
                     data-filter="pendentes"
                     aria-pressed="false"
                     >Pendentes ({statsLocal.pendentes})</button
+                >
+                <button class="pill" data-filter="aceitos" aria-pressed="false"
+                    >Aceitos ({statsLocal.aceitos})</button
                 >
                 <button
                     class="pill"
@@ -285,30 +297,38 @@ const formatDate = (dateString: string) => {
                                             </div>
                                         </td>
                                         <td>
-                                            {l.status === "Instalado" && (
-                                                <Badge variant="success">
-                                                    <CircleCheck size={12} />{" "}
-                                                    Instalado
+                                            {(l.status === "Recebido" ||
+                                                !l.status ||
+                                                l.status === "pendente" ||
+                                                l.status === "PENDENTE") && (
+                                                <Badge variant="warning">
+                                                    <Clock size={12} /> Recebido
                                                 </Badge>
                                             )}
-                                            {(l.status === "Recebido" ||
-                                                l.status === "Em contato" ||
-                                                !l.status) && (
+                                            {l.status === "Em contato" && (
                                                 <Badge variant="warning">
                                                     <Clock size={12} /> Em
-                                                    Análise
-                                                </Badge>
-                                            )}
-                                            {l.status === "Cancelado" && (
-                                                <Badge variant="danger">
-                                                    <CircleX size={12} /> Não
-                                                    Viável
+                                                    Contato
                                                 </Badge>
                                             )}
                                             {l.status === "Aceito" && (
                                                 <Badge variant="success">
                                                     <CircleCheck size={12} />{" "}
                                                     Aceito
+                                                </Badge>
+                                            )}
+                                            {(l.status === "Instalado" ||
+                                                l.status === "instalado") && (
+                                                <Badge variant="success">
+                                                    <CircleCheck size={12} />{" "}
+                                                    Instalado
+                                                </Badge>
+                                            )}
+                                            {(l.status === "Cancelado" ||
+                                                l.status === "cancelado") && (
+                                                <Badge variant="danger">
+                                                    <CircleX size={12} />{" "}
+                                                    Cancelado
                                                 </Badge>
                                             )}
                                         </td>
@@ -371,7 +391,11 @@ const formatDate = (dateString: string) => {
             const matchFilter =
                 currentFilter === "todos" ||
                 (currentFilter === "pendentes" &&
-                    (status === "recebido" || status === "em contato")) ||
+                    (status === "recebido" ||
+                        status === "em contato" ||
+                        status === "pendente" ||
+                        !status)) ||
+                (currentFilter === "aceitos" && status === "aceito") ||
                 (currentFilter === "instalados" && status === "instalado") ||
                 (currentFilter === "nao_viaveis" && status === "cancelado");
 

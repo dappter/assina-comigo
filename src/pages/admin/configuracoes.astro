@@ -1,0 +1,397 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import Card from "../../components/ui/Card.astro";
+import Button from "../../components/ui/Button.astro";
+import { Save, Image, Palette, Type } from "@lucide/astro";
+import { adminService } from "../../services/adminService";
+
+const tenantId = Astro.locals.tenantId;
+
+if (!tenantId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+let notification = "";
+
+if (Astro.request.method === "POST") {
+    try {
+        const formData = await Astro.request.formData();
+
+        // Embora as colunas na tabela tenants precisem de uma Migration futura,
+        // o Supabase JS permite enviar os dados se as colunas já estiverem lá,
+        // mas vamos garantir não quebrar a UI agora.
+
+        const payload = {
+            nome_fantasia: formData.get("nome_fantasia") as string,
+            email_contato: formData.get("email_contato") as string,
+            // Futuras colunas (usar JSONB ou colunas nativas)
+            // config_branding: {
+            //     cor_primaria: formData.get("cor_primaria"),
+            //     fonte: formData.get("fonte")
+            // }
+        };
+
+        await adminService.updateConfiguracoes(tenantId, payload);
+        notification =
+            "success|Configurações atualizadas prontas para produção!";
+    } catch (err: any) {
+        notification = `error|${err.message || "Erro ao atualizar configurações."}`;
+    }
+}
+
+const config = await adminService.getConfiguracoes(tenantId);
+---
+
+<AdminLayout title="Configurações do Provedor">
+    <div class="admin-page">
+        <header class="page-header">
+            <div>
+                <h1 class="page-title">Configurações de Identidade</h1>
+                <p class="subtitle">
+                    Personalize a aparência e os dados da sua operação SaaS.
+                </p>
+            </div>
+        </header>
+
+        {
+            notification && (
+                <div class={`notification ${notification.split("|")[0]}`}>
+                    {notification.split("|")[1]}
+                </div>
+            )
+        }
+
+        <div class="config-grid">
+            <!-- Branding Geral -->
+            <Card class="config-card">
+                <div class="card-header">
+                    <div class="icon-wrap"><Image size={20} /></div>
+                    <h3>Dados Básicos</h3>
+                </div>
+
+                <form method="POST" class="settings-form">
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label>Nome do App / Fantasia</label>
+                            <input
+                                type="text"
+                                name="nome_fantasia"
+                                value={config?.nome_fantasia || ""}
+                                placeholder="Ex: Assina Comigo"
+                                class="form-input"
+                            />
+                        </div>
+                        <div class="form-group flex-1">
+                            <label>Email de Contato (Suporte)</label>
+                            <input
+                                type="email"
+                                name="email_contato"
+                                value={config?.email_contato || ""}
+                                class="form-input"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label>Logo URL (PNG/SVG)</label>
+                            <input
+                                type="url"
+                                name="logo_url"
+                                placeholder="https://..."
+                                class="form-input"
+                            />
+                            <small>Resolução mínima 400x120px.</small>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="card-header">
+                        <div class="icon-wrap"><Palette size={20} /></div>
+                        <h3>Identidade Visual</h3>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Cor Primária (HEX)</label>
+                            <div class="color-picker-wrap">
+                                <input
+                                    type="color"
+                                    name="cor_primaria"
+                                    value="#ffb918"
+                                    class="color-picker"
+                                />
+                                <input
+                                    type="text"
+                                    value="#ffb918"
+                                    class="form-input color-hex"
+                                    readonly
+                                />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Cor Secundária (HEX)</label>
+                            <div class="color-picker-wrap">
+                                <input
+                                    type="color"
+                                    name="cor_secundaria"
+                                    value="#0062ff"
+                                    class="color-picker"
+                                />
+                                <input
+                                    type="text"
+                                    value="#0062ff"
+                                    class="form-input color-hex"
+                                    readonly
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="card-header">
+                        <div class="icon-wrap"><Type size={20} /></div>
+                        <h3>Tipografia</h3>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label>Fonte Principal (Google Fonts)</label>
+                            <select name="fonte" class="form-input">
+                                <option value="Inter"
+                                    >Inter (Padrão SaaS)</option
+                                >
+                                <option value="Outfit">Outfit (Brand)</option>
+                                <option value="Roboto">Roboto</option>
+                                <option value="Poppins">Poppins</option>
+                            </select>
+                            <small>Afeta a leitura dos seus parceiros.</small>
+                        </div>
+                    </div>
+
+                    <div class="form-actions mt-4">
+                        <Button type="submit" variant="primary" iconLeft={Save}
+                            >Salvar Alterações</Button
+                        >
+                    </div>
+                </form>
+            </Card>
+
+            <div class="side-info">
+                <Card>
+                    <h4
+                        style="margin-bottom: 0.5rem; color: var(--color-heading);"
+                    >
+                        White-Label Preview
+                    </h4>
+                    <p
+                        style="color: var(--color-subtle); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.5rem;"
+                    >
+                        Ao aplicar a cor primária, os botões, links ativos e
+                        detalhes dos dashboards adotarão o novo padrão para
+                        todos os parceiros do tenant <strong
+                            >{config?.nome_fantasia || "Atual"}</strong
+                        >.
+                    </p>
+
+                    <div class="preview-box">
+                        <div class="brand-fake"></div>
+                        <div class="btn-fake"></div>
+                        <div class="badge-fake"></div>
+                    </div>
+                </Card>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .admin-page {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .page-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--color-heading);
+            letter-spacing: -0.02em;
+        }
+        .subtitle {
+            color: var(--color-subtle);
+            margin-top: 0.25rem;
+        }
+
+        .notification {
+            padding: 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        .notification.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #34d399;
+        }
+        .notification.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #f87171;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .card-header h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--color-heading);
+            margin: 0;
+        }
+        .icon-wrap {
+            background: var(--color-bg-base);
+            color: var(--color-body);
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .settings-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .form-row {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .flex-1 {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .form-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--color-heading);
+        }
+        .form-group small {
+            font-size: 0.75rem;
+            color: var(--color-subtle);
+        }
+        .form-input {
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+            transition: 0.2s;
+            background: var(--color-bg-base);
+            color: var(--color-heading);
+        }
+        .form-input:focus {
+            border-color: var(--color-brand-secondary);
+            box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1);
+            background: #fff;
+        }
+
+        .color-picker-wrap {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .color-picker {
+            width: 44px;
+            height: 44px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            padding: 0;
+            background: none;
+        }
+        .color-hex {
+            width: 100px;
+            text-transform: uppercase;
+            font-family: monospace;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--color-border);
+            margin: 1rem 0;
+            width: 100%;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            padding-top: 1rem;
+            border-top: 1px solid var(--color-border);
+        }
+        .mt-4 {
+            margin-top: 1rem;
+        }
+
+        .preview-box {
+            border: 2px dashed var(--color-border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+            background: #fafafa;
+        }
+        .brand-fake {
+            width: 40px;
+            height: 40px;
+            background: #ffb918;
+            border-radius: 8px;
+        }
+        .btn-fake {
+            width: 100%;
+            height: 40px;
+            background: #0062ff;
+            border-radius: 8px;
+            opacity: 0.8;
+        }
+        .badge-fake {
+            width: 80px;
+            height: 24px;
+            background: rgba(255, 185, 24, 0.2);
+            border-radius: 12px;
+        }
+
+        @media (max-width: 900px) {
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</AdminLayout>

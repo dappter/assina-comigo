@@ -217,7 +217,9 @@ const formatDate = (dateString: string) => {
                   <tr>
                     <td>
                       <div class="lead-info">
-                        <div class="lead-initials">{(l.nome || "-").charAt(0)}</div>
+                        <div class="lead-initials">
+                          {(l.nome || "-").charAt(0)}
+                        </div>
                         <div class="lead-meta">
                           <strong>{l.nome || "Lead sem nome"}</strong>
                           <span>{l.telefone || "Sem telefone"}</span>
@@ -225,14 +227,12 @@ const formatDate = (dateString: string) => {
                       </div>
                     </td>
                     <td>
-                      {l.status === "Instalado" && (
-                        <Badge variant="success">
-                          <CircleCheck size={12} /> Instalado
-                        </Badge>
-                      )}
-                      {l.status === "Recebido" && (
+                      {(l.status === "Recebido" ||
+                        !l.status ||
+                        l.status === "pendente" ||
+                        l.status === "PENDENTE") && (
                         <Badge variant="warning">
-                          <Clock size={12} /> Em Análise
+                          <Clock size={12} /> Recebido
                         </Badge>
                       )}
                       {l.status === "Em contato" && (
@@ -245,14 +245,16 @@ const formatDate = (dateString: string) => {
                           <CircleCheck size={12} /> Aceito
                         </Badge>
                       )}
-                      {l.status === "Cancelado" && (
-                        <Badge variant="danger">
-                          <CircleX size={12} /> Cancelado
+                      {(l.status === "Instalado" ||
+                        l.status === "instalado") && (
+                        <Badge variant="success">
+                          <CircleCheck size={12} /> Instalado
                         </Badge>
                       )}
-                      {!l.status && (
-                        <Badge variant="warning">
-                          <Clock size={12} /> Pendente
+                      {(l.status === "Cancelado" ||
+                        l.status === "cancelado") && (
+                        <Badge variant="danger">
+                          <CircleX size={12} /> Cancelado
                         </Badge>
                       )}
                     </td>

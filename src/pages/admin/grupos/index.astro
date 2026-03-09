@@ -1,0 +1,297 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import Badge from "../../../components/ui/Badge.astro";
+import Button from "../../../components/ui/Button.astro";
+import Card from "../../../components/ui/Card.astro";
+import { Plus, Edit2 } from "@lucide/astro";
+import { adminService } from "../../../services/adminService";
+
+const tenantId = Astro.locals.tenantId;
+
+if (!tenantId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+let notification = "";
+
+if (Astro.request.method === "POST") {
+    try {
+        const formData = await Astro.request.formData();
+        const nome = formData.get("nome") as string;
+        const meta = parseInt(formData.get("meta_vendas") as string) || 0;
+        const valor =
+            parseFloat(formData.get("valor_recompensa") as string) || 0;
+
+        if (nome) {
+            await adminService.saveGrupo(tenantId, {
+                nome,
+                meta_vendas: meta,
+                valor_recompensa: valor,
+            });
+            notification = "success|Grupo salvo com sucesso!";
+        }
+    } catch (err: any) {
+        notification = `error|${err.message || "Erro ao salvar grupo."}`;
+    }
+}
+
+const grupos = await adminService.getGrupos(tenantId);
+const formatMoney = (v: number) =>
+    new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+    }).format(v || 0);
+---
+
+<AdminLayout title="Gestão de Grupos">
+    <div class="admin-page">
+        <header class="page-header">
+            <div>
+                <h1 class="page-title">Grupos e Níveis (Gamificação)</h1>
+                <p class="subtitle">
+                    Defina as categorias de parceiros e os valores de recompensa
+                    por nível.
+                </p>
+            </div>
+        </header>
+
+        {
+            notification && (
+                <div class={`notification ${notification.split("|")[0]}`}>
+                    {notification.split("|")[1]}
+                </div>
+            )
+        }
+
+        <div class="layout-grid">
+            <div class="col-main">
+                <div class="table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Nível / Grupo</th>
+                                <th>Meta Mínima</th>
+                                <th>Valor de Recompensa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {
+                                grupos.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colspan="3"
+                                            class="text-center empty-state"
+                                        >
+                                            Nenhum grupo configurado.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    grupos.map((g) => (
+                                        <tr>
+                                            <td>
+                                                <div class="group-name">
+                                                    {g.nome}
+                                                </div>
+                                            </td>
+                                            <td>{g.meta_vendas} vendas</td>
+                                            <td class="money-text">
+                                                {formatMoney(
+                                                    g.valor_recompensa,
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="col-side">
+                <Card>
+                    <h3
+                        style="margin-bottom: 1.5rem; font-size: 1.1rem; color: var(--color-heading);"
+                    >
+                        Novo Grupo
+                    </h3>
+                    <form method="POST" class="group-form">
+                        <div class="form-group">
+                            <label>Nome do Nível (ex: Ouro)</label>
+                            <input
+                                type="text"
+                                name="nome"
+                                required
+                                class="form-input"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>Meta de Vendas</label>
+                            <input
+                                type="number"
+                                name="meta_vendas"
+                                required
+                                min="0"
+                                class="form-input"
+                            />
+                        </div>
+                        <div class="form-group">
+                            <label>Recompensa por Venda (R$)</label>
+                            <input
+                                type="number"
+                                name="valor_recompensa"
+                                required
+                                step="0.01"
+                                min="0"
+                                class="form-input"
+                            />
+                        </div>
+                        <Button
+                            type="submit"
+                            variant="primary"
+                            class="w-full mt-2"
+                            iconLeft={Plus}>Criar Nível</Button
+                        >
+                    </form>
+                </Card>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .admin-page {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .page-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--color-heading);
+            letter-spacing: -0.02em;
+        }
+        .subtitle {
+            color: var(--color-subtle);
+            margin-top: 0.25rem;
+        }
+
+        .notification {
+            padding: 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        .notification.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #34d399;
+        }
+        .notification.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #f87171;
+        }
+
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .table-container {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            overflow-x: auto;
+            box-shadow: var(--shadow-sm);
+        }
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        .admin-table th {
+            padding: 1rem 1.5rem;
+            background: var(--color-bg-base);
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--color-subtle);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .admin-table td {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--color-border);
+            vertical-align: middle;
+        }
+        .admin-table tr:hover td {
+            background: rgba(0, 0, 0, 0.01);
+        }
+        .empty-state {
+            padding: 3rem;
+            color: var(--color-subtle);
+            text-align: center;
+        }
+
+        .group-name {
+            font-weight: 700;
+            color: var(--color-heading);
+            font-size: 1rem;
+        }
+        .money-text {
+            font-weight: 800;
+            color: var(--color-brand-primary-dark);
+        }
+
+        .group-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .form-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--color-body);
+        }
+        .form-input {
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+            transition: 0.2s;
+            background: var(--color-bg-base);
+        }
+        .form-input:focus {
+            border-color: var(--color-brand-secondary);
+            box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1);
+            background: #fff;
+        }
+
+        .w-full {
+            width: 100%;
+        }
+        .mt-2 {
+            margin-top: 0.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .layout-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</AdminLayout>

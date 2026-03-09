@@ -22,6 +22,22 @@ Um sistema leve, focado na experiência Mobile-First e altamente integrado aos c
 - **⚡ Foco em Conversão:** Landing pages dinâmicas, altamente responsivas e otimizadas através de Diretrizes UX/UI consolidadas.
 - **🛡️ Cybersecurity First:** Atribuição à prova de balas utilizando rotinas de Last-Click via frontend e quarentena de repasses gerenciadas com integridade antifraude.
 
+## ▶️ Execucao Rapida (Local)
+Para subir o projeto rapidamente na porta `4321`:
+
+```bash
+npm run setup
+npm start
+```
+
+O comando `npm start` agora:
+- libera automaticamente a porta `4321` se ela estiver ocupada;
+- inicia o Astro com porta fixa (`4321`) e sem fallback silencioso de porta.
+
+Rotas principais:
+- Dashboard parceiro: `http://localhost:4321/parceiro/dashboard`
+- Home publica: `http://localhost:4321/`
+
 ---
 
 ## 🗺️ Status do Roadmap (V1)

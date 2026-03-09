@@ -3,7 +3,12 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
+    "setup": "npm install",
     "dev": "astro dev",
+    "dev:dashboard": "astro dev --port 4321",
+    "dev:strict": "astro dev --port 4321",
+    "free:4321": "node scripts/free-port.mjs 4321",
+    "start": "npm run free:4321 && npm run dev:strict",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"

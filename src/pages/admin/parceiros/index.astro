@@ -1,0 +1,224 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import Badge from "../../../components/ui/Badge.astro";
+import { adminService } from "../../../services/adminService";
+import { Search, Mail, Phone } from "@lucide/astro";
+
+const tenantId = Astro.locals.tenantId;
+
+if (!tenantId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+const parceiros = await adminService.getParceiros(tenantId);
+---
+
+<AdminLayout title="Gestão de Parceiros">
+    <div class="admin-page">
+        <header class="page-header">
+            <div>
+                <h1 class="page-title">Rede de Parceiros</h1>
+                <p class="subtitle">
+                    Todos os {parceiros.length} afiliados cadastrados no sistema.
+                </p>
+            </div>
+            <div class="header-actions">
+                <div class="search-box">
+                    <Search size={18} class="search-icon" />
+                    <input
+                        type="text"
+                        id="searchInput"
+                        placeholder="Buscar por Nome, Email ou CPF..."
+                    />
+                </div>
+            </div>
+        </header>
+
+        <div class="table-container">
+            <table class="admin-table" id="parceirosTable">
+                <thead>
+                    <tr>
+                        <th>Parceiro</th>
+                        <th>Contato</th>
+                        <th>CPF / CNPJ</th>
+                        <th>Cadastro</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {
+                        parceiros.length === 0 ? (
+                            <tr>
+                                <td colspan="5" class="text-center empty-state">
+                                    Nenhum parceiro atuando na base.
+                                </td>
+                            </tr>
+                        ) : (
+                            parceiros.map((p) => (
+                                <tr
+                                    class="partner-row"
+                                    data-search={`${p.nome} ${p.email} ${p.cpf}`.toLowerCase()}
+                                >
+                                    <td>
+                                        <div class="partner-name">{p.nome}</div>
+                                    </td>
+                                    <td>
+                                        <div class="contact-item">
+                                            <Mail
+                                                size={14}
+                                                class="contact-icon"
+                                            />
+                                            {p.email || "—"}
+                                        </div>
+                                        <div class="contact-item">
+                                            <Phone
+                                                size={14}
+                                                class="contact-icon"
+                                            />
+                                            {p.telefone || p.whatsapp || "—"}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="mono-text">
+                                            {p.cpf || "—"}
+                                        </span>
+                                    </td>
+                                    <td class="col-date">
+                                        {new Date(
+                                            p.created_at,
+                                        ).toLocaleDateString("pt-BR")}
+                                    </td>
+                                    <td>
+                                        <Badge variant="success">Ativo</Badge>
+                                    </td>
+                                </tr>
+                            ))
+                        )
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script is:inline>
+        const searchInput = document.getElementById("searchInput");
+        searchInput?.addEventListener("input", (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll(".partner-row").forEach((row) => {
+                const searchStr = row.getAttribute("data-search") || "";
+                row.style.display = searchStr.includes(term) ? "" : "none";
+            });
+        });
+    </script>
+
+    <style>
+        .admin-page {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .page-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--color-heading);
+            letter-spacing: -0.02em;
+        }
+        .subtitle {
+            color: var(--color-subtle);
+            margin-top: 0.25rem;
+        }
+
+        .search-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            color: var(--color-subtle);
+        }
+        .search-box input {
+            padding: 0.5rem 1rem 0.5rem 2.25rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            width: 280px;
+            outline: none;
+            transition: 0.2s;
+        }
+        .search-box input:focus {
+            border-color: var(--color-brand-secondary);
+            box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1);
+        }
+
+        .table-container {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            overflow-x: auto;
+            box-shadow: var(--shadow-sm);
+        }
+        .admin-table {
+            width: 100%;
+            min-width: 800px;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        .admin-table th {
+            padding: 1rem 1.5rem;
+            background: var(--color-bg-base);
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--color-subtle);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .admin-table td {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--color-border);
+            vertical-align: middle;
+        }
+        .admin-table tr:hover td {
+            background: rgba(0, 0, 0, 0.01);
+        }
+        .empty-state {
+            padding: 3rem;
+            color: var(--color-subtle);
+            text-align: center;
+        }
+
+        .partner-name {
+            font-weight: 700;
+            color: var(--color-heading);
+            font-size: 1rem;
+        }
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.85rem;
+            color: var(--color-subtle);
+            margin-bottom: 0.25rem;
+        }
+        .contact-icon {
+            color: var(--color-body);
+        }
+        .mono-text {
+            font-family: monospace;
+            color: var(--color-heading);
+            font-size: 0.9rem;
+        }
+        .col-date {
+            font-size: 0.85rem;
+            color: var(--color-subtle);
+        }
+    </style>
+</AdminLayout>

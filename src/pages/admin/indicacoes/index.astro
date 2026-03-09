@@ -1,0 +1,149 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import Badge from "../../../components/ui/Badge.astro";
+import { adminService } from "../../../services/adminService";
+import { Filter, Search, Edit2 } from "@lucide/astro";
+
+const tenantId = Astro.locals.tenantId;
+
+if (!tenantId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+let notification = "";
+
+if (Astro.request.method === "POST") {
+    try {
+        const formData = await Astro.request.formData();
+        const leadId = formData.get("lead_id") as string;
+        const newStatus = formData.get("status") as string;
+        
+        if (leadId && newStatus) {
+            await adminService.updateIndicacaoStatus(leadId, newStatus);
+            notification = "success|Status da indicação atualizado com sucesso!";
+        }
+    } catch (err: any) {
+        notification = `error|${err.message || "Erro ao atualizar indicação."}`;
+    }
+}
+
+const indicacoes = await adminService.getIndicacoes(tenantId);
+---
+
+<AdminLayout title="Gestão de Indicações">
+    <div class="admin-page">
+        <header class="page-header">
+            <div>
+                <h1 class="page-title">Funil de Indicações</h1>
+                <p class="subtitle">Gerencie o progresso dos leads originados pelos parceiros.</p>
+            </div>
+            <div class="header-actions">
+                <div class="search-box">
+                    <Search size={18} class="search-icon" />
+                    <input type="text" id="searchInput" placeholder="Buscar lead..." />
+                </div>
+            </div>
+        </header>
+
+        {notification && (
+            <div class={`notification ${notification.split('|')[0]}`}>
+                {notification.split('|')[1]}
+            </div>
+        )}
+
+        <div class="table-container">
+            <table class="admin-table" id="indicacoesTable">
+                <thead>
+                    <tr>
+                        <th>Lead</th>
+                        <th>Contato</th>
+                        <th>Parceiro Origem</th>
+                        <th>Data Recebimento</th>
+                        <th>Status / Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {indicacoes.length === 0 ? (
+                        <tr><td colspan="5" class="text-center empty-state">Nenhuma indicação recebida neste Tenant.</td></tr>
+                    ) : (
+                        indicacoes.map(l => (
+                            <tr class="lead-row" data-name={l.nome?.toLowerCase() || ''}>
+                                <td>
+                                    <div style="font-weight: 700; color: var(--color-heading);">{l.nome}</div>
+                                    <div style="font-size: 0.8rem; color: var(--color-subtle);">CPF: {l.cpf || 'Não informado'}</div>
+                                </td>
+                                <td>{l.telefone || l.whatsapp}</td>
+                                <td><strong>{l.parceiro?.nome || 'N/A'}</strong></td>
+                                <td class="col-date">{new Date(l.created_at).toLocaleString('pt-BR')}</td>
+                                <td>
+                                    <!-- Formulário inline nativo Astro para status -->
+                                    <form method="POST" class="status-form">
+                                        <input type="hidden" name="lead_id" value={l.id} />
+                                        <select name="status" class="status-select" onchange="this.form.submit()">
+                                            <option value="Recebido" selected={l.status === 'Recebido' || l.status === 'pendente' || l.status === 'PENDENTE' || !l.status}>Recebido</option>
+                                            <option value="Em contato" selected={l.status === 'Em contato'}>Em contato</option>
+                                            <option value="Aceito" selected={l.status === 'Aceito'}>Aceito</option>
+                                            <option value="Instalado" selected={l.status === 'Instalado'}>Instalado (Gera Recomp.)</option>
+                                            <option value="Cancelado" selected={l.status === 'Cancelado'}>Cancelado (Inviável)</option>
+                                        </select>
+                                    </form>
+                                    <div class="badge-hint" style="margin-top: 6px;">
+                                        {l.status === 'Instalado' && <Badge variant="success">Finalizado</Badge>}
+                                        {l.status === 'Cancelado' && <Badge variant="danger">Perdido</Badge>}
+                                        {(l.status === 'Recebido' || l.status === 'Em contato' || l.status === 'Aceito' || l.status === 'pendente' || l.status === 'PENDENTE' || !l.status) && <Badge variant="warning">Em Andamento</Badge>}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))
+                    )}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script is:inline>
+        // Pesquisa simples no DOM
+        const searchInput = document.getElementById('searchInput');
+        searchInput?.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.lead-row').forEach(row => {
+                const name = row.getAttribute('data-name') || '';
+                row.style.display = name.includes(term) ? '' : 'none';
+            });
+        });
+    </script>
+
+    <style>
+        .admin-page { display: flex; flex-direction: column; gap: 2rem; }
+        .page-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; }
+        .page-title { font-size: 2rem; font-weight: 800; color: var(--color-heading); letter-spacing: -0.02em; }
+        .subtitle { color: var(--color-subtle); margin-top: 0.25rem; }
+        
+        .header-actions { display: flex; gap: 1rem; }
+        .search-box { position: relative; display: flex; align-items: center; }
+        .search-icon { position: absolute; left: 0.75rem; color: var(--color-subtle); }
+        .search-box input { padding: 0.5rem 1rem 0.5rem 2.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); outline: none; transition: 0.2s; }
+        .search-box input:focus { border-color: var(--color-brand-secondary); box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1); }
+
+        .notification { padding: 1rem; border-radius: 8px; font-weight: 600; margin-bottom: 1rem; }
+        .notification.success { background: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        .notification.error { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+
+        .table-container { background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-xl); overflow-x: auto; box-shadow: var(--shadow-sm); }
+        .admin-table { width: 100%; min-width: 900px; border-collapse: collapse; text-align: left; }
+        .admin-table th { padding: 1rem 1.5rem; background: var(--color-bg-base); font-size: 0.75rem; font-weight: 800; color: var(--color-subtle); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--color-border); }
+        .admin-table td { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+        .admin-table tr:hover td { background: rgba(0,0,0,0.01); }
+        .empty-state { padding: 3rem; color: var(--color-subtle); }
+
+        .status-form { display: inline-block; width: 100%; }
+        .status-select { 
+            width: 100%; max-width: 200px; padding: 0.5rem; 
+            border: 1px solid var(--color-border); border-radius: var(--radius-sm); 
+            font-size: 0.85rem; font-weight: 600; color: var(--color-heading);
+            background: #fff; cursor: pointer;
+        }
+        .status-select:focus { border-color: var(--color-brand-primary); outline: none; }
+        .col-date { font-size: 0.85rem; color: var(--color-subtle); }
+    </style>
+</AdminLayout>

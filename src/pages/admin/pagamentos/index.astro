@@ -1,0 +1,222 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import Badge from "../../../components/ui/Badge.astro";
+import Button from "../../../components/ui/Button.astro";
+import { DollarSign, Clock, AlertCircle, CheckCircle2 } from "@lucide/astro";
+import { adminService } from "../../../services/adminService";
+
+const tenantId = Astro.locals.tenantId;
+
+if (!tenantId) {
+    return Astro.redirect("/parceiro/login");
+}
+
+let notification = "";
+
+// Handle status updates
+if (Astro.request.method === "POST") {
+    try {
+        const formData = await Astro.request.formData();
+        const action = formData.get("action");
+        const comissaoId = formData.get("comissao_id") as string;
+        
+        if (action === "pay" && comissaoId) {
+            await adminService.updatePagamento(comissaoId, "pago");
+            notification = "success|Pagamento marcado como pago com sucesso!";
+        } else if (action === "update_valor" && comissaoId) {
+            const novoValor = parseFloat(formData.get("valor") as string);
+            if (!isNaN(novoValor)) {
+                await adminService.updatePagamento(comissaoId, "pendente", novoValor);
+                notification = "success|Valor atualizado com sucesso!";
+            }
+        }
+    } catch (err: any) {
+        notification = `error|${err.message || "Erro ao atualizar pagamento."}`;
+    }
+}
+
+const pagamentos = await adminService.getPagamentos(tenantId);
+
+// Helper para Atrasos
+const getAtrasoData = (dataCriacao: string) => {
+    const gerado = new Date(dataCriacao);
+    const hoje = new Date();
+    const diffTime = Math.abs(hoje.getTime() - gerado.getTime());
+    const dias = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    let cat = "0-7 dias";
+    let color = "success";
+    if (dias >= 8 && dias <= 15) {
+        cat = "8-15 dias";
+        color = "warning";
+    } else if (dias >= 16 && dias <= 30) {
+        cat = "16-30 dias";
+        color = "danger";
+    } else if (dias > 30) {
+        cat = "30+ dias";
+        color = "danger";
+    }
+
+    // Assumimos vencimento = 30 dias após criado
+    const vencimento = new Date(gerado);
+    vencimento.setDate(vencimento.getDate() + 30);
+
+    return { dias, cat, color, gerado, vencimento };
+};
+
+const formatMoney = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+
+const pendentes = pagamentos.filter(p => p.status === 'pendente');
+const pagos = pagamentos.filter(p => p.status === 'pago');
+---
+
+<AdminLayout title="Gestão de Pagamentos">
+    <div class="admin-page">
+        <header class="page-header">
+            <div>
+                <h1 class="page-title">Pagamentos aos Parceiros</h1>
+                <p class="subtitle">Aprovações de comissões e gestão financeira de indicações instaladas.</p>
+            </div>
+        </header>
+
+        {notification && (
+            <div class={`notification ${notification.split('|')[0]}`}>
+                {notification.split('|')[1]}
+            </div>
+        )}
+
+        <div class="table-container">
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('pendentes')">Pendentes ({pendentes.length})</button>
+                <button class="tab" onclick="showTab('pagos')">Histórico Pago ({pagos.length})</button>
+            </div>
+
+            <div id="tab-pendentes" class="tab-content active">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Parceiro</th>
+                            <th>Lead Referência</th>
+                            <th>Atraso</th>
+                            <th>Valor</th>
+                            <th>Gerado / Vence</th>
+                            <th class="text-right">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {pendentes.length === 0 ? (
+                            <tr><td colspan="6" class="text-center empty-state">Nenhum pagamento pendente.</td></tr>
+                        ) : (
+                            pendentes.map(p => {
+                                const atraso = getAtrasoData(p.created_at);
+                                return (
+                                    <tr>
+                                        <td><strong>{p.parceiro?.nome || 'Desconhecido'}</strong></td>
+                                        <td>{p.lead?.nome || 'N/A'}</td>
+                                        <td>
+                                            <Badge variant={atraso.color as any}>
+                                                {atraso.cat} ({atraso.dias}d)
+                                            </Badge>
+                                        </td>
+                                        <td>
+                                            <!-- Edit Valor inline form -->
+                                            <form method="POST" style="display:flex; gap:0.5rem; max-width: 140px;">
+                                                <input type="hidden" name="action" value="update_valor" />
+                                                <input type="hidden" name="comissao_id" value={p.id} />
+                                                <input type="number" name="valor" value={p.valor} step="0.01" class="mini-input" required />
+                                                <button type="submit" class="icon-btn tooltip" aria-label="Atualizar Valor" title="Salvar Valor">
+                                                    <CheckCircle2 size={16} />
+                                                </button>
+                                            </form>
+                                        </td>
+                                        <td class="col-date">
+                                            Gerado: {atraso.gerado.toLocaleDateString()}<br/>
+                                            <span style={atraso.dias > 30 ? 'color: red; font-weight:bold;' : 'color: var(--color-subtle);'}>
+                                                Vence: {atraso.vencimento.toLocaleDateString()}
+                                            </span>
+                                        </td>
+                                        <td class="text-right">
+                                            <form method="POST">
+                                                <input type="hidden" name="action" value="pay" />
+                                                <input type="hidden" name="comissao_id" value={p.id} />
+                                                <Button type="submit" variant="primary" size="sm" iconLeft={DollarSign}>Marcar Pago</Button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="tab-pagos" class="tab-content" style="display: none;">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Parceiro</th>
+                            <th>Lead Referência</th>
+                            <th>Status</th>
+                            <th>Valor Pago</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {pagos.length === 0 ? (
+                            <tr><td colspan="5" class="text-center empty-state">Nenhum histórico de pagamentos.</td></tr>
+                        ) : (
+                            pagos.map(p => (
+                                <tr>
+                                    <td><strong>{p.parceiro?.nome || 'Desconhecido'}</strong></td>
+                                    <td>{p.lead?.nome || 'N/A'}</td>
+                                    <td><Badge variant="success">Pago</Badge></td>
+                                    <td class="money-text">{formatMoney(p.valor)}</td>
+                                    <td class="col-date">{new Date(p.created_at).toLocaleDateString()}</td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script is:inline>
+        function showTab(id) {
+            document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + id).style.display = 'block';
+            event.currentTarget.classList.add('active');
+        }
+    </script>
+
+    <style>
+        .admin-page { display: flex; flex-direction: column; gap: 2rem; }
+        .page-header { display: flex; justify-content: space-between; align-items: flex-end; }
+        .page-title { font-size: 2rem; font-weight: 800; color: var(--color-heading); letter-spacing: -0.02em; }
+        .subtitle { color: var(--color-subtle); margin-top: 0.25rem; font-size: 1rem; }
+        
+        .notification { padding: 1rem; border-radius: 8px; font-weight: 600; margin-bottom: 1rem; }
+        .notification.success { background: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        .notification.error { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+
+        .table-container { background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
+        .tabs { display: flex; border-bottom: 1px solid var(--color-border); background: var(--color-bg-base); }
+        .tab { padding: 1rem 1.5rem; font-weight: 600; font-size: 0.9rem; color: var(--color-subtle); background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: 0.2s; }
+        .tab:hover { color: var(--color-heading); }
+        .tab.active { color: var(--color-brand-secondary); border-bottom-color: var(--color-brand-secondary); background: #fff; }
+
+        .admin-table { width: 100%; min-width: 800px; border-collapse: collapse; text-align: left; }
+        .admin-table th { padding: 1rem 1.5rem; background: #fff; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--color-border); }
+        .admin-table td { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+        .admin-table tr:hover td { background: var(--color-bg-base); }
+        .empty-state { padding: 3rem; color: var(--color-subtle); }
+        .text-right { text-align: right; }
+        .col-date { font-size: 0.85rem; color: var(--color-body); line-height: 1.4; }
+        .money-text { font-weight: 800; color: var(--color-heading); }
+        
+        .mini-input { width: 100px; padding: 0.4rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.9rem; font-family: inherit; font-weight: 600; }
+        .icon-btn { background: var(--color-alert-success); color: white; border: none; border-radius: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .icon-btn:hover { opacity: 0.9; }
+    </style>
+</AdminLayout>

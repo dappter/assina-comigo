@@ -36,23 +36,40 @@ if (Astro.request.method === "POST") {
         const nome = data.get("nome") as string;
         const telefone = data.get("whatsapp") as string;
         const cpf = data.get("cpf") as string;
-        const local = data.get("local") as string; // Optional: se precisar salvar local, pode ser no "cep" ou outro campo custom. O DB tem "nome, cpf, telefone, status".
+        const local = data.get("local") as string;
+
+        console.log(
+            `[Backend Log] Tentativa de criação de indicação - Parceiro: ${partner.nome} (ID: ${partner.id}), Tenant: ${partner.tenant_id}`,
+        );
+        console.log(
+            `[Backend Log] Dados recebidos -> Nome: ${nome}, Tel: ${telefone}, CPF: ${cpf}, Local: ${local}`,
+        );
 
         if (nome && telefone) {
-            await indicationService.createIndication(partner.tenant_id, {
-                parceiro_id: partner.id,
-                nome,
-                telefone,
-                cpf: cpf || "",
-                status: "Recebido",
-            });
+            const leadNome = local ? `${nome} (${local})` : nome;
+
+            const lead = await indicationService.createIndication(
+                partner.tenant_id,
+                {
+                    parceiro_id: partner.id,
+                    nome: leadNome,
+                    telefone,
+                    cpf: cpf || "",
+                    status: "PENDENTE",
+                },
+            );
+
+            console.log(
+                `[Backend Log] Sucesso: Indicação criada no banco -> ID: ${lead.id}`,
+            );
             success = true;
         } else {
+            console.log(`[Backend Log] Erro: Nome e telefone não fornecidos.`);
             errorMsg = "Nome e telefone são obrigatórios.";
         }
     } catch (error: any) {
         errorMsg = "Ocorreu um erro ao enviar sua indicação. Tente novamente.";
-        console.error("Erro ao salvar lead:", error);
+        console.error("[Backend Log] Erro crítico ao salvar lead:", error);
     }
 }
 ---
@@ -110,7 +127,7 @@ if (Astro.request.method === "POST") {
                         <h3>Solicitar Contato</h3>
                     </div>
 
-                    <form id="leadForm" class="lead-form">
+                    <form id="leadForm" class="lead-form" method="POST">
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="nome" class="form-label"
