@@ -193,30 +193,6 @@ const isActive = (path: string) =>
                         </svg>
                         Configurações
                     </a>
-
-                    <!-- Retornar ao Portal -->
-                    <a
-                        href="/parceiro/dashboard"
-                        class="nav-item partner-link"
-                        style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;"
-                        title="Sair do modo Administrador"
-                    >
-                        <svg
-                            class="nav-icon"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"
-                            ></path>
-                            <polyline points="10 17 15 12 10 7"></polyline>
-                            <line x1="15" y1="12" x2="3" y2="12"></line>
-                        </svg>
-                        Voltar para Parceiro
-                    </a>
                 </nav>
 
                 <!-- Sidebar Footer -->
@@ -344,9 +320,9 @@ const isActive = (path: string) =>
                 if (logoutBtn) logoutBtn.disabled = true;
                 try {
                     await fetch("/api/auth/logout", { method: "POST" });
-                    window.location.href = "/parceiro/login"; // TODO admin pode ter login separado, mas usaremos a mesma base de autenticação
+                    window.location.href = "/admin/login";
                 } catch {
-                    window.location.href = "/parceiro/login";
+                    window.location.href = "/admin/login";
                 }
             });
         </script>

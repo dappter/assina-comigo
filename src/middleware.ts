@@ -59,7 +59,29 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
         // Se estiver logado e tentar acessar login ou registro, manda pro dashboard
         if (context.locals.tenantId && ['/parceiro/login', '/parceiro/registro'].includes(pathname)) {
+            if (context.locals.role === 'admin') {
+                return context.redirect('/admin/dashboard');
+            }
             return context.redirect('/parceiro/dashboard');
+        }
+    }
+
+    // Proteção de rotas do administrador
+    if (pathname.startsWith('/admin')) {
+        if (!context.locals.tenantId && pathname !== '/admin/login') {
+            return context.redirect('/admin/login');
+        }
+
+        if (context.locals.tenantId && pathname === '/admin/login') {
+            if (context.locals.role === 'admin') {
+                return context.redirect('/admin/dashboard');
+            } else {
+                return context.redirect('/parceiro/dashboard'); // se for logado mas n for admin reorientar
+            }
+        }
+
+        if (pathname !== '/admin/login' && context.locals.role !== 'admin') {
+            return context.redirect('/parceiro/login');
         }
     }
 

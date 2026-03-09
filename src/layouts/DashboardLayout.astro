@@ -160,27 +160,6 @@ const isActive = (path: string) =>
             Meu Perfil
           </a>
 
-          <!-- Acesso Restrito (Se for Admin) -->
-          <a
-            href="/admin/dashboard"
-            class="nav-item admin-link"
-            title="Ir para o Painel Administrador"
-            style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;"
-          >
-            <svg
-              class="nav-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-            Painel Admin
-          </a>
-
           <a
             href="/parceiro/configuracoes"
             class={`nav-item ${isActive("/parceiro/configuracoes") ? "active" : ""}`}

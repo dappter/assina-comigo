@@ -306,13 +306,21 @@ if (Astro.request.method === "POST") {
         </p>
       </div>
     </main>
-    <footer class="mt-auto py-8 text-center">
+    <footer class="mt-auto py-8 text-center flex flex-col items-center gap-4">
       <button
         class="flex items-center justify-center gap-2 text-blue-800/60 dark:text-slate-500 text-sm font-semibold hover:text-secondary transition-colors"
       >
         <span class="material-symbols-outlined text-lg">help</span>
         Preciso de ajuda para acessar
       </button>
+
+      <a
+        href="/admin/login"
+        class="flex items-center justify-center gap-2 text-rose-500/80 hover:text-rose-600 text-xs font-bold transition-colors uppercase tracking-widest mt-4"
+      >
+        <span class="material-symbols-outlined text-sm">shield_lock</span>
+        Acesso Corporativo (Gestores)
+      </a>
     </footer>
   </body>
 </html>

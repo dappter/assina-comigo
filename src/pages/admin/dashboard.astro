@@ -7,7 +7,7 @@ import { adminService } from "../../services/adminService";
 const tenantId = Astro.locals.tenantId;
 
 if (!tenantId) {
-    return Astro.redirect("/parceiro/login");
+    return Astro.redirect("/admin/login");
 }
 
 const stats = await adminService.getDashboardStats(tenantId);
