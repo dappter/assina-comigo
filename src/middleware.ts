@@ -1,5 +1,8 @@
 import { defineMiddleware } from 'astro:middleware';
-import { supabase } from './lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+// global default client for anon fallbacks
+import { supabase as defaultSupabase } from './lib/supabaseClient';
+import { getSupabaseServerClient } from './lib/supabaseSSR';
 
 export const onRequest = defineMiddleware(async (context, next) => {
     // Ignora rotas da API, rotas estáticas e assets internos do frontend (Vite/Astro)
@@ -20,34 +23,37 @@ export const onRequest = defineMiddleware(async (context, next) => {
         return next();
     }
 
-    // Verifica tokens de auth no cookie do Supabase
-    const accessToken = context.cookies.get('sb-access-token')?.value;
-    const refreshToken = context.cookies.get('sb-refresh-token')?.value;
+    const supabase = getSupabaseServerClient(context.cookies);
 
-    if (accessToken && refreshToken) {
-        // Configura a sessão corrente para a request
-        const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    // Configura a sessão corrente para a request
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-        if (user && !authError) {
-            context.locals.user = user;
+    if (user && !authError) {
+        console.log("[SESSION_CHECK] User authenticated.", { userId: user.id });
+        context.locals.user = user;
 
-            // Busca o profile associado para descobrir o tenant e a role
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
+        // Busca o profile associado para descobrir o tenant e a role
+        const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
 
-            if (profile) {
-                context.locals.tenantId = profile.tenant_id;
-                context.locals.role = profile.tipo_usuario;
-                context.locals.profileId = profile.id;
-            }
-        } else {
-            // Token inválido, limpa cookies
-            context.cookies.delete('sb-access-token', { path: '/' });
-            context.cookies.delete('sb-refresh-token', { path: '/' });
+        if (error && error.code !== 'PGRST116') {
+            console.error("[MIDDLEWARE] Erro ao buscar profile do user", user.id, error);
         }
+
+        if (profile) {
+            console.log("[SESSION_CHECK] Profile found.", { tenantId: profile.tenant_id, role: profile.tipo_usuario });
+            context.locals.tenantId = profile.tenant_id;
+            context.locals.role = profile.tipo_usuario;
+            context.locals.profileId = profile.id;
+        } else {
+            console.log("[SESSION_CHECK] Profile NOT found for user.", { userId: user.id });
+        }
+    } else {
+        console.log("[SESSION_CHECK] User NOT authenticated or error.", { authError });
+        // The SSR client automatically clears invalid cookies when getUser() fails
     }
 
     // Proteção de rotas internas de parceiro

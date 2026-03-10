@@ -18,10 +18,18 @@ import { indicationService } from "../../services/indicationService";
 import { rewardService } from "../../services/rewardService";
 import { partnerService } from "../../services/partnerService";
 
+import { getSupabaseServerClient } from "../../lib/supabaseSSR";
+
 const tenantId = Astro.locals.tenantId;
 const profileId = Astro.locals.profileId;
 
-if (!tenantId || !profileId) {
+const supabase = getSupabaseServerClient(Astro.cookies);
+const {
+  data: { user },
+  error: authError,
+} = await supabase.auth.getUser();
+
+if (!tenantId || !profileId || !user || authError) {
   return Astro.redirect("/parceiro/login");
 }
 

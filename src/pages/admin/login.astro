@@ -1,5 +1,6 @@
 ---
-import { supabase } from "../../lib/supabaseClient";
+import { supabase as defaultSupabase } from "../../lib/supabaseClient";
+import { getSupabaseServerClient } from "../../lib/supabaseSSR";
 
 let errorMessage = "";
 let successMessage = "";
@@ -19,8 +20,9 @@ if (Astro.request.method === "POST") {
                 errorMessage =
                     "Por favor, insira um e-mail válido e uma senha.";
             } else {
+                const supabaseSSR = getSupabaseServerClient(Astro.cookies);
                 const { data: sessionData, error } =
-                    await supabase.auth.signInWithPassword({
+                    await supabaseSSR.auth.signInWithPassword({
                         email: emailAddress,
                         password: password,
                     });
@@ -30,7 +32,7 @@ if (Astro.request.method === "POST") {
                         error?.message || "E-mail ou senha incorretos.";
                 } else {
                     // Verify if user is actually admin
-                    const { data: profile } = await supabase
+                    const { data: profile } = await supabaseSSR
                         .from("profiles")
                         .select("tipo_usuario")
                         .eq("id", sessionData.session.user.id)
@@ -39,22 +41,8 @@ if (Astro.request.method === "POST") {
                     if (profile?.tipo_usuario !== "admin") {
                         errorMessage =
                             "Acesso negado. Esta conta não possui privilégios administrativos.";
-                        await supabase.auth.signOut();
+                        await supabaseSSR.auth.signOut();
                     } else {
-                        const { access_token, refresh_token } =
-                            sessionData.session;
-                        Astro.cookies.set("sb-access-token", access_token, {
-                            path: "/",
-                            secure: import.meta.env.PROD,
-                            httpOnly: true,
-                            sameSite: "lax",
-                        });
-                        Astro.cookies.set("sb-refresh-token", refresh_token, {
-                            path: "/",
-                            secure: import.meta.env.PROD,
-                            httpOnly: true,
-                            sameSite: "lax",
-                        });
                         return Astro.redirect("/admin/dashboard");
                     }
                 }

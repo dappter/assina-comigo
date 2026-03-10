@@ -1,10 +1,12 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabaseAdmin as supabase } from '../lib/supabaseAdmin';
 
 export interface Profile {
     id: string;
     tenant_id: string;
     nome: string;
     email: string;
+    telefone?: string;
+    cpf?: string;
     tipo_usuario: 'admin' | 'parceiro';
     created_at: string;
 }

@@ -1,4 +1,6 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabaseAdmin as supabase } from '../lib/supabaseAdmin';
+import { sanitizePhone, sanitizeCPF } from '../utils/validation';
+import { logError } from '../utils/logger';
 
 export interface Lead {
     id: string;
@@ -36,11 +38,18 @@ export const indicationService = {
         tenantId: string,
         leadData: Omit<Lead, 'id' | 'created_at' | 'tenant_id'>
     ): Promise<Lead> {
+        // Sanitizar dados para evitar falhas no Insert
+        const sanitizedData = {
+            ...leadData,
+            cpf: sanitizeCPF(leadData.cpf || ""),
+            telefone: sanitizePhone(leadData.telefone || "")
+        };
+
         const { data, error } = await supabase
             .from('leads')
             .insert([
                 {
-                    ...leadData,
+                    ...sanitizedData,
                     tenant_id: tenantId,
                 },
             ])
@@ -48,7 +57,7 @@ export const indicationService = {
             .single();
 
         if (error) {
-            console.error('Error creating indication:', error);
+            logError("[DB_ERROR] Falha ao criar Lead", { tenantId, sanitizedData, error });
             throw error;
         }
         return data;

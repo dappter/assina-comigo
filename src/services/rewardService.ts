@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabaseAdmin as supabase } from '../lib/supabaseAdmin';
 
 export interface Comissao {
     id: string;

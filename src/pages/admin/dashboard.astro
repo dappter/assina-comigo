@@ -4,9 +4,17 @@ import Card from "../../components/ui/Card.astro";
 import { Users, TrendingUp, Wallet, CheckSquare } from "@lucide/astro";
 import { adminService } from "../../services/adminService";
 
+import { getSupabaseServerClient } from "../../lib/supabaseSSR";
+
 const tenantId = Astro.locals.tenantId;
 
-if (!tenantId) {
+const supabase = getSupabaseServerClient(Astro.cookies);
+const {
+    data: { user },
+    error: authError,
+} = await supabase.auth.getUser();
+
+if (!tenantId || !user || authError) {
     return Astro.redirect("/admin/login");
 }
 

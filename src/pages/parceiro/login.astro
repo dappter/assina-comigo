@@ -1,5 +1,7 @@
 ---
 import { supabase } from "../../lib/supabaseClient";
+import { getSupabaseServerClient } from "../../lib/supabaseSSR";
+import { logError } from "../../utils/logger";
 
 // Tela gerada a partir do Design System e UI do Stitch
 
@@ -21,28 +23,20 @@ if (Astro.request.method === "POST") {
       if (!emailAddress || !emailAddress.includes("@") || !password) {
         errorMessage = "Por favor, insira um e-mail válido e uma senha.";
       } else {
+        const supabaseSSR = getSupabaseServerClient(Astro.cookies);
         const { data: sessionData, error } =
-          await supabase.auth.signInWithPassword({
+          await supabaseSSR.auth.signInWithPassword({
             email: emailAddress,
             password: password,
           });
 
         if (error || !sessionData.session) {
+          logError("[AUTH_ERROR] User login failed", {
+            email: emailAddress,
+            error,
+          });
           errorMessage = error?.message || "E-mail ou senha incorretos.";
         } else {
-          const { access_token, refresh_token } = sessionData.session;
-          Astro.cookies.set("sb-access-token", access_token, {
-            path: "/",
-            secure: import.meta.env.PROD,
-            httpOnly: true,
-            sameSite: "lax",
-          });
-          Astro.cookies.set("sb-refresh-token", refresh_token, {
-            path: "/",
-            secure: import.meta.env.PROD,
-            httpOnly: true,
-            sameSite: "lax",
-          });
           return Astro.redirect("/parceiro/dashboard");
         }
       }
@@ -61,6 +55,7 @@ if (Astro.request.method === "POST") {
     }
   } catch (error) {
     if (error instanceof Error) {
+      logError("[SYSTEM_ERROR] Falha parsing formulário de login", { error });
       if (error.message.includes("Content-Type was not one of")) {
         errorMessage =
           "Erro de conexão segura. O navegador falhou ao enviar os dados do formulário corretamente.";
@@ -68,6 +63,7 @@ if (Astro.request.method === "POST") {
         errorMessage = error.message;
       }
     } else {
+      logError("[SYSTEM_ERROR] Erro inesperado login", { error });
       errorMessage = "Ocorreu um erro inesperado.";
     }
   }
