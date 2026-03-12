@@ -4,6 +4,7 @@ import Card from "../../components/ui/Card.astro";
 import Button from "../../components/ui/Button.astro";
 import { Save, Image, Palette, Type } from "@lucide/astro";
 import { adminService } from "../../services/adminService";
+import { getSupabaseServerClient } from "../../lib/supabaseSSR";
 
 const tenantId = Astro.locals.tenantId;
 
@@ -16,30 +17,37 @@ let notification = "";
 if (Astro.request.method === "POST") {
     try {
         const formData = await Astro.request.formData();
+        const action = formData.get("action");
 
-        // Embora as colunas na tabela tenants precisem de uma Migration futura,
-        // o Supabase JS permite enviar os dados se as colunas já estiverem lá,
-        // mas vamos garantir não quebrar a UI agora.
+        if (action === "update_password") {
+            const novaSenha = formData.get("nova_senha") as string;
+            if (!novaSenha || novaSenha.length < 6) {
+                throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
+            }
+            
+            const supabase = getSupabaseServerClient(Astro.cookies);
+            const { error: pwdError } = await supabase.auth.updateUser({ password: novaSenha });
+            
+            if (pwdError) throw pwdError;
+            notification = "success|Senha atualizada com sucesso!";
+        } else {
+            const payload = {
+                nome_fantasia: formData.get("nome_fantasia") as string,
+                email_contato: formData.get("email_contato") as string,
+                cor_primaria: formData.get("cor_primaria") as string,
+                cor_secundaria: formData.get("cor_secundaria") as string,
+                logo_url: formData.get("logo_url") as string,
+            };
 
-        const payload = {
-            nome_fantasia: formData.get("nome_fantasia") as string,
-            email_contato: formData.get("email_contato") as string,
-            // Futuras colunas (usar JSONB ou colunas nativas)
-            // config_branding: {
-            //     cor_primaria: formData.get("cor_primaria"),
-            //     fonte: formData.get("fonte")
-            // }
-        };
-
-        await adminService.updateConfiguracoes(tenantId, payload);
-        notification =
-            "success|Configurações atualizadas prontas para produção!";
+            await adminService.updateConfiguracoes(tenantId, payload);
+            notification = "success|Configurações atualizadas prontas para produção!";
+        }
     } catch (err: any) {
-        notification = `error|${err.message || "Erro ao atualizar configurações."}`;
+        notification = `error|${err.message || "Erro ao atualizar."}`;
     }
 }
 
-const config = await adminService.getConfiguracoes(tenantId);
+const config = await adminService.getConfiguracoes(tenantId) || {};
 ---
 
 <AdminLayout title="Configurações do Provedor">
@@ -172,35 +180,46 @@ const config = await adminService.getConfiguracoes(tenantId);
                     </div>
 
                     <div class="form-actions mt-4">
-                        <Button type="submit" variant="primary" iconLeft={Save}
-                            >Salvar Alterações</Button
-                        >
+                        <Button type="submit" variant="primary" iconLeft={Save}>Salvar Alterações</Button>
                     </div>
                 </form>
             </Card>
 
-            <div class="side-info">
+            <div class="side-info flex flex-col gap-6">
                 <Card>
-                    <h4
-                        style="margin-bottom: 0.5rem; color: var(--color-heading);"
-                    >
-                        White-Label Preview
-                    </h4>
-                    <p
-                        style="color: var(--color-subtle); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.5rem;"
-                    >
-                        Ao aplicar a cor primária, os botões, links ativos e
-                        detalhes dos dashboards adotarão o novo padrão para
-                        todos os parceiros do tenant <strong
-                            >{config?.nome_fantasia || "Atual"}</strong
-                        >.
+                    <h4 style="margin-bottom: 0.5rem; color: var(--color-heading);">White-Label Preview</h4>
+                    <p style="color: var(--color-subtle); font-size: 0.9rem; line-height: 1.5; margin-bottom: 1.5rem;">
+                        Ao aplicar a cor primária, os botões e detalhes adotarão o novo padrão para todos os parceiros do tenant <strong>{config?.nome_fantasia || "Atual"}</strong>.
                     </p>
-
                     <div class="preview-box">
-                        <div class="brand-fake"></div>
-                        <div class="btn-fake"></div>
-                        <div class="badge-fake"></div>
+                        <div class="brand-fake" style={`background: ${config?.cor_primaria || '#ffb918'}`}></div>
+                        <div class="btn-fake" style={`background: ${config?.cor_secundaria || '#0062ff'}`}></div>
+                        <div class="badge-fake" style={`background: ${config?.cor_primaria ? config.cor_primaria + '33' : 'rgba(255, 185, 24, 0.2)'}`}></div>
                     </div>
+                </Card>
+
+                <Card>
+                    <div class="card-header pb-2 border-b border-slate-200/50 mb-4">
+                        <h4 style="color: var(--color-heading); font-weight: 700;">Segurança</h4>
+                    </div>
+                    <form method="POST" class="settings-form">
+                        <input type="hidden" name="action" value="update_password" />
+                        <div class="form-group">
+                            <label>Nova Senha</label>
+                            <input
+                                type="password"
+                                name="nova_senha"
+                                placeholder="Min. 6 caracteres"
+                                class="form-input"
+                                required
+                                minlength="6"
+                            />
+                            <small class="text-slate-500 mt-1 block">Sua sessão será mantida após a troca.</small>
+                        </div>
+                        <div class="form-actions mt-2 border-none pt-0">
+                            <Button type="submit" variant="secondary">Atualizar Senha</Button>
+                        </div>
+                    </form>
                 </Card>
             </div>
         </div>

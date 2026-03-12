@@ -1,12 +1,52 @@
 ---
 import DashboardLayout from "../../layouts/DashboardLayout.astro";
 import { partnerService } from "../../services/partnerService";
+import { getSupabaseServerClient } from "../../lib/supabaseSSR";
 
 const tenantId = Astro.locals.tenantId;
 const profileId = Astro.locals.profileId;
 
 if (!tenantId || !profileId) {
     return Astro.redirect("/parceiro/login");
+}
+
+let notification = "";
+
+if (Astro.request.method === "POST") {
+    try {
+        const formData = await Astro.request.formData();
+        const action = formData.get("action");
+
+        if (action === "update_password") {
+            const novaSenha = formData.get("nova_senha") as string;
+            if (!novaSenha || novaSenha.length < 6) {
+                throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
+            }
+            
+            const supabase = getSupabaseServerClient(Astro.cookies);
+            const { error: pwdError } = await supabase.auth.updateUser({ password: novaSenha });
+            
+            if (pwdError) throw pwdError;
+            notification = "success|Senha atualizada com sucesso!";
+        } else if (action === "update_profile") {
+            const nome = formData.get("nome") as string;
+            const phone = formData.get("phone") as string;
+            const tipo_pix = formData.get("tipo_pix") as string;
+            const chave_pix = formData.get("chave_pix") as string;
+
+            if (!nome) throw new Error("O nome é obrigatório.");
+
+            await partnerService.updatePartner(tenantId, profileId, {
+                nome,
+                telefone: phone,
+                tipo_pix: tipo_pix || null,
+                chave_pix: chave_pix || null
+            });
+            notification = "success|Perfil atualizado com sucesso!";
+        }
+    } catch (err: any) {
+        notification = `error|${err.message || "Erro ao atualizar."}`;
+    }
 }
 
 const partner = await partnerService.getPartnerById(tenantId, profileId);
@@ -52,7 +92,18 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
             aria-labelledby="tabConta"
             class="panel"
         >
-            <form class="config-form" id="formConta" novalidate>
+            <form method="POST" class="config-form" id="formConta">
+                <input type="hidden" name="action" value="update_profile" />
+                {notification && notification.split("|")[0] === 'success' && (
+                    <div class="toast toast-static success mb-4" style="opacity: 1; position: relative; background: #d1fae5; color: #065f46; border: 1px solid #34d399; padding: 1rem; border-radius: 8px;">
+                        {notification.split("|")[1]}
+                    </div>
+                )}
+                {notification && notification.split("|")[0] === 'error' && (
+                    <div class="toast toast-static error mb-4" style="opacity: 1; position: relative; padding: 1rem; border-radius: 8px;">
+                        {notification.split("|")[1]}
+                    </div>
+                )}
                 <div class="form-field">
                     <label for="nomeInput" class="field-label"
                         >Nome completo</label
@@ -84,6 +135,27 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
                     >
                 </div>
 
+                <div class="form-field" style="margin-top: 0.5rem;">
+                    <label class="field-label">Dados Bancários (Para Receber Comissões)</label>
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
+                        <select name="tipo_pix" class="field-input">
+                            <option value="">Selecione o tipo</option>
+                            <option value="cpf" selected={(partner as any)?.tipo_pix === 'cpf'}>CPF</option>
+                            <option value="cnpj" selected={(partner as any)?.tipo_pix === 'cnpj'}>CNPJ</option>
+                            <option value="telefone" selected={(partner as any)?.tipo_pix === 'telefone'}>Telefone</option>
+                            <option value="email" selected={(partner as any)?.tipo_pix === 'email'}>E-mail</option>
+                            <option value="aleatoria" selected={(partner as any)?.tipo_pix === 'aleatoria'}>Chave Aleatória</option>
+                        </select>
+                        <input
+                            type="text"
+                            name="chave_pix"
+                            class="field-input"
+                            placeholder="Sua chave PIX"
+                            value={(partner as any)?.chave_pix || ""}
+                        />
+                    </div>
+                </div>
+
                 <div class="form-actions">
                     <button type="submit" class="btn-save" id="btnSalvar">
                         <svg
@@ -113,7 +185,41 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
             aria-labelledby="tabSeguranca"
             class="panel hidden"
         >
+            {notification && (
+                <div class={`toast toast-static ${notification.split("|")[0]} mb-4`} style="opacity: 1; position: relative;">
+                    {notification.split("|")[1]}
+                </div>
+            )}
+        
             <div class="security-section">
+                <!-- Alterar Senha -->
+                <div class="security-item" style="border-bottom: 1px solid var(--color-border); padding-bottom: 1.5rem; margin-bottom: 0.5rem; border-radius: 0; border-left: none; border-right: none; border-top: none; background: transparent;">
+                    <form method="POST" style="width: 100%; display: flex; flex-direction: column; gap: 1rem;">
+                        <input type="hidden" name="action" value="update_password" />
+                        <div>
+                            <strong style="font-size: 1rem; color: var(--color-heading); display: block; margin-bottom: 0.25rem;">Alterar Senha</strong>
+                            <p style="font-size: 0.825rem; color: var(--color-subtle); margin-bottom: 1rem;">Crie uma nova senha segura. Mínimo de 6 caracteres.</p>
+                        </div>
+                        <div class="form-field">
+                            <input
+                                type="password"
+                                name="nova_senha"
+                                class="field-input"
+                                placeholder="Nova senha"
+                                required
+                                minlength="6"
+                                style="max-width: 300px;"
+                            />
+                        </div>
+                        <div>
+                            <button type="submit" class="btn-save" style="padding: 0.6rem 1.25rem;">
+                                Atualizar Senha
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="security-item">
                 <div class="security-item">
                     <div class="security-info">
                         <strong>Sair da conta</strong>
@@ -193,6 +299,17 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
         const panelConta = document.getElementById("panelConta");
         const panelSeg = document.getElementById("panelSeguranca");
 
+        // Open security tab if we have a notification
+        const hasNotification = document.querySelector('.toast-static');
+        if (hasNotification) {
+            tabSeg?.classList.add("active");
+            tabConta?.classList.remove("active");
+            tabSeg?.setAttribute("aria-selected", "true");
+            tabConta?.setAttribute("aria-selected", "false");
+            panelSeg?.classList.remove("hidden");
+            panelConta?.classList.add("hidden");
+        }
+
         tabConta?.addEventListener("click", () => {
             tabConta.classList.add("active");
             tabSeg?.classList.remove("active");
@@ -210,19 +327,8 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
             panelConta?.classList.add("hidden");
         });
 
-        // Form Conta — feedback visual (sem back-end real aqui, só toast)
-        const formConta = document.getElementById("formConta");
-        const toast = document.getElementById("toast");
-        formConta?.addEventListener("submit", (e) => {
-            e.preventDefault();
-            if (toast) {
-                toast.textContent = "✓ Alterações salvas com sucesso!";
-                toast.className = "toast toast-success show";
-                setTimeout(() => {
-                    toast.className = "toast";
-                }, 3000);
-            }
-        });
+        // O formConta agora faz POST real para o backend, então removemos o e.preventDefault()
+        // O toast de sucesso nativo é renderizado no topo pelo Astro.
 
         // Logout dialog
         const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
@@ -392,6 +498,14 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
         background: #d1fae5;
         color: #065f46;
     }
+
+    .toast.error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #f87171;
+    }
+    
+    .mb-4 { margin-bottom: 1rem; }
 
     /* Security */
     .security-section {

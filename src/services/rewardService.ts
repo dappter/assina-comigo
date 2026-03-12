@@ -44,23 +44,43 @@ export const rewardService = {
             throw error;
         }
 
-        let pendentes = 0;
-        let pagas = 0;
+        let pendentes = 0; // Ainda na quarentena / pendente
+        let aPagar = 0; // Passou da quarentena, admin deve pagar
+        let concluidas = 0; // Já pagas e finalizadas
 
         data?.forEach(reward => {
             const valor = reward.valor || 0;
-            // Trata strings como "Pendente", "Pago", "pendente", "pago"
-            if (reward.status?.toLowerCase() === 'pendente') {
+            const sts = reward.status?.toLowerCase();
+            if (sts === 'pendente') {
                 pendentes += valor;
-            } else if (reward.status?.toLowerCase() === 'pago') {
-                pagas += valor;
+            } else if (sts === 'a_pagar') {
+                aPagar += valor;
+            } else if (sts === 'pago') {
+                concluidas += valor;
             }
         });
 
         return {
             pendentes,
-            pagas,
-            total: pendentes + pagas
+            aPagar,
+            concluidas,
+            total: pendentes + aPagar + concluidas
         };
+    },
+    
+    async getPagamentos(tenantId: string, parceiroId: string) {
+        const { data, error } = await supabase
+            .from('pagamentos')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .eq('parceiro_id', parceiroId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching pagamentos:', error);
+            throw error;
+        }
+
+        return data || [];
     }
 };

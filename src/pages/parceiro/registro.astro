@@ -8,9 +8,12 @@ import {
     sanitizeCPF,
     isValidCPF,
 } from "../../utils/validation";
+import { adminService } from "../../services/adminService";
 import { logError } from "../../utils/logger";
 
-// Tela gerada a partir do Design System e UI do Stitch
+const MAIN_TENANT_ID = "4a254f52-99bd-43dd-86e2-ec031206077a";
+const grupos = await adminService.getGrupos(MAIN_TENANT_ID);
+
 let errorMessage = "";
 
 if (Astro.request.method === "POST") {
@@ -23,6 +26,7 @@ if (Astro.request.method === "POST") {
         const whatsapp = data.get("whatsapp")?.toString() || "";
         const password = data.get("password")?.toString() || "";
         const rawCpf = data.get("cpf")?.toString() || "";
+        const grupoId = data.get("grupo_id")?.toString() || "";
 
         const cleanWhatsapp = sanitizePhone(whatsapp);
         const cleanCpf = sanitizeCPF(rawCpf);
@@ -76,6 +80,7 @@ if (Astro.request.method === "POST") {
                         telefone: cleanWhatsapp,
                         cpf: cleanCpf,
                         tipo_usuario: "parceiro",
+                        grupo_id: grupoId || null,
                     });
 
                 if (profileError) {
@@ -310,6 +315,26 @@ if (Astro.request.method === "POST") {
                             type="password"
                             required
                         />
+                    </div>
+
+                    <div>
+                        <label
+                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
+                            for="grupo_id"
+                        >
+                            Tipo de Parceria / Grupo
+                        </label>
+                        <select
+                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
+                            id="grupo_id"
+                            name="grupo_id"
+                            required
+                        >
+                            <option value="">Selecione um grupo...</option>
+                            {grupos.map(g => (
+                                <option value={g.id}>{g.nome} ({g.tipo_remuneracao === 'pontos' ? `${g.valor_recompensa} pts` : `R$ ${g.valor_recompensa}`) }</option>
+                            ))}
+                        </select>
                     </div>
                 </div>
 

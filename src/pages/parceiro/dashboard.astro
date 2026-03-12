@@ -47,16 +47,22 @@ const indicationStats = await indicationService.getIndicationStats(
 );
 const rewardStats = await rewardService.getRewardStats(tenantId, profileId);
 
+const formatBR = (val: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
+
 const stats = [
   {
-    label: "Total Ganhos",
-    value: new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(rewardStats.total || 0),
+    label: "Saldo Liberado",
+    value: formatBR(rewardStats.aPagar || 0),
     icon: Wallet,
-    color: "blue",
-    prefix: "Recebível",
+    color: "green",
+    prefix: "A Pagar",
+  },
+  {
+    label: "Em Quarentena",
+    value: formatBR(rewardStats.pendentes || 0),
+    icon: Clock,
+    color: "yellow",
+    prefix: "Aguardando",
   },
   {
     label: "Indicações Ativas",
@@ -66,7 +72,7 @@ const stats = [
         indicationStats.aceitas.length,
     ),
     icon: Users,
-    color: "yellow",
+    color: "blue",
     prefix: "Processando",
   },
   {
@@ -443,7 +449,7 @@ const formatDate = (dateString: string) => {
     /* Stats Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 1.5rem;
     }
     .stat-card {

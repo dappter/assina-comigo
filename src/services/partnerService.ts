@@ -54,5 +54,19 @@ export const partnerService = {
             return null;
         }
         return data;
+    },
+
+    async updatePartner(tenantId: string, partnerId: string, data: any): Promise<boolean> {
+        const { error } = await supabase
+            .from('profiles')
+            .update(data)
+            .eq('tenant_id', tenantId)
+            .eq('id', partnerId);
+
+        if (error) {
+            console.error('Error updating partner:', error);
+            throw error;
+        }
+        return true;
     }
 };

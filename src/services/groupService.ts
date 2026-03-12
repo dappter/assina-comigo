@@ -4,6 +4,8 @@ export interface GrupoParceiro {
     id: string;
     tenant_id: string;
     nome: string;
+    tipo_remuneracao: 'dinheiro' | 'pontos';
+    valor_recompensa: number;
     created_at: string;
 }
 

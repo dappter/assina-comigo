@@ -32,15 +32,24 @@ const formatDate = (dateString: string) => {
 };
 
 const paidRewards = rewards.filter((r) => r.status?.toLowerCase() === "pago");
-const pendingRewards = rewards.filter(
-    (r) => r.status?.toLowerCase() === "pendente",
-);
+const pendingRewards = rewards.filter((r) => r.status?.toLowerCase() === "pendente");
+const aPagarRewards = rewards.filter((r) => r.status?.toLowerCase() === "a_pagar");
+
+const statusLabel = (status: string | null) => {
+    if (!status) return "Indefinido";
+    const normalized = status.toLowerCase();
+    if (normalized === "pago") return "Pago";
+    if (normalized === "pendente") return "Em Quarentena";
+    if (normalized === "a_pagar") return "Pronto p/ Saque";
+    return status;
+}
 
 const statusClass = (status: string | null) => {
     if (!status) return "status-pending";
     const normalized = status.toLowerCase();
     if (normalized === "pago") return "status-paid";
     if (normalized === "pendente") return "status-pending";
+    if (normalized === "a_pagar") return "status-ready";
     return "status-neutral";
 };
 ---
@@ -58,20 +67,20 @@ const statusClass = (status: string | null) => {
 
         <section class="summary-grid">
             <article class="summary-card total">
-                <span>Total</span>
+                <span>Ganhos Totais</span>
                 <strong>{formatBR(stats.total)}</strong>
             </article>
-            <article class="summary-card pending">
-                <span>Pendente</span>
-                <strong>{formatBR(stats.pendentes)}</strong>
-            </article>
             <article class="summary-card paid">
-                <span>Pago</span>
-                <strong>{formatBR(stats.pagas)}</strong>
+                <span>Recebidos</span>
+                <strong>{formatBR(stats.concluidas)}</strong>
             </article>
-            <article class="summary-card neutral">
-                <span>Comissões</span>
-                <strong>{rewards.length}</strong>
+            <article class="summary-card ready">
+                <span title="Disponível para admin pagar">Liberados</span>
+                <strong>{formatBR(stats.aPagar)}</strong>
+            </article>
+            <article class="summary-card pending">
+                <span>Em Quarentena</span>
+                <strong>{formatBR(stats.pendentes)}</strong>
             </article>
         </section>
 
@@ -80,7 +89,8 @@ const statusClass = (status: string | null) => {
                 <h2>Histórico</h2>
                 <div class="header-stats">
                     <span>{paidRewards.length} pagos</span>
-                    <span>{pendingRewards.length} pendentes</span>
+                    <span>{aPagarRewards.length} liberados</span>
+                    <span>{pendingRewards.length} em quarentena</span>
                 </div>
             </div>
 
@@ -106,7 +116,7 @@ const statusClass = (status: string | null) => {
                                         <td>#{reward.id.slice(0, 8)}</td>
                                         <td>
                                             <span class={`status ${statusClass(reward.status)}`}>
-                                                {reward.status || "indefinido"}
+                                                {statusLabel(reward.status)}
                                             </span>
                                         </td>
                                         <td>{formatDate(reward.created_at)}</td>
@@ -174,12 +184,12 @@ const statusClass = (status: string | null) => {
             border-left: 4px solid #f59e0b;
         }
 
-        .summary-card.paid {
-            border-left: 4px solid #10b981;
+        .summary-card.ready {
+            border-left: 4px solid #8b5cf6;
         }
 
-        .summary-card.neutral {
-            border-left: 4px solid #64748b;
+        .summary-card.paid {
+            border-left: 4px solid #10b981;
         }
 
         .list-wrapper {
@@ -253,6 +263,11 @@ const statusClass = (status: string | null) => {
         .status-paid {
             background: #dcfce7;
             color: #166534;
+        }
+
+        .status-ready {
+            background: #ede9fe;
+            color: #5b21b6;
         }
 
         .status-pending {

@@ -323,6 +323,44 @@ const isActive = (path: string) =>
     <!-- Mobile Overlay -->
     <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
+    <!-- Dialog Global de Confirmação de Logout -->
+    <dialog
+      class="confirm-dialog"
+      id="globalLogoutDialog"
+      aria-modal="true"
+      aria-labelledby="globalDialogTitle"
+    >
+      <div class="dialog-content">
+        <div class="dialog-icon">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            ><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
+            ></path><polyline points="16 17 21 12 16 7"
+            ></polyline><line x1="21" y1="12" x2="9" y2="12"
+            ></line></svg
+          >
+        </div>
+        <h2 id="globalDialogTitle">Sair da conta?</h2>
+        <p>
+          Você precisará fazer login novamente para acessar o painel.
+        </p>
+        <div class="dialog-actions">
+          <button class="btn-cancel" id="cancelGlobalLogout" autofocus
+            >Cancelar</button
+          >
+          <button class="btn-confirm-logout" id="confirmGlobalLogout"
+            >Sim, sair</button
+          >
+        </div>
+      </div>
+    </dialog>
+
     <!-- Bottom Nav Mobile -->
     <nav class="bottom-nav" aria-label="Navegação mobile">
       <a
@@ -434,17 +472,34 @@ const isActive = (path: string) =>
       });
 
       // Logout
-      const logoutBtn = document.getElementById(
-        "logoutBtn",
-      ) as HTMLButtonElement | null;
-      logoutBtn?.addEventListener("click", async () => {
-        if (logoutBtn) logoutBtn.disabled = true;
+      const logoutBtn = document.getElementById("logoutBtn");
+      const globalLogoutDialog = document.getElementById("globalLogoutDialog") as HTMLDialogElement | null;
+      const cancelGlobalLogout = document.getElementById("cancelGlobalLogout");
+      const confirmGlobalLogout = document.getElementById("confirmGlobalLogout");
+
+      logoutBtn?.addEventListener("click", () => {
+        globalLogoutDialog?.showModal();
+      });
+
+      cancelGlobalLogout?.addEventListener("click", () => {
+        globalLogoutDialog?.close();
+      });
+
+      confirmGlobalLogout?.addEventListener("click", async () => {
+        if (confirmGlobalLogout) {
+          confirmGlobalLogout.textContent = "Saindo...";
+          (confirmGlobalLogout as HTMLButtonElement).disabled = true;
+        }
         try {
           await fetch("/api/auth/logout", { method: "POST" });
           window.location.href = "/parceiro/login";
         } catch {
           window.location.href = "/parceiro/login";
         }
+      });
+
+      globalLogoutDialog?.addEventListener("click", (e) => {
+        if (e.target === globalLogoutDialog) globalLogoutDialog.close();
       });
     </script>
   </body>
@@ -460,6 +515,89 @@ const isActive = (path: string) =>
   .dashboard-shell {
     display: flex;
     min-height: 100vh;
+  }
+
+  /* Dialog de Logout Global */
+  .confirm-dialog {
+    border: none;
+    border-radius: var(--radius-2xl);
+    padding: 0;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  }
+  .confirm-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+  }
+  .dialog-content {
+    padding: 2rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .dialog-icon {
+    width: 64px;
+    height: 64px;
+    background: #fee2e2;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #991b1b;
+  }
+  .dialog-content h2 {
+    font-size: 1.25rem;
+    margin: 0;
+    color: var(--color-heading);
+  }
+  .dialog-content p {
+    font-size: 0.9rem;
+    color: var(--color-subtle);
+  }
+  .dialog-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    width: 100%;
+  }
+  .btn-cancel {
+    flex: 1;
+    padding: 0.875rem;
+    border-radius: var(--radius-md);
+    background: var(--color-bg-alt);
+    color: var(--color-heading);
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-family: "Inter", sans-serif;
+    border: 1px solid var(--color-border);
+    transition: var(--transition-fast);
+    cursor: pointer;
+  }
+  .btn-cancel:hover {
+    background: var(--color-border);
+  }
+  .btn-confirm-logout {
+    flex: 1;
+    padding: 0.875rem;
+    border-radius: var(--radius-md);
+    background: #ff2d55;
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-family: "Inter", sans-serif;
+    border: none;
+    transition: var(--transition-fast);
+    cursor: pointer;
+  }
+  .btn-confirm-logout:hover {
+    background: #e0001e;
+  }
+  .btn-confirm-logout:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   /* ===================== SIDEBAR ===================== */

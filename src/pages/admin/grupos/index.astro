@@ -18,14 +18,12 @@ if (Astro.request.method === "POST") {
     try {
         const formData = await Astro.request.formData();
         const nome = formData.get("nome") as string;
-        const meta = parseInt(formData.get("meta_vendas") as string) || 0;
-        const valor =
-            parseFloat(formData.get("valor_recompensa") as string) || 0;
+        const valor = parseFloat(formData.get("valor_recompensa") as string) || 0;
 
         if (nome) {
             await adminService.saveGrupo(tenantId, {
                 nome,
-                meta_vendas: meta,
+                tipo_remuneracao: formData.get("tipo_remuneracao") as string,
                 valor_recompensa: valor,
             });
             notification = "success|Grupo salvo com sucesso!";
@@ -70,7 +68,7 @@ const formatMoney = (v: number) =>
                         <thead>
                             <tr>
                                 <th>Nível / Grupo</th>
-                                <th>Meta Mínima</th>
+                                <th>Tipo</th>
                                 <th>Valor de Recompensa</th>
                             </tr>
                         </thead>
@@ -93,11 +91,15 @@ const formatMoney = (v: number) =>
                                                     {g.nome}
                                                 </div>
                                             </td>
-                                            <td>{g.meta_vendas} vendas</td>
+                                            <td>
+                                                <Badge variant={g.tipo_remuneracao === 'pontos' ? 'neutral' : 'success'}>
+                                                    {g.tipo_remuneracao === 'pontos' ? 'Pontos' : 'Dinheiro'}
+                                                </Badge>
+                                            </td>
                                             <td class="money-text">
-                                                {formatMoney(
-                                                    g.valor_recompensa,
-                                                )}
+                                                {g.tipo_remuneracao === 'pontos' 
+                                                    ? `${g.valor_recompensa} pts` 
+                                                    : formatMoney(g.valor_recompensa)}
                                             </td>
                                         </tr>
                                     ))
@@ -126,17 +128,14 @@ const formatMoney = (v: number) =>
                             />
                         </div>
                         <div class="form-group">
-                            <label>Meta de Vendas</label>
-                            <input
-                                type="number"
-                                name="meta_vendas"
-                                required
-                                min="0"
-                                class="form-input"
-                            />
+                            <label>Tipo de Remuneração</label>
+                            <select name="tipo_remuneracao" required class="form-input">
+                                <option value="dinheiro">Dinheiro (R$)</option>
+                                <option value="pontos">Pontos</option>
+                            </select>
                         </div>
                         <div class="form-group">
-                            <label>Recompensa por Venda (R$)</label>
+                            <label>Valor da Recompensa</label>
                             <input
                                 type="number"
                                 name="valor_recompensa"
@@ -144,6 +143,7 @@ const formatMoney = (v: number) =>
                                 step="0.01"
                                 min="0"
                                 class="form-input"
+                                placeholder="Ex: 50.00 ou 100"
                             />
                         </div>
                         <Button

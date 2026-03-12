@@ -20,12 +20,12 @@ export const adminService = {
         const totalLeads = leads?.length || 0;
         const leadsInstaladas = leads?.filter(l => l.status === 'Instalado' || l.status === 'instalado').length || 0;
 
-        // Pagamentos pendentes
+        // Pagamentos pendentes (Liberados da quarentena, prontos para ação do admin)
         const { data: comissoes, error: comissoesError } = await supabase
             .from('comissoes')
             .select('id')
             .eq('tenant_id', tenantId)
-            .eq('status', 'pendente');
+            .eq('status', 'a_pagar');
 
         if (comissoesError) throw comissoesError;
         const pagamentosPendentes = comissoes?.length || 0;
@@ -60,6 +60,17 @@ export const adminService = {
         return data || [];
     },
 
+    async updatePartner(tenantId: string, partnerId: string, data: any) {
+        const { error } = await supabase
+            .from('profiles')
+            .update(data)
+            .eq('id', partnerId)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+        return true;
+    },
+
     async getIndicacoes(tenantId: string) {
         const { data, error } = await supabase
             .from('leads')
@@ -71,20 +82,79 @@ export const adminService = {
         return data || [];
     },
 
-    async updateIndicacaoStatus(leadId: string, status: string) {
+    async updateIndicacaoStatus(leadId: string, status: string, tenantId?: string) {
+        // Updated lead status
         const { error } = await supabase
             .from('leads')
             .update({ status })
             .eq('id', leadId);
 
         if (error) throw error;
+
+        // --- SISTEMA INTERNO DE GERAÇÃO DE COMISSÃO (Sem depender do n8n) ---
+        // Se o status for de sucesso (Instalado / Aceito, dependendo da regra geral)
+        if (status.toLowerCase() === 'instalado' || status.toLowerCase() === 'aceito') {
+            // Buscamos o lead para saber quem é o parceiro
+            const { data: leadData } = await supabase
+                .from('leads')
+                .select('parceiro_id, tenant_id')
+                .eq('id', leadId)
+                .single();
+
+            if (leadData) {
+                const parceiroId = leadData.parceiro_id;
+                const leadTenant = tenantId || leadData.tenant_id;
+
+                // Evitar duplicidade de comissão para o mesmo lead
+                const { data: comissaoExistente } = await supabase
+                    .from('comissoes')
+                    .select('id')
+                    .eq('lead_id', leadId)
+                    .single();
+
+                if (!comissaoExistente) {
+                    // Puxar as regras financeiras do grupo do parceiro
+                    const { data: parceiroData } = await supabase
+                        .from('profiles')
+                        .select('grupo_id')
+                        .eq('id', parceiroId)
+                        .single();
+
+                    let valorRecompensa = 0; // fallback
+                    
+                    if (parceiroData && parceiroData.grupo_id) {
+                        const { data: grupoData } = await supabase
+                            .from('grupos_parceiros')
+                            .select('valor_recompensa')
+                            .eq('id', parceiroData.grupo_id)
+                            .single();
+                        
+                        if (grupoData && grupoData.valor_recompensa) {
+                            valorRecompensa = grupoData.valor_recompensa;
+                        }
+                    }
+
+                    // Insere a comissão diretamente para pagamento ('a_pagar') - Removido quarentena
+                    await supabase
+                        .from('comissoes')
+                        .insert([{
+                            tenant_id: leadTenant,
+                            parceiro_id: parceiroId,
+                            lead_id: leadId,
+                            valor: valorRecompensa,
+                            status: 'a_pagar'
+                        }]);
+                }
+            }
+        }
+        
         return true;
     },
 
     async getPagamentos(tenantId: string) {
         const { data, error } = await supabase
             .from('comissoes')
-            .select('*, parceiro:profiles(nome), lead:leads(nome)')
+            .select('*, parceiro:profiles(nome, chave_pix, tipo_pix), lead:leads(nome)')
             .eq('tenant_id', tenantId)
             .order('created_at', { ascending: false });
 
@@ -129,20 +199,35 @@ export const adminService = {
 
     async getConfiguracoes(tenantId: string) {
         const { data, error } = await supabase
-            .from('tenants')
+            .from('tenant_settings')
             .select('*')
-            .eq('id', tenantId)
+            .eq('tenant_id', tenantId)
             .single();
 
-        if (error) throw error;
+        if (error && error.code !== 'PGRST116') { // Ignora erro de "not found" para não quebrar UI caso não tenha
+            console.error('Erro ao buscar configurações:', error);
+            throw error;
+        }
         return data;
     },
 
     async updateConfiguracoes(tenantId: string, config: any) {
-        const { error } = await supabase
-            .from('tenants')
-            .update(config)
-            .eq('id', tenantId);
+        // Verificar se ja existe, se não faz insert
+        const existing = await this.getConfiguracoes(tenantId);
+        
+        let error;
+        if (existing) {
+             const { error: updateError } = await supabase
+                .from('tenant_settings')
+                .update(config)
+                .eq('tenant_id', tenantId);
+             error = updateError;
+        } else {
+             const { error: insertError } = await supabase
+                .from('tenant_settings')
+                .insert([{ ...config, tenant_id: tenantId }]);
+             error = insertError;
+        }
 
         if (error) throw error;
         return true;
