@@ -47,6 +47,18 @@ if (Astro.request.method === "POST") {
                     }
                 }
             }
+        } else if (action === "oauth_google") {
+            const { data: authData, error } = await defaultSupabase.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                    redirectTo: `${Astro.url.origin}/api/auth/callback?next=/admin/dashboard`,
+                },
+            });
+            if (error) {
+                errorMessage = error.message;
+            } else if (authData.url) {
+                return Astro.redirect(authData.url);
+            }
         }
     } catch (error) {
         if (error instanceof Error) {
@@ -139,6 +151,31 @@ if (Astro.request.method === "POST") {
                 <p class="text-slate-400 text-sm mt-1">
                     Identifique-se com suas credenciais administrativas.
                 </p>
+            </div>
+
+            <form
+                method="POST"
+                class="mb-6"
+                enctype="application/x-www-form-urlencoded"
+            >
+                <input type="hidden" name="action" value="oauth_google" />
+                <button
+                    type="submit"
+                    class="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-slate-800 border border-slate-700 rounded-xl shadow-sm hover:bg-slate-700 transition-all font-bold text-white group"
+                >
+                    <img
+                        src="https://www.svgrepo.com/show/475656/google-color.svg"
+                        alt="Google Logo"
+                        class="w-5 h-5 group-hover:scale-110 transition-transform"
+                    />
+                    Acesso Admin via Google
+                </button>
+            </form>
+
+            <div class="relative flex py-2 items-center mb-6">
+                <div class="flex-grow border-t border-slate-800"></div>
+                <span class="flex-shrink-0 mx-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest">ou use senha</span>
+                <div class="flex-grow border-t border-slate-800"></div>
             </div>
 
             {

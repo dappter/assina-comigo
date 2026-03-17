@@ -44,7 +44,7 @@ if (Astro.request.method === "POST") {
       const { data: authData, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${Astro.url.origin}/api/auth/callback`,
+          redirectTo: `${Astro.url.origin}/api/auth/callback?next=/parceiro/dashboard`,
         },
       });
       if (error) {

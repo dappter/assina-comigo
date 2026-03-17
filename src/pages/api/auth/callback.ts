@@ -1,21 +1,25 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '../../../lib/supabaseClient';
+import { supabase as supabaseAnon } from '../../../lib/supabaseClient';
+import { supabaseAdmin } from '../../../lib/supabaseAdmin';
 
-export const GET: APIRoute = async ({ request, url, cookies, redirect }) => {
+export const GET: APIRoute = async ({ url, cookies, redirect }) => {
     const authCode = url.searchParams.get('code');
+    const next = url.searchParams.get('next') || '/parceiro/dashboard';
 
     if (!authCode) {
         return new Response('Nenhum código de autorização providenciado (Auth Code was missing)', { status: 400 });
     }
 
-    const { data, error } = await supabase.auth.exchangeCodeForSession(authCode);
+    // Troca o código pela sessão
+    const { data, error } = await supabaseAnon.auth.exchangeCodeForSession(authCode);
 
     if (error || !data.session) {
         return new Response(error?.message || 'Sessão inválida. Ocorreu um erro no servidor.', { status: 500 });
     }
 
-    const { access_token, refresh_token } = data.session;
+    const { user, access_token, refresh_token } = data.session;
 
+    // Define cookies de sessão no navegador
     cookies.set("sb-access-token", access_token, {
         path: "/",
         secure: import.meta.env.PROD,
@@ -29,9 +33,44 @@ export const GET: APIRoute = async ({ request, url, cookies, redirect }) => {
         sameSite: "lax",
     });
 
-    // Em modo real verifique a trigger ou valide se a pessoa já esta salva na sua tabela `profiles`
-    // Dependendo do seu fluxo de entrada o usuário terá que ser direcionado para criar o form de registro inicial ou completar os dados. 
-    // Por enquanto, direcionar diretamente para o Dashboard (O middleware cuidará se o JWT for valido)
+    // VERIFICAÇÃO E CRIAÇÃO DE PERFIL (CYBERSECURITY SKILL)
+    // Se o usuário não existe na tabela profiles, precisamos criá-lo com um tenant padrão
+    const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('id, tipo_usuario')
+        .eq('id', user.id)
+        .single();
 
-    return redirect('/parceiro/dashboard');
+    if (!profile) {
+        // Buscamos o ID do Tenant Principal para associar ao novo usuário
+        let MAIN_TENANT_ID = import.meta.env.PUBLIC_MAIN_TENANT_ID;
+        
+        if (!MAIN_TENANT_ID) {
+            const { data: adminProfile } = await supabaseAdmin
+                .from('profiles')
+                .select('tenant_id')
+                .eq('tipo_usuario', 'admin')
+                .limit(1)
+                .maybeSingle();
+            
+            MAIN_TENANT_ID = adminProfile?.tenant_id || "4a254f52-99bd-43dd-86e2-ec031206077a";
+        }
+
+        console.log(`[AUTH_CALLBACK] Criando perfil para novo usuário Google: ${user.email}`);
+        
+        await supabaseAdmin.from('profiles').insert({
+            id: user.id,
+            tenant_id: MAIN_TENANT_ID,
+            email: user.email,
+            nome: user.user_metadata.full_name || user.email?.split('@')[0],
+            tipo_usuario: 'parceiro'
+        });
+    }
+
+    // Redireciona para o dashboard ou para onde foi solicitado
+    if (profile?.tipo_usuario === 'admin' || next.includes('/admin')) {
+        return redirect('/admin/dashboard');
+    }
+
+    return redirect(next);
 };
