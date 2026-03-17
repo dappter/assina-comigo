@@ -52,9 +52,11 @@ if (Astro.request.method === "POST") {
             const protocol = Astro.request.headers.get("x-forwarded-proto") || (Astro.url.protocol.replace(':', '') || 'https');
             const origin = `${protocol}://${host}`;
 
-            console.log(`[AUTH_ADMIN_OAUTH] Iniciando Admin Login via origin: ${origin}`);
+            console.log(`[AUTH_ADMIN_OAUTH] Iniciando Admin Login (SSR) via origin: ${origin}`);
 
-            const { data: authData, error } = await defaultSupabase.auth.signInWithOAuth({
+            const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+
+            const { data: authData, error } = await supabaseSSR.auth.signInWithOAuth({
                 provider: "google",
                 options: {
                     redirectTo: `${origin}/api/auth/callback?next=/admin/dashboard`,

@@ -40,14 +40,16 @@ if (Astro.request.method === "POST") {
     
     // 2. Lógica de Login com Google
     else if (action === "oauth_google") {
-      // Tenta pegar a URL correta do ambiente (essencial para Vercel)
       const host = Astro.request.headers.get("host") || Astro.url.host;
       const protocol = Astro.request.headers.get("x-forwarded-proto") || (Astro.url.protocol.replace(':', '') || 'https');
       const origin = `${protocol}://${host}`;
 
-      console.log(`[AUTH_OAUTH] Iniciando Google Login via origin: ${origin}`);
+      console.log(`[AUTH_OAUTH] Iniciando Google Login (SSR) via origin: ${origin}`);
 
-      const { data: authData, error } = await supabase.auth.signInWithOAuth({
+      // IMPORTANTE: Usar o cliente SSR para que os cookies de PKCE sejam persistidos corretamente
+      const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+
+      const { data: authData, error } = await supabaseSSR.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${origin}/api/auth/callback?next=/parceiro/dashboard`,
