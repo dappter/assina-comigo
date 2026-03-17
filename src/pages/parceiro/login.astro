@@ -40,6 +40,7 @@ if (Astro.request.method === "POST") {
           return Astro.redirect("/parceiro/dashboard");
         }
       }
+    } else if (action === "oauth_google") {
       const origin = Astro.request.headers.get('x-forwarded-proto') 
         ? `${Astro.request.headers.get('x-forwarded-proto')}://${Astro.request.headers.get('host')}` 
         : Astro.url.origin;
