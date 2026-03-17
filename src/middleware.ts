@@ -23,37 +23,43 @@ export const onRequest = defineMiddleware(async (context, next) => {
         return next();
     }
 
-    const supabase = getSupabaseServerClient(context.cookies);
+    try {
+        const supabase = getSupabaseServerClient(context.cookies);
 
-    // Configura a sessão corrente para a request
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+        // Configura a sessão corrente para a request
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (user && !authError) {
-        console.log("[SESSION_CHECK] User authenticated.", { userId: user.id });
-        context.locals.user = user;
+        if (user && !authError) {
+            console.log("[SESSION_CHECK] User authenticated.", { userId: user.id });
+            context.locals.user = user;
 
-        // Busca o profile associado para descobrir o tenant e a role
-        const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
+            // Busca o profile associado para descobrir o tenant e a role
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
 
-        if (error && error.code !== 'PGRST116') {
-            console.error("[MIDDLEWARE] Erro ao buscar profile do user", user.id, error);
-        }
+            if (error && error.code !== 'PGRST116') {
+                console.error("[MIDDLEWARE] Erro ao buscar profile do user", user.id, error);
+            }
 
-        if (profile) {
-            console.log("[SESSION_CHECK] Profile found.", { tenantId: profile.tenant_id, role: profile.tipo_usuario });
-            context.locals.tenantId = profile.tenant_id;
-            context.locals.role = profile.tipo_usuario;
-            context.locals.profileId = profile.id;
+            if (profile) {
+                console.log("[SESSION_CHECK] Profile found.", { tenantId: profile.tenant_id, role: profile.tipo_usuario });
+                context.locals.tenantId = profile.tenant_id;
+                context.locals.role = profile.tipo_usuario;
+                context.locals.profileId = profile.id;
+            } else {
+                console.log("[SESSION_CHECK] Profile NOT found for user.", { userId: user.id });
+            }
         } else {
-            console.log("[SESSION_CHECK] Profile NOT found for user.", { userId: user.id });
+            console.log("[SESSION_CHECK] User NOT authenticated or error.", { authError });
+            // The SSR client automatically clears invalid cookies when getUser() fails
         }
-    } else {
-        console.log("[SESSION_CHECK] User NOT authenticated or error.", { authError });
-        // The SSR client automatically clears invalid cookies when getUser() fails
+    } catch (criticalError) {
+        console.error("[CRITICAL_MIDDLEWARE_ERROR]", criticalError);
+        // Em caso de erro crítico (ex: falta de env vars), permitimos que a request continue para rotas públicas
+        // ou que o Astro renderize páginas de erro customizadas em vez de um 500 branco.
     }
 
     // Proteção de rotas internas de parceiro
