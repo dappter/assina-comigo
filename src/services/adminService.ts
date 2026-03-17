@@ -179,14 +179,18 @@ export const adminService = {
                 .single();
 
             if (comissao && comissao.parceiro_id) {
-                // Incrementa o saldo de pontos do parceiro
+                // Incrementa o saldo de pontos do parceiro via Admin (bypass RLS para integridade)
                 const { data: profile } = await supabase
                     .from('profiles')
                     .select('saldo_pontos')
                     .eq('id', comissao.parceiro_id)
                     .single();
 
-                const novoSaldo = (Number(profile?.saldo_pontos) || 0) + (Number(valor || comissao.valor) || 0);
+                // CORREÇÃO CRÍTICA: Priorizar valor editado e evitar fallback de || para 0 ou undefined
+                const valorFinal = valor !== undefined && valor !== null ? Number(valor) : (Number(comissao.valor) || 0);
+                const novoSaldo = (Number(profile?.saldo_pontos) || 0) + valorFinal;
+
+                console.log(`[PONTOS] Creditando ${valorFinal} pts. Antigo: ${profile?.saldo_pontos || 0}, Novo: ${novoSaldo}`);
 
                 await supabase
                     .from('profiles')
