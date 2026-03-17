@@ -12,26 +12,24 @@ if (Astro.request.method === "POST") {
         const action = data.get("action");
         const contact = data.get("contact")?.toString();
 
+        // 1. Lógica de Login Administrativo por Senha
         if (action === "login_password") {
             emailAddress = contact || "";
             const password = data.get("password")?.toString();
 
             if (!emailAddress || !emailAddress.includes("@") || !password) {
-                errorMessage =
-                    "Por favor, insira um e-mail válido e uma senha.";
+                errorMessage = "Por favor, insira um e-mail válido e uma senha.";
             } else {
                 const supabaseSSR = getSupabaseServerClient(Astro.cookies);
-                const { data: sessionData, error } =
-                    await supabaseSSR.auth.signInWithPassword({
-                        email: emailAddress,
-                        password: password,
-                    });
+                const { data: sessionData, error } = await supabaseSSR.auth.signInWithPassword({
+                    email: emailAddress,
+                    password: password,
+                });
 
                 if (error || !sessionData.session) {
-                    errorMessage =
-                        error?.message || "E-mail ou senha incorretos.";
+                    errorMessage = error?.message || "E-mail ou senha incorretos.";
                 } else {
-                    // Verify if user is actually admin
+                    // Verifica se o usuário é realmente admin
                     const { data: profile } = await supabaseSSR
                         .from("profiles")
                         .select("tipo_usuario")
@@ -39,18 +37,22 @@ if (Astro.request.method === "POST") {
                         .single();
 
                     if (profile?.tipo_usuario !== "admin") {
-                        errorMessage =
-                            "Acesso negado. Esta conta não possui privilégios administrativos.";
+                        errorMessage = "Acesso negado. Esta conta não possui privilégios administrativos.";
                         await supabaseSSR.auth.signOut();
                     } else {
                         return Astro.redirect("/admin/dashboard");
                     }
                 }
             }
-        } else if (action === "oauth_google") {
-            const origin = Astro.request.headers.get('x-forwarded-proto') 
-                ? `${Astro.request.headers.get('x-forwarded-proto')}://${Astro.request.headers.get('host')}` 
-                : Astro.url.origin;
+        } 
+        
+        // 2. Lógica de Login Administrativo via Google
+        else if (action === "oauth_google") {
+            const host = Astro.request.headers.get("host") || Astro.url.host;
+            const protocol = Astro.request.headers.get("x-forwarded-proto") || (Astro.url.protocol.replace(':', '') || 'https');
+            const origin = `${protocol}://${host}`;
+
+            console.log(`[AUTH_ADMIN_OAUTH] Iniciando Admin Login via origin: ${origin}`);
 
             const { data: authData, error } = await defaultSupabase.auth.signInWithOAuth({
                 provider: "google",
@@ -58,23 +60,17 @@ if (Astro.request.method === "POST") {
                     redirectTo: `${origin}/api/auth/callback?next=/admin/dashboard`,
                 },
             });
+
             if (error) {
-                errorMessage = error.message;
-            } else if (authData.url) {
+                errorMessage = "Erro ao conectar com Google: " + error.message;
+            } else if (authData?.url) {
                 return Astro.redirect(authData.url);
-            }
-        }
-    } catch (error) {
-        if (error instanceof Error) {
-            if (error.message.includes("Content-Type was not one of")) {
-                errorMessage =
-                    "Erro de conexão. O navegador falhou ao enviar os dados.";
             } else {
-                errorMessage = error.message;
+                errorMessage = "Não foi possível gerar o link de autenticação.";
             }
-        } else {
-            errorMessage = "Ocorreu um erro inesperado.";
         }
+    } catch (error: any) {
+        errorMessage = error?.message || "Ocorreu um erro inesperado.";
     }
 }
 ---

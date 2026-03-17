@@ -12,10 +12,10 @@ let emailAddress = "";
 if (Astro.request.method === "POST") {
   try {
     const data = await Astro.request.formData();
-
     const action = data.get("action");
     const contact = data.get("contact")?.toString();
 
+    // 1. Lógica de Login por Senha
     if (action === "login_password") {
       emailAddress = contact || "";
       const password = data.get("password")?.toString();
@@ -24,26 +24,28 @@ if (Astro.request.method === "POST") {
         errorMessage = "Por favor, insira um e-mail válido e uma senha.";
       } else {
         const supabaseSSR = getSupabaseServerClient(Astro.cookies);
-        const { data: sessionData, error } =
-          await supabaseSSR.auth.signInWithPassword({
-            email: emailAddress,
-            password: password,
-          });
+        const { data: sessionData, error } = await supabaseSSR.auth.signInWithPassword({
+          email: emailAddress,
+          password: password,
+        });
 
         if (error || !sessionData.session) {
-          logError("[AUTH_ERROR] User login failed", {
-            email: emailAddress,
-            error,
-          });
+          logError("[AUTH_ERROR] Login falhou", { email: emailAddress, error });
           errorMessage = error?.message || "E-mail ou senha incorretos.";
         } else {
           return Astro.redirect("/parceiro/dashboard");
         }
       }
-    } else if (action === "oauth_google") {
-      const origin = Astro.request.headers.get('x-forwarded-proto') 
-        ? `${Astro.request.headers.get('x-forwarded-proto')}://${Astro.request.headers.get('host')}` 
-        : Astro.url.origin;
+    } 
+    
+    // 2. Lógica de Login com Google
+    else if (action === "oauth_google") {
+      // Tenta pegar a URL correta do ambiente (essencial para Vercel)
+      const host = Astro.request.headers.get("host") || Astro.url.host;
+      const protocol = Astro.request.headers.get("x-forwarded-proto") || (Astro.url.protocol.replace(':', '') || 'https');
+      const origin = `${protocol}://${host}`;
+
+      console.log(`[AUTH_OAUTH] Iniciando Google Login via origin: ${origin}`);
 
       const { data: authData, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -51,25 +53,19 @@ if (Astro.request.method === "POST") {
           redirectTo: `${origin}/api/auth/callback?next=/parceiro/dashboard`,
         },
       });
+
       if (error) {
-        errorMessage = error.message;
-      } else if (authData.url) {
+        logError("[AUTH_OAUTH_ERROR]", error);
+        errorMessage = "Erro ao conectar com Google: " + error.message;
+      } else if (authData?.url) {
         return Astro.redirect(authData.url);
-      }
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      logError("[SYSTEM_ERROR] Falha parsing formulário de login", { error });
-      if (error.message.includes("Content-Type was not one of")) {
-        errorMessage =
-          "Erro de conexão segura. O navegador falhou ao enviar os dados do formulário corretamente.";
       } else {
-        errorMessage = error.message;
+        errorMessage = "Não foi possível gerar o link de autenticação do Google.";
       }
-    } else {
-      logError("[SYSTEM_ERROR] Erro inesperado login", { error });
-      errorMessage = "Ocorreu um erro inesperado.";
     }
+  } catch (error: any) {
+    logError("[SYSTEM_ERROR] Erro crítico no login", { error });
+    errorMessage = error?.message || "Ocorreu um erro inesperado ao processar o login.";
   }
 }
 ---
