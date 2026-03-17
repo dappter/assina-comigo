@@ -11,25 +11,40 @@ import {
 import { adminService } from "../../services/adminService";
 import { logError } from "../../utils/logger";
 
-// Tenta pegar o ID do tenant principal da variável de ambiente ou buscar o primeiro disponível no banco
-// Isso evita erros em bancos de dados novos/vazios
 let MAIN_TENANT_ID = import.meta.env.PUBLIC_MAIN_TENANT_ID;
-
-// Se não houver no env, buscar o primeiro perfil administrativo para definir o tenant base
-if (!MAIN_TENANT_ID) {
-    const { data: firstAdmin } = await supabaseAdmin
-        .from("profiles")
-        .select("tenant_id")
-        .eq("tipo_usuario", "admin")
-        .limit(1)
-        .single();
-    
-    MAIN_TENANT_ID = firstAdmin?.tenant_id || "4a254f52-99bd-43dd-86e2-ec031206077a"; // Fallback para segurança de build
-}
-
-const grupos = await adminService.getGrupos(MAIN_TENANT_ID);
-
+let grupos = [];
 let errorMessage = "";
+
+try {
+    // Se não houver no env, buscar o primeiro perfil administrativo para definir o tenant base
+    if (!MAIN_TENANT_ID) {
+        const { data: firstAdmin, error: adminError } = await supabaseAdmin
+            .from("profiles")
+            .select("tenant_id")
+            .eq("tipo_usuario", "admin")
+            .limit(1)
+            .maybeSingle();
+        
+        if (firstAdmin) {
+            MAIN_TENANT_ID = firstAdmin.tenant_id;
+        } else {
+            // Se o banco estiver vazio, usamos o ID padrão apenas para evitar crash na consulta de grupos
+            MAIN_TENANT_ID = "4a254f52-99bd-43dd-86e2-ec031206077a";
+        }
+    }
+
+    // Busca grupos com tratamento de erro
+    try {
+        grupos = await adminService.getGrupos(MAIN_TENANT_ID);
+    } catch (e) {
+        console.error("[REGISTRO] Erro ao carregar grupos:", e);
+        grupos = [];
+    }
+
+} catch (globalError) {
+    console.error("[REGISTRO_INIT_ERROR]", globalError);
+    errorMessage = "Erro de inicialização do sistema. Verifique as configurações do banco de dados.";
+}
 
 if (Astro.request.method === "POST") {
     let emailAddress = "não_identificado";
