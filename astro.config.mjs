@@ -12,5 +12,8 @@ export default defineConfig({
       strictPort: true
     }
   },
-  adapter: vercel()
+  adapter: vercel(),
+  security: {
+    checkOrigin: false
+  }
 });
