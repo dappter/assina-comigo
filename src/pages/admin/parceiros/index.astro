@@ -16,8 +16,12 @@ if (Astro.request.method === "POST") {
         const partnerId = formData.get("partner_id") as string;
         const grupoId = formData.get("grupo_id") as string;
 
-        if (partnerId && grupoId) {
-            await adminService.updatePartner(tenantId, partnerId, { grupo_id: grupoId });
+        if (partnerId) {
+            const updateData: any = {};
+            if (grupoId) updateData.grupo_id = grupoId;
+            else updateData.grupo_id = null;
+            
+            await adminService.updatePartner(tenantId, partnerId, updateData);
         }
     } catch (err: any) {
         console.error("Erro ao atualizar grupo do parceiro:", err);

@@ -8,6 +8,7 @@ export interface Comissao {
     valor: number | null;
     status: string | null;
     release_date: string | null;
+    tipo: string | null;
     created_at: string;
 }
 
@@ -35,7 +36,7 @@ export const rewardService = {
     async getRewardStats(tenantId: string, parceiroId: string) {
         const { data, error } = await supabase
             .from('comissoes')
-            .select('valor, status')
+            .select('valor, status, tipo')
             .eq('tenant_id', tenantId)
             .eq('parceiro_id', parceiroId);
 
@@ -44,27 +45,31 @@ export const rewardService = {
             throw error;
         }
 
-        let pendentes = 0; // Ainda na quarentena / pendente
-        let aPagar = 0; // Passou da quarentena, admin deve pagar
+        let aPagar = 0; // Prontos para pagamento
         let concluidas = 0; // Já pagas e finalizadas
+        let pendentes = 0; // Em quarentena / pendentes
 
         data?.forEach(reward => {
+            // Ignoramos recompensas do tipo 'pontos' nos cálculos financeiros
+            if (reward.tipo?.toLowerCase() === 'pontos') return;
+
             const valor = reward.valor || 0;
             const sts = reward.status?.toLowerCase();
-            if (sts === 'pendente') {
-                pendentes += valor;
-            } else if (sts === 'a_pagar') {
+            
+            if (sts === 'a_pagar') {
                 aPagar += valor;
             } else if (sts === 'pago') {
                 concluidas += valor;
+            } else if (sts === 'pendente') {
+                pendentes += valor;
             }
         });
 
         return {
-            pendentes,
             aPagar,
             concluidas,
-            total: pendentes + aPagar + concluidas
+            pendentes,
+            total: aPagar + concluidas + pendentes
         };
     },
     

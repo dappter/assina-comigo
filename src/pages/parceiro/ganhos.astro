@@ -31,9 +31,10 @@ const formatDate = (dateString: string) => {
     });
 };
 
-const paidRewards = rewards.filter((r) => r.status?.toLowerCase() === "pago");
-const pendingRewards = rewards.filter((r) => r.status?.toLowerCase() === "pendente");
-const aPagarRewards = rewards.filter((r) => r.status?.toLowerCase() === "a_pagar");
+const financialRewards = rewards.filter((r) => r.tipo?.toLowerCase() !== "pontos");
+const paidRewards = financialRewards.filter((r) => r.status?.toLowerCase() === "pago");
+const pendingRewards = financialRewards.filter((r) => r.status?.toLowerCase() === "pendente");
+const aPagarRewards = financialRewards.filter((r) => r.status?.toLowerCase() === "a_pagar");
 
 const statusLabel = (status: string | null) => {
     if (!status) return "Indefinido";
@@ -106,12 +107,12 @@ const statusClass = (status: string | null) => {
                     </thead>
                     <tbody>
                         {
-                            rewards.length === 0 ? (
+                            financialRewards.length === 0 ? (
                                 <tr>
-                                    <td colspan="4" class="empty">Nenhuma comissão encontrada.</td>
+                                    <td colspan="4" class="empty">Nenhuma comissão financeira encontrada.</td>
                                 </tr>
                             ) : (
-                                rewards.map((reward) => (
+                                financialRewards.map((reward) => (
                                     <tr>
                                         <td>#{reward.id.slice(0, 8)}</td>
                                         <td>

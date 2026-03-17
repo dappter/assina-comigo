@@ -121,16 +121,18 @@ export const adminService = {
                         .single();
 
                     let valorRecompensa = 0; // fallback
-                    
+                    let tipoRemuneracao = 'dinheiro';
+
                     if (parceiroData && parceiroData.grupo_id) {
                         const { data: grupoData } = await supabase
                             .from('grupos_parceiros')
-                            .select('valor_recompensa')
+                            .select('valor_recompensa, tipo_remuneracao')
                             .eq('id', parceiroData.grupo_id)
                             .single();
-                        
-                        if (grupoData && grupoData.valor_recompensa) {
-                            valorRecompensa = grupoData.valor_recompensa;
+
+                        if (grupoData) {
+                            valorRecompensa = grupoData.valor_recompensa || 0;
+                            tipoRemuneracao = grupoData.tipo_remuneracao || 'dinheiro';
                         }
                     }
 
@@ -142,12 +144,13 @@ export const adminService = {
                             parceiro_id: parceiroId,
                             lead_id: leadId,
                             valor: valorRecompensa,
+                            tipo: tipoRemuneracao,
                             status: 'a_pagar'
                         }]);
                 }
             }
         }
-        
+
         return true;
     },
 
@@ -163,7 +166,41 @@ export const adminService = {
     },
 
     async updatePagamento(comissaoId: string, status: string, valor?: number) {
-        const updateData: any = { status };
+        let finalStatus = status;
+        let finalTipo: string | undefined = undefined;
+
+        // Se for pagamento em pontos, precisamos creditar no perfil do parceiro
+        if (status === 'pago_pontos') {
+            // Buscamos a comissão para saber o valor e o parceiro
+            const { data: comissao } = await supabase
+                .from('comissoes')
+                .select('valor, parceiro_id')
+                .eq('id', comissaoId)
+                .single();
+
+            if (comissao && comissao.parceiro_id) {
+                // Incrementa o saldo de pontos do parceiro
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('saldo_pontos')
+                    .eq('id', comissao.parceiro_id)
+                    .single();
+
+                const novoSaldo = (Number(profile?.saldo_pontos) || 0) + (Number(valor || comissao.valor) || 0);
+
+                await supabase
+                    .from('profiles')
+                    .update({ saldo_pontos: novoSaldo })
+                    .eq('id', comissao.parceiro_id);
+
+                // Marca a comissão como paga e agora convertida em pontos
+                finalStatus = 'pago';
+                finalTipo = 'pontos';
+            }
+        }
+
+        const updateData: any = { status: finalStatus };
+        if (finalTipo) updateData.tipo = finalTipo;
         if (valor !== undefined) updateData.valor = valor;
 
         const { error } = await supabase
@@ -174,6 +211,8 @@ export const adminService = {
         if (error) throw error;
         return true;
     },
+
+
 
     async getGrupos(tenantId: string) {
         const { data, error } = await supabase
@@ -214,19 +253,19 @@ export const adminService = {
     async updateConfiguracoes(tenantId: string, config: any) {
         // Verificar se ja existe, se não faz insert
         const existing = await this.getConfiguracoes(tenantId);
-        
+
         let error;
         if (existing) {
-             const { error: updateError } = await supabase
+            const { error: updateError } = await supabase
                 .from('tenant_settings')
                 .update(config)
                 .eq('tenant_id', tenantId);
-             error = updateError;
+            error = updateError;
         } else {
-             const { error: insertError } = await supabase
+            const { error: insertError } = await supabase
                 .from('tenant_settings')
                 .insert([{ ...config, tenant_id: tenantId }]);
-             error = insertError;
+            error = insertError;
         }
 
         if (error) throw error;

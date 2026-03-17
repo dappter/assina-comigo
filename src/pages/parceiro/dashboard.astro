@@ -47,7 +47,10 @@ const indicationStats = await indicationService.getIndicationStats(
 );
 const rewardStats = await rewardService.getRewardStats(tenantId, profileId);
 
-const formatBR = (val: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
+const formatBR = (val: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    val,
+  );
 
 const stats = [
   {
@@ -58,11 +61,18 @@ const stats = [
     prefix: "A Pagar",
   },
   {
-    label: "Em Quarentena",
-    value: formatBR(rewardStats.pendentes || 0),
-    icon: Clock,
+    label: "Saldo de Pontos",
+    value: `${partner?.saldo_pontos || 0} pts`,
+    icon: TrendingUp,
     color: "yellow",
-    prefix: "Aguardando",
+    prefix: "Acumulado",
+  },
+  {
+    label: "Seu Grupo",
+    value: partner?.grupo?.nome || "Sem Grupo",
+    icon: Users,
+    color: "blue",
+    prefix: "Nível",
   },
   {
     label: "Indicações Ativas",
@@ -273,7 +283,11 @@ const formatDate = (dateString: string) => {
                       )}
                     </td>
                     <td class="td-date col-date">{formatDate(l.created_at)}</td>
-                    <td class="td-money">A definir</td>
+                    <td class="td-money">
+                      {partner?.grupo?.tipo_remuneracao === "pontos"
+                        ? `${partner?.grupo?.valor_recompensa || 0} pts`
+                        : formatBR(partner?.grupo?.valor_recompensa || 0)}
+                    </td>
                     <td class="text-right">
                       <a
                         href={`/parceiro/indicados/${l.id}`}

@@ -8,6 +8,13 @@ export interface Profile {
     telefone?: string;
     cpf?: string;
     tipo_usuario: 'admin' | 'parceiro';
+    grupo_id?: string | null;
+    saldo_pontos?: number;
+    grupo?: {
+        nome: string;
+        tipo_remuneracao: 'dinheiro' | 'pontos';
+        valor_recompensa: number;
+    } | null;
     created_at: string;
 }
 
@@ -30,7 +37,7 @@ export const partnerService = {
     async getPartnerById(tenantId: string, partnerId: string): Promise<Profile | null> {
         const { data, error } = await supabase
             .from('profiles')
-            .select('*')
+            .select('*, grupo:grupos_parceiros(*)')
             .eq('tenant_id', tenantId)
             .eq('id', partnerId)
             .single();

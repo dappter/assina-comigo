@@ -26,7 +26,7 @@ if (Astro.request.method === "POST") {
         const whatsapp = data.get("whatsapp")?.toString() || "";
         const password = data.get("password")?.toString() || "";
         const rawCpf = data.get("cpf")?.toString() || "";
-        const grupoId = data.get("grupo_id")?.toString() || "";
+        const grupoId = data.get("grupo_id")?.toString() || null;
 
         const cleanWhatsapp = sanitizePhone(whatsapp);
         const cleanCpf = sanitizeCPF(rawCpf);
@@ -80,7 +80,7 @@ if (Astro.request.method === "POST") {
                         telefone: cleanWhatsapp,
                         cpf: cleanCpf,
                         tipo_usuario: "parceiro",
-                        grupo_id: grupoId || null,
+                        grupo_id: grupoId,
                     });
 
                 if (profileError) {
@@ -322,17 +322,17 @@ if (Astro.request.method === "POST") {
                             class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
                             for="grupo_id"
                         >
-                            Tipo de Parceria / Grupo
+                            Escolha seu Plano/Grupo
                         </label>
                         <select
-                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
+                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:white focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%222%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem] bg-[right_1rem_center] bg-no-repeat"
                             id="grupo_id"
                             name="grupo_id"
                             required
                         >
                             <option value="">Selecione um grupo...</option>
                             {grupos.map(g => (
-                                <option value={g.id}>{g.nome} ({g.tipo_remuneracao === 'pontos' ? `${g.valor_recompensa} pts` : `R$ ${g.valor_recompensa}`) }</option>
+                                <option value={g.id}>{g.nome} - {g.tipo_remuneracao === 'pontos' ? `${g.valor_recompensa} pts` : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(g.valor_recompensa)}</option>
                             ))}
                         </select>
                     </div>

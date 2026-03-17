@@ -19,10 +19,14 @@ if (Astro.request.method === "POST") {
         const formData = await Astro.request.formData();
         const action = formData.get("action");
         const comissaoId = formData.get("comissao_id") as string;
+        const valorEditado = formData.get("valor") ? Number(formData.get("valor")) : undefined;
         
         if (action === "pay" && comissaoId) {
-            await adminService.updatePagamento(comissaoId, "pago");
+            await adminService.updatePagamento(comissaoId, "pago", valorEditado);
             notification = "success|Pagamento marcado como pago com sucesso!";
+        } else if (action === "pay_points" && comissaoId) {
+            await adminService.updatePagamento(comissaoId, "pago_pontos", valorEditado);
+            notification = "success|Pontos creditados com sucesso ao parceiro!";
         }
     } catch (err: any) {
         notification = `error|${err.message || "Erro."}`;
@@ -32,37 +36,14 @@ if (Astro.request.method === "POST") {
 // Fetch list after potential changes
 const pagamentos = await adminService.getPagamentos(tenantId);
 
-// Helper para Atrasos
-const getAtrasoData = (dataCriacao: string) => {
-    const gerado = new Date(dataCriacao);
-    const hoje = new Date();
-    const diffTime = Math.abs(hoje.getTime() - gerado.getTime());
-    const dias = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+const formatMoney = (v: number) =>
+    new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+    }).format(v || 0);
 
-    let cat = "0-7 dias";
-    let color = "success";
-    if (dias >= 8 && dias <= 15) {
-        cat = "8-15 dias";
-        color = "warning";
-    } else if (dias >= 16 && dias <= 30) {
-        cat = "16-30 dias";
-        color = "danger";
-    } else if (dias > 30) {
-        cat = "30+ dias";
-        color = "danger";
-    }
-
-    // Assumimos vencimento = 30 dias após criado
-    const vencimento = new Date(gerado);
-    vencimento.setDate(vencimento.getDate() + 30);
-
-    return { dias, cat, color, gerado, vencimento };
-};
-
-const formatMoney = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-
-const aPagar = pagamentos.filter(p => p.status === 'a_pagar');
-const pagos = pagamentos.filter(p => p.status === 'pago');
+const aPagar = pagamentos.filter((p) => p.status === "a_pagar");
+const pagos = pagamentos.filter((p) => p.status === "pago");
 
 const totalAPagar = aPagar.reduce((acc, curr) => acc + (curr.valor || 0), 0);
 const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
@@ -73,36 +54,54 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
         <header class="page-header">
             <div>
                 <h1 class="page-title">Pagamentos aos Parceiros</h1>
-                <p class="subtitle">Aprovações de comissões e gestão financeira de indicações instaladas.</p>
+                <p class="subtitle">
+                    Aprovações de comissões e gestão financeira de indicações
+                    instaladas.
+                </p>
             </div>
         </header>
 
-        {notification && (
-            <div class={`notification ${notification.split('|')[0]}`}>
-                {notification.split('|')[1]}
-            </div>
-        )}
+        {
+            notification && (
+                <div class={`notification ${notification.split("|")[0]}`}>
+                    {notification.split("|")[1]}
+                </div>
+            )
+        }
 
         <div class="stats-overview">
             <div class="stat-card">
-                <span class="stat-label">Total a Pagar</span>
-                <span class="stat-value text-primary">{formatMoney(totalAPagar)}</span>
+                <span class="stat-label">Total a Pagar (Filtrado)</span>
+                <span class="stat-value text-primary" id="displayTotalAPagar"
+                    >{formatMoney(totalAPagar)}</span
+                >
             </div>
             <div class="stat-card">
-                <span class="stat-label">Total Pago (Histórico)</span>
-                <span class="stat-value text-success">{formatMoney(totalHistorico)}</span>
+                <span class="stat-label">Total Pago (Filtrado)</span>
+                <span class="stat-value text-success" id="displayTotalHistorico"
+                    >{formatMoney(totalHistorico)}</span
+                >
             </div>
         </div>
 
         <div class="table-container">
             <div class="tabs-header">
                 <div class="tabs-list">
-                    <button class="tab active" onclick="showTab('apagar')">A Pagar ({aPagar.length})</button>
-                    <button class="tab" onclick="showTab('pagos')">Histórico Pago ({pagos.length})</button>
+                    <button class="tab active" onclick="showTab('apagar')"
+                        >A Pagar ({aPagar.length})</button
+                    >
+                    <button class="tab" onclick="showTab('pagos')"
+                        >Histórico Pago ({pagos.length})</button
+                    >
                 </div>
                 <!-- Filtro por Parceiro -->
                 <div class="filter-box">
-                    <input type="text" id="partnerSearch" placeholder="Filtrar por parceiro..." class="search-input" />
+                    <input
+                        type="text"
+                        id="partnerSearch"
+                        placeholder="Filtrar por parceiro..."
+                        class="search-input"
+                    />
                 </div>
             </div>
 
@@ -118,35 +117,57 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                         </tr>
                     </thead>
                     <tbody>
-                        {aPagar.length === 0 ? (
-                            <tr><td colspan="5" class="text-center empty-state">Nenhum pagamento pronto para saque.</td></tr>
-                        ) : (
-                            aPagar.map(p => {
-                                return (
-                                    <tr class="payment-row" data-partner={p.parceiro?.nome?.toLowerCase() || ''}>
-                                        <td><strong>{p.parceiro?.nome || 'Desconhecido'}</strong></td>
-                                        <td>{p.lead?.nome || 'N/A'}</td>
-                                        <td>
-                                            <Badge variant="success">
-                                                Liberado para Pagamento
-                                            </Badge>
-                                        </td>
-                                        <td class="money-text">
-                                            {formatMoney(p.valor)}
-                                        </td>
-                                        <td class="text-right">
-                                            <button 
-                                                type="button" 
-                                                class="btn-pay-modal" 
-                                                onclick={`openPixModal('${p.id}', '${p.parceiro?.nome?.replace(/'/g, "\\'")}', '${p.parceiro?.chave_pix || ''}', '${p.parceiro?.tipo_pix || ''}', ${p.valor})`}
-                                            >
-                                                <DollarSign size={16} /> Marcar como Pago
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })
-                        )}
+                        {
+                            aPagar.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colspan="5"
+                                        class="text-center empty-state"
+                                    >
+                                        Nenhum pagamento pronto para saque.
+                                    </td>
+                                </tr>
+                            ) : (
+                                aPagar.map((p) => {
+                                    return (
+                                        <tr
+                                            class="payment-row"
+                                            data-partner={
+                                                p.parceiro?.nome?.toLowerCase() ||
+                                                ""
+                                            }
+                                            data-value={p.valor || 0}
+                                        >
+                                            <td>
+                                                <strong>
+                                                    {p.parceiro?.nome ||
+                                                        "Desconhecido"}
+                                                </strong>
+                                            </td>
+                                            <td>{p.lead?.nome || "N/A"}</td>
+                                            <td>
+                                                <Badge variant="success">
+                                                    Liberado para Pagamento
+                                                </Badge>
+                                            </td>
+                                            <td class="money-text">
+                                                {formatMoney(p.valor)}
+                                            </td>
+                                            <td class="text-right">
+                                                <button
+                                                    type="button"
+                                                    class="btn-pay-modal"
+                                                    onclick={`openPixModal('${p.id}', '${p.parceiro?.nome?.replace(/'/g, "\\'")}', '${p.parceiro?.chave_pix || ""}', '${p.parceiro?.tipo_pix || ""}', ${p.valor})`}
+                                                >
+                                                    <DollarSign size={16} />{" "}
+                                                    Marcar como Pago
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )
+                        }
                     </tbody>
                 </table>
             </div>
@@ -163,19 +184,50 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                         </tr>
                     </thead>
                     <tbody>
-                        {pagos.length === 0 ? (
-                            <tr><td colspan="5" class="text-center empty-state">Nenhum histórico de pagamentos.</td></tr>
-                        ) : (
-                            pagos.map(p => (
-                                <tr class="payment-row" data-partner={p.parceiro?.nome?.toLowerCase() || ''}>
-                                    <td><strong>{p.parceiro?.nome || 'Desconhecido'}</strong></td>
-                                    <td>{p.lead?.nome || 'N/A'}</td>
-                                    <td><Badge variant="success">Pago</Badge></td>
-                                    <td class="money-text">{formatMoney(p.valor)}</td>
-                                    <td class="col-date">{new Date(p.created_at).toLocaleDateString()}</td>
+                        {
+                            pagos.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colspan="5"
+                                        class="text-center empty-state"
+                                    >
+                                        Nenhum histórico de pagamentos.
+                                    </td>
                                 </tr>
-                            ))
-                        )}
+                            ) : (
+                                pagos.map((p) => (
+                                    <tr
+                                        class="payment-row"
+                                        data-partner={
+                                            p.parceiro?.nome?.toLowerCase() ||
+                                            ""
+                                        }
+                                        data-value={p.valor || 0}
+                                    >
+                                        <td>
+                                            <strong>
+                                                {p.parceiro?.nome ||
+                                                    "Desconhecido"}
+                                            </strong>
+                                        </td>
+                                        <td>{p.lead?.nome || "N/A"}</td>
+                                        <td>
+                                            <Badge variant="success">
+                                                Pago
+                                            </Badge>
+                                        </td>
+                                        <td class="money-text">
+                                            {formatMoney(p.valor)}
+                                        </td>
+                                        <td class="col-date">
+                                            {new Date(
+                                                p.created_at,
+                                            ).toLocaleDateString()}
+                                        </td>
+                                    </tr>
+                                ))
+                            )
+                        }
                     </tbody>
                 </table>
             </div>
@@ -187,21 +239,62 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
         <div class="pix-content">
             <div class="pix-header">
                 <h3>Realizar Pagamento</h3>
-                <button type="button" class="close-btn" onclick="document.getElementById('pixModal').close()">✕</button>
+                <button
+                    type="button"
+                    class="close-btn"
+                    onclick="document.getElementById('pixModal').close()"
+                    >✕</button
+                >
             </div>
             <div class="pix-body">
                 <p>Transferindo PIX para: <br/><strong id="pixPartnerName" style="font-size:1.1rem; color:var(--color-heading);"></strong></p>
-                <h2 class="pix-value" id="pixValue">R$ 0,00</h2>
                 
-                <div id="pixQrCodeContainer" style="display:none; margin: 1rem auto; text-align: center;">
-                    <a id="pixQrCodeLink" href="#" target="_blank" title="Abrir imagem do QR Code em tela cheia">
-                        <img id="pixQrCode" src="" alt="QR Code PIX" style="width: 200px; height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.5rem; background: white;" />
+                <div class="pix-value-container" style="margin-bottom: 1.5rem; text-align: center;">
+                    <label for="pixValueInput" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-subtle); text-transform: uppercase; margin-bottom: 0.5rem;">Valor a Pagar (R$)</label>
+                    <input type="number" id="pixValueInput" step="0.01" min="0" class="pix-value-edit" style="width: 100%; text-align: center; font-size: 2.5rem; font-weight: 800; color: #10b981; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 0.5rem; background: #f0fdf4;" />
+                </div>
+                  <div
+                    id="pixQrCodeContainer"
+                    style="display:none; margin: 1rem auto; text-align: center;"
+                >
+                    <a
+                        id="pixQrCodeLink"
+                        href="#"
+                        target="_blank"
+                        title="Abrir imagem do QR Code em tela cheia"
+                    >
+                        <img
+                            id="pixQrCode"
+                            src=""
+                            alt="QR Code PIX"
+                            style="width: 200px; height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.5rem; background: white;"
+                        />
                     </a>
-                    <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">Escaneie com o app do seu banco</p>
-                    
-                    <div style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-                        <input type="text" id="pixQrUrlInput" readonly title="Conteúdo / Link do QR Code" value="" style="font-size: 0.75rem; color: #64748b; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0.4rem 0.5rem; width: 140px; background: #f8fafc;" />
-                        <button type="button" class="copy-pix-btn" id="btnCopyQrUrl" onclick="copyQrUrl()" style="padding: 0.4rem 0.6rem; font-size: 0.75rem;">Copiar Payload</button>
+                    <p
+                        style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;"
+                    >
+                        Escaneie com o app do seu banco
+                    </p>
+
+                    <div
+                        style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+                    >
+                        <input
+                            type="text"
+                            id="pixQrUrlInput"
+                            readonly
+                            title="Conteúdo / Link do QR Code"
+                            value=""
+                            style="font-size: 0.75rem; color: #64748b; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0.4rem 0.5rem; width: 140px; background: #f8fafc;"
+                        />
+                        <button
+                            type="button"
+                            class="copy-pix-btn"
+                            id="btnCopyQrUrl"
+                            onclick="copyQrUrl()"
+                            style="padding: 0.4rem 0.6rem; font-size: 0.75rem;"
+                            >Copiar Payload</button
+                        >
                     </div>
                 </div>
 
@@ -210,15 +303,56 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                         <span class="pix-type" id="pixType">Chave</span>
                         <strong class="pix-key" id="pixKey"></strong>
                     </div>
-                    <button type="button" class="copy-pix-btn" onclick="copyPix()">Copiar</button>
+                    <button
+                        type="button"
+                        class="copy-pix-btn"
+                        onclick="copyPix()">Copiar</button
+                    >
                 </div>
-                <p id="pixWarning" style="display:none; color:#dc2626; font-size:0.85rem; margin-top:0.5rem; background: #fee2e2; padding: 0.5rem; border-radius: 6px;">O parceiro não cadastrou chave PIX no perfil. Contate-o ou pague manualmente.</p>
-                
-                <form method="POST" id="formPayNow" style="margin-top: 1.5rem;">
-                    <input type="hidden" name="action" value="pay" />
-                    <input type="hidden" name="comissao_id" id="pixComissaoId" value="" />
-                    <Button type="submit" variant="primary" style="width: 100%; background: #10b981; border-color: #10b981;" id="btnConfirmPay">
-                        <CheckCircle2 size={18} style="margin-right: 0.5rem;" /> PIX Enviado! Finalizar
+                <p
+                    id="pixWarning"
+                    style="display:none; color:#dc2626; font-size:0.85rem; margin-top:0.5rem; background: #fee2e2; padding: 0.5rem; border-radius: 6px;"
+                >
+                    O parceiro não cadastrou chave PIX no perfil. Contate-o ou
+                    pague manualmente.
+                </p>
+
+                <form
+                    method="POST"
+                    id="formPayNow"
+                    style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"
+                >
+                    <input
+                        type="hidden"
+                        name="action"
+                        id="pixAction"
+                        value="pay"
+                    />
+                    <input
+                        type="hidden"
+                        name="comissao_id"
+                        id="pixComissaoId"
+                        value=""
+                    />
+                    <input type="hidden" name="valor" id="pixValorFinal" value="" />
+
+                    <Button
+                        type="submit"
+                        variant="primary"
+                        style="background: #10b981; border-color: #10b981;"
+                        id="btnConfirmPay"
+                    >
+                        <CheckCircle2 size={18} style="margin-right: 0.5rem;" /> PIX
+                        Pago
+                    </Button>
+
+                    <Button
+                        type="button"
+                        variant="outline"
+                        style="border-color: #f59e0b; color: #d97706;"
+                        onclick="payPoints()"
+                    >
+                        ⭐ Pagar em Pontos
                     </Button>
                 </form>
             </div>
@@ -227,226 +361,541 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
 
     <script is:inline>
         function showTab(id) {
-            document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-            document.getElementById('tab-' + id).style.display = 'block';
-            event.currentTarget.classList.add('active');
+            document
+                .querySelectorAll(".tab-content")
+                .forEach((el) => (el.style.display = "none"));
+            document
+                .querySelectorAll(".tab")
+                .forEach((el) => el.classList.remove("active"));
+            document.getElementById("tab-" + id).style.display = "block";
+            event.currentTarget.classList.add("active");
         }
 
-        // Sistema de busca por parceiro
-        const partnerSearch = document.getElementById('partnerSearch');
-        partnerSearch?.addEventListener('input', (e) => {
+        // Sistema de busca por parceiro e totalização dinâmica
+        const partnerSearch = document.getElementById("partnerSearch");
+        const displayTotalAPagar =
+            document.getElementById("displayTotalAPagar");
+        const displayTotalHistorico = document.getElementById(
+            "displayTotalHistorico",
+        );
+
+        partnerSearch?.addEventListener("input", (e) => {
             const term = e.target.value.toLowerCase();
-            document.querySelectorAll('.payment-row').forEach(row => {
-                const partnerName = row.getAttribute('data-partner') || '';
-                row.style.display = partnerName.includes(term) ? '' : 'none';
+            let sumAPagar = 0;
+            let sumPagos = 0;
+
+            document.querySelectorAll(".payment-row").forEach((row) => {
+                const partnerName = row.getAttribute("data-partner") || "";
+                const isVisible = partnerName.includes(term);
+                row.style.display = isVisible ? "" : "none";
+
+                if (isVisible) {
+                    const valueAttr = row.getAttribute("data-value") || "0";
+                    const value = parseFloat(valueAttr);
+                    const isAPagar = row.closest("#tab-apagar");
+                    if (isAPagar) sumAPagar += value;
+                    else sumPagos += value;
+                }
             });
+
+            const formatter = new Intl.NumberFormat("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+            });
+            if (displayTotalAPagar)
+                displayTotalAPagar.textContent = formatter.format(sumAPagar);
+            if (displayTotalHistorico)
+                displayTotalHistorico.textContent = formatter.format(sumPagos);
         });
 
         function openPixModal(id, name, pixKey, pixType, valor) {
-            document.getElementById('pixComissaoId').value = id;
-            document.getElementById('pixPartnerName').textContent = name;
-            
-            const fmtValor = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
-            document.getElementById('pixValue').textContent = fmtValor;
+            document.getElementById("pixComissaoId").value = id;
+            document.getElementById("pixPartnerName").textContent = name;
 
-            if (pixKey && pixKey !== 'null' && pixKey !== 'undefined' && pixKey !== '') {
-                document.getElementById('pixKeyBox').style.display = 'flex';
-                document.getElementById('pixQrCodeContainer').style.display = 'block';
-                document.getElementById('pixWarning').style.display = 'none';
-                document.getElementById('pixType').textContent = (pixType || 'Chave PIX').toUpperCase();
-                document.getElementById('pixKey').textContent = pixKey;
+            const inputValor = document.getElementById('pixValueInput');
+            inputValor.value = valor;
+            document.getElementById('pixValorFinal').value = valor;
+
+            // Guardar dados para regeneração dinâmica
+            pixModal._currentData = { pixKey, name, pixType };
+
+            updatePixDisplay(pixKey, name, valor, pixType);
+
+            document.getElementById("pixModal").showModal();
+        }
+
+        // Função para atualizar o display do PIX (QR Code e Payload)
+        function updatePixDisplay(pixKey, name, valor, pixType) {
+            if (pixKey && pixKey !== "null" && pixKey !== "undefined" && pixKey !== "") {
+                document.getElementById("pixKeyBox").style.display = "flex";
+                document.getElementById("pixQrCodeContainer").style.display = "block";
+                document.getElementById("pixWarning").style.display = "none";
+                document.getElementById("pixType").textContent = (pixType || "Chave PIX").toUpperCase();
+                document.getElementById("pixKey").textContent = pixKey;
 
                 // Usando API QRServer e Carga Real EMVCo (Platarforma PIX)
                 const payloadPis = generatePixPayload(pixKey, name, valor, pixType);
                 const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&format=svg&data=${encodeURIComponent(payloadPis)}`;
-                
-                document.getElementById('pixQrCode').src = qrUrl;
-                document.getElementById('pixQrCodeLink').href = qrUrl;
-                document.getElementById('pixQrUrlInput').value = payloadPis;
 
-                // document.getElementById('btnConfirmPay').disabled = false;
+                document.getElementById("pixQrCode").src = qrUrl;
+                document.getElementById("pixQrCodeLink").href = qrUrl;
+                document.getElementById("pixQrUrlInput").value = payloadPis;
             } else {
-                document.getElementById('pixKeyBox').style.display = 'none';
-                document.getElementById('pixQrCodeContainer').style.display = 'none';
-                document.getElementById('pixWarning').style.display = 'block';
+                document.getElementById("pixKeyBox").style.display = "none";
+                document.getElementById("pixQrCodeContainer").style.display = "none";
+                document.getElementById("pixWarning").style.display = "block";
             }
-
-            document.getElementById('pixModal').showModal();
         }
+
+        // Listener para mudanças no valor
+        document.getElementById('pixValueInput')?.addEventListener('input', (e) => {
+            const novoValor = parseFloat(e.target.value) || 0;
+            document.getElementById('pixValorFinal').value = novoValor;
+            
+            const data = document.getElementById('pixModal')._currentData;
+            if (data) {
+                updatePixDisplay(data.pixKey, data.name, novoValor, data.pixType);
+            }
+        });
 
         // --- FUNÇÕES EMVCo PIX ---
         function crc16(payload) {
-            let crc = 0xFFFF;
+            let crc = 0xffff;
             for (let i = 0; i < payload.length; i++) {
-                crc ^= (payload.charCodeAt(i) << 8);
+                crc ^= payload.charCodeAt(i) << 8;
                 for (let j = 0; j < 8; j++) {
                     if ((crc & 0x8000) > 0) {
                         crc = (crc << 1) ^ 0x1021;
                     } else {
-                        crc = (crc << 1);
+                        crc = crc << 1;
                     }
-                    crc &= 0xFFFF; // Prevent JS signed shift bugs
+                    crc &= 0xffff; // Prevent JS signed shift bugs
                 }
             }
-            return crc.toString(16).toUpperCase().padStart(4, '0');
+            return crc.toString(16).toUpperCase().padStart(4, "0");
         }
 
         function formatValue(id, value) {
             const valStr = String(value);
-            const len = valStr.length.toString().padStart(2, '0');
+            const len = valStr.length.toString().padStart(2, "0");
             return `${id}${len}${valStr}`;
         }
 
         function generatePixPayload(pixKey, merchantName, amount, pixType) {
             // Limpa o nome do recebedor (Max 25 chars, sem acentos, sem emojis)
-            const cleanName = merchantName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9\s]/g, "").trim().substring(0, 25) || 'ASSINA COMIGO';
-            
+            const cleanName =
+                merchantName
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .replace(/[^a-zA-Z0-9\s]/g, "")
+                    .trim()
+                    .substring(0, 25) || "ASSINA COMIGO";
+
             // Limpa e ajusta a chave PIX dependendo do tipo
             let cleanKey = pixKey.trim();
-            if (pixType === 'cpf' || pixType === 'cnpj') {
-                cleanKey = cleanKey.replace(/\D/g, ''); // Numeros apenas
-            } else if (pixType === 'telefone') {
-                cleanKey = cleanKey.replace(/\D/g, ''); // Remove formatação (11) 9...
-                if (!cleanKey.startsWith('55') && cleanKey.length >= 10 && cleanKey.length <= 11) {
+            if (pixType === "cpf" || pixType === "cnpj") {
+                cleanKey = cleanKey.replace(/\D/g, ""); // Numeros apenas
+            } else if (pixType === "telefone") {
+                cleanKey = cleanKey.replace(/\D/g, ""); // Remove formatação (11) 9...
+                if (
+                    !cleanKey.startsWith("55") &&
+                    cleanKey.length >= 10 &&
+                    cleanKey.length <= 11
+                ) {
                     cleanKey = `+55${cleanKey}`;
-                } else if (!cleanKey.startsWith('+')) {
+                } else if (!cleanKey.startsWith("+")) {
                     cleanKey = `+${cleanKey}`;
                 }
             }
-            
+
             const fmtAmount = Number(amount).toFixed(2);
-            
+
             // 26 - Merchant Account Info (Pix) -> 00 = gui, 01 = chave
-            const gui = formatValue('00', 'br.gov.bcb.pix');
-            const keyInfo = formatValue('01', cleanKey);
-            const merchantInfo = formatValue('26', gui + keyInfo);
-            
-            let payload = '';
-            payload += formatValue('00', '01'); // Payload Format Indicator
-            payload += merchantInfo;            // Merchant Account Information
-            payload += formatValue('52', '0000'); // Merchant Category Code
-            
+            const gui = formatValue("00", "br.gov.bcb.pix");
+            const keyInfo = formatValue("01", cleanKey);
+            const merchantInfo = formatValue("26", gui + keyInfo);
+
+            let payload = "";
+            payload += formatValue("00", "01"); // Payload Format Indicator
+            payload += merchantInfo; // Merchant Account Information
+            payload += formatValue("52", "0000"); // Merchant Category Code
+
             // CRÍTICO: transação BR(Real) é 986 e não 0986 conforme padrão EMVCo
-            payload += formatValue('53', '986'); // Transaction Currency (BRL = 986)
-            
-            payload += formatValue('54', fmtAmount); // Transaction Amount
-            payload += formatValue('58', 'BR');   // Country Code
-            payload += formatValue('59', cleanName); // Merchant Name
-            payload += formatValue('60', 'SAO PAULO'); // Merchant City
-            
+            payload += formatValue("53", "986"); // Transaction Currency (BRL = 986)
+
+            payload += formatValue("54", fmtAmount); // Transaction Amount
+            payload += formatValue("58", "BR"); // Country Code
+            payload += formatValue("59", cleanName); // Merchant Name
+            payload += formatValue("60", "SAO PAULO"); // Merchant City
+
             // 62 - Additional Data Field Template (Reference Label id 05)
-            const txid = formatValue('05', '***');
-            payload += formatValue('62', txid);
-            
+            const txid = formatValue("05", "***");
+            payload += formatValue("62", txid);
+
             // 63 - CRC16 (Fix ID, Fix Len = 04 bytes)
-            payload += '6304';
+            payload += "6304";
             payload += crc16(payload);
-            
+
             return payload;
         }
 
         function copyPix() {
-            const key = document.getElementById('pixKey').textContent;
+            const key = document.getElementById("pixKey").textContent;
             navigator.clipboard.writeText(key).then(() => {
-                const btn = document.querySelector('.copy-pix-btn');
+                const btn = document.querySelector(".copy-pix-btn");
                 const old = btn.textContent;
-                btn.textContent = 'Copiado!';
-                btn.style.background = '#d1fae5';
-                btn.style.color = '#065f46';
+                btn.textContent = "Copiado!";
+                btn.style.background = "#d1fae5";
+                btn.style.color = "#065f46";
                 setTimeout(() => {
                     btn.textContent = old;
-                    btn.style.background = '#e2e8f0';
-                    btn.style.color = '#475569';
+                    btn.style.background = "#e2e8f0";
+                    btn.style.color = "#475569";
                 }, 2000);
             });
         }
 
         function copyQrUrl() {
-            const val = document.getElementById('pixQrUrlInput').value;
+            const val = document.getElementById("pixQrUrlInput").value;
             navigator.clipboard.writeText(val).then(() => {
-                const btn = document.getElementById('btnCopyQrUrl');
+                const btn = document.getElementById("btnCopyQrUrl");
                 const old = btn.textContent;
-                btn.textContent = 'Copiado!';
-                btn.style.background = '#d1fae5';
-                btn.style.color = '#065f46';
+                btn.textContent = "Copiado!";
+                btn.style.background = "#d1fae5";
+                btn.style.color = "#065f46";
                 setTimeout(() => {
                     btn.textContent = old;
-                    btn.style.background = '#e2e8f0';
-                    btn.style.color = '#475569';
+                    btn.style.background = "#e2e8f0";
+                    btn.style.color = "#475569";
                 }, 2000);
             });
         }
-        
-        const pixModal = document.getElementById('pixModal');
-        pixModal.addEventListener('click', (e) => {
+
+        function payPoints() {
+            if (
+                confirm(
+                    "Deseja converter este valor em pontos e creditar ao parceiro?",
+                )
+            ) {
+                document.getElementById("pixAction").value = "pay_points";
+                document.getElementById("formPayNow").submit();
+            }
+        }
+
+        const pixModal = document.getElementById("pixModal");
+        pixModal.addEventListener("click", (e) => {
             if (e.target === pixModal) pixModal.close();
         });
     </script>
 
     <style>
-        .admin-page { display: flex; flex-direction: column; gap: 2rem; }
-        .page-header { display: flex; justify-content: space-between; align-items: flex-end; }
-        .page-title { font-size: 2rem; font-weight: 800; color: var(--color-heading); letter-spacing: -0.02em; }
-        .subtitle { color: var(--color-subtle); margin-top: 0.25rem; font-size: 1rem; }
-        
+        .admin-page {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .page-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--color-heading);
+            letter-spacing: -0.02em;
+        }
+        .subtitle {
+            color: var(--color-subtle);
+            margin-top: 0.25rem;
+            font-size: 1rem;
+        }
+
         /* Stats Overview */
-        .stats-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; }
-        .stat-card { background: white; padding: 1.5rem; border-radius: var(--radius-xl); border: 1px solid var(--color-border); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 0.5rem; }
-        .stat-label { font-size: 0.85rem; font-weight: 700; color: var(--color-subtle); text-transform: uppercase; letter-spacing: 0.05em; }
-        .stat-value { font-size: 1.75rem; font-weight: 800; }
-        .text-primary { color: var(--color-brand-primary); }
-        .text-success { color: #10b981; }
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+        }
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--color-border);
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--color-subtle);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+        }
+        .text-primary {
+            color: var(--color-brand-primary);
+        }
+        .text-success {
+            color: #10b981;
+        }
 
-        .notification { padding: 1rem; border-radius: 8px; font-weight: 600; margin-bottom: 1rem; }
-        .notification.success { background: #d1fae5; color: #065f46; border: 1px solid #34d399; }
-        .notification.error { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+        .notification {
+            padding: 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        .notification.success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #34d399;
+        }
+        .notification.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #f87171;
+        }
 
-        .table-container { background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm); }
-        .tabs-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); background: var(--color-bg-base); padding-right: 1.5rem; }
-        .tabs-list { display: flex; }
-        .tab { padding: 1rem 1.5rem; font-weight: 600; font-size: 0.9rem; color: var(--color-subtle); background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: 0.2s; }
-        .tab:hover { color: var(--color-heading); }
-        .tab.active { color: var(--color-brand-secondary); border-bottom-color: var(--color-brand-secondary); background: #fff; }
+        .table-container {
+            background: #fff;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+        .tabs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-bg-base);
+            padding-right: 1.5rem;
+        }
+        .tabs-list {
+            display: flex;
+        }
+        .tab {
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--color-subtle);
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .tab:hover {
+            color: var(--color-heading);
+        }
+        .tab.active {
+            color: var(--color-brand-secondary);
+            border-bottom-color: var(--color-brand-secondary);
+            background: #fff;
+        }
 
-        .filter-box { position: relative; }
-        .search-input { padding: 0.5rem 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.85rem; width: 220px; outline: none; transition: 0.2s; }
-        .search-input:focus { border-color: var(--color-brand-secondary); box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1); }
+        .filter-box {
+            position: relative;
+        }
+        .search-input {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+            width: 220px;
+            outline: none;
+            transition: 0.2s;
+        }
+        .search-input:focus {
+            border-color: var(--color-brand-secondary);
+            box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1);
+        }
 
-        .admin-table { width: 100%; min-width: 800px; border-collapse: collapse; text-align: left; }
-        .admin-table th { padding: 1rem 1.5rem; background: #fff; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--color-border); }
-        .admin-table td { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
-        .admin-table tr:hover td { background: var(--color-bg-base); }
-        .empty-state { padding: 3rem; color: var(--color-subtle); }
-        .text-right { text-align: right; }
-        .col-date { font-size: 0.85rem; color: var(--color-body); line-height: 1.4; }
-        .money-text { font-weight: 800; color: var(--color-heading); }
-        
-        .mini-input { width: 100px; padding: 0.4rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.9rem; font-family: inherit; font-weight: 600; }
-        .icon-btn { background: var(--color-alert-success); color: white; border: none; border-radius: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .icon-btn:hover { opacity: 0.9; }
+        .admin-table {
+            width: 100%;
+            min-width: 800px;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        .admin-table th {
+            padding: 1rem 1.5rem;
+            background: #fff;
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .admin-table td {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--color-border);
+            vertical-align: middle;
+        }
+        .admin-table tr:hover td {
+            background: var(--color-bg-base);
+        }
+        .empty-state {
+            padding: 3rem;
+            color: var(--color-subtle);
+        }
+        .text-right {
+            text-align: right;
+        }
+        .col-date {
+            font-size: 0.85rem;
+            color: var(--color-body);
+            line-height: 1.4;
+        }
+        .money-text {
+            font-weight: 800;
+            color: var(--color-heading);
+        }
 
-        .btn-force { background: #fee2e2; color: #991b1b; padding: 0.5rem 1rem; border-radius: var(--radius-md); font-size: 0.8rem; font-weight: 700; border: 1px solid #f87171; cursor: pointer; transition: 0.2s; }
-        .btn-force:hover { background: #fca5a5; }
+        .mini-input {
+            width: 100px;
+            padding: 0.4rem;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            font-weight: 600;
+        }
+        .icon-btn {
+            background: var(--color-alert-success);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .icon-btn:hover {
+            opacity: 0.9;
+        }
 
-        .btn-pay-modal { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--color-brand-primary); color: white; padding: 0.6rem 1.25rem; border-radius: var(--radius-md); font-weight: 700; border: none; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 12px rgba(0, 98, 255, 0.2); }
-        .btn-pay-modal:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .btn-pay-modal {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--color-brand-primary);
+            color: white;
+            padding: 0.6rem 1.25rem;
+            border-radius: var(--radius-md);
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 98, 255, 0.2);
+        }
+        .btn-pay-modal:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+        }
 
         /* Dialog PIX */
-        .pix-dialog { border: none; border-radius: var(--radius-xl); padding: 0; max-width: 420px; width: 90%; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
-        .pix-dialog::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
-        .pix-header { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--color-border); background: var(--color-bg-base); }
-        .pix-header h3 { margin: 0; font-size: 1.1rem; color: var(--color-heading); }
-        .close-btn { background: none; border: none; font-size: 1.25rem; font-weight: 700; cursor: pointer; color: var(--color-subtle); padding: 0.25rem; line-height: 1; }
-        .close-btn:hover { color: var(--color-heading); }
-        .pix-body { padding: 1.5rem; text-align: center; }
-        .pix-body p { margin: 0 0 1rem 0; color: var(--color-subtle); font-size: 0.95rem; }
-        .pix-value { font-size: 2.5rem; font-weight: 800; color: #10b981; margin: 0 0 1.5rem 0; letter-spacing: -0.05em; }
-        .pix-key-box { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px dashed #cbd5e1; padding: 1rem; border-radius: var(--radius-md); text-align: left; }
-        .pix-key-info { display: flex; flex-direction: column; }
-        .pix-type { font-size: 0.75rem; text-transform: uppercase; font-weight: 800; color: #64748b; }
-        .pix-key { font-size: 1.1rem; color: var(--color-heading); word-break: break-all; margin-top: 0.25rem; }
-        .copy-pix-btn { background: #e2e8f0; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 700; color: #475569; cursor: pointer; transition: 0.2s; font-size: 0.8rem; }
-        .copy-pix-btn:hover { background: #cbd5e1; }
+        .pix-dialog {
+            border: none;
+            border-radius: var(--radius-xl);
+            padding: 0;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        .pix-dialog::backdrop {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        .pix-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-bg-base);
+        }
+        .pix-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--color-heading);
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            font-weight: 700;
+            cursor: pointer;
+            color: var(--color-subtle);
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        .close-btn:hover {
+            color: var(--color-heading);
+        }
+        .pix-body {
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .pix-body p {
+            margin: 0 0 1rem 0;
+            color: var(--color-subtle);
+            font-size: 0.95rem;
+        }
+        .pix-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #10b981;
+            margin: 0 0 1.5rem 0;
+            letter-spacing: -0.05em;
+        }
+        .pix-key-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            text-align: left;
+        }
+        .pix-key-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .pix-type {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 800;
+            color: #64748b;
+        }
+        .pix-key {
+            font-size: 1.1rem;
+            color: var(--color-heading);
+            word-break: break-all;
+            margin-top: 0.25rem;
+        }
+        .copy-pix-btn {
+            background: #e2e8f0;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 700;
+            color: #475569;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.8rem;
+        }
+        .copy-pix-btn:hover {
+            background: #cbd5e1;
+        }
     </style>
 </AdminLayout>

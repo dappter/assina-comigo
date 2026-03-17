@@ -16,17 +16,12 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
 
 // Buscar recompensas do tipo pontos
 const rewards = await rewardService.getRewards(tenantId, profileId);
-const pontosRewards = rewards.filter(
-    (r) => (r as any).tipo === "pontos" || (r as any).tipo === "Pontos",
+const pointsRewards = rewards.filter(
+    (r) => r.tipo?.toLowerCase() === "pontos" || r.tipo?.toLowerCase() === "pontos",
 );
-const saldoPontos = pontosRewards.reduce((acc, r) => {
-    return r.status?.toLowerCase() === "pago" ||
-        r.status?.toLowerCase() === "creditado"
-        ? acc + (r.valor || 0)
-        : acc;
-}, 0);
-const pontosPendentes = pontosRewards.reduce((acc, r) => {
-    return r.status?.toLowerCase() === "pendente" ? acc + (r.valor || 0) : acc;
+const saldoPontos = partner?.saldo_pontos || 0;
+const pontosPendentes = pointsRewards.reduce((acc, r) => {
+    return r.status?.toLowerCase() === "a_pagar" || r.status?.toLowerCase() === "pendente" ? acc + (r.valor || 0) : acc;
 }, 0);
 
 const formatDate = (d: string) =>
@@ -144,7 +139,7 @@ const formatDate = (d: string) =>
         <section class="history-section">
             <h2 class="section-title">Histórico</h2>
             {
-                pontosRewards.length === 0 ? (
+                pointsRewards.length === 0 ? (
                     <div class="empty-state">
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -168,7 +163,7 @@ const formatDate = (d: string) =>
                     </div>
                 ) : (
                     <div class="history-list">
-                        {pontosRewards.map((r) => (
+                        {pointsRewards.map((r) => (
                             <div class="history-item">
                                 <div class="history-icon">⭐</div>
                                 <div class="history-info">
