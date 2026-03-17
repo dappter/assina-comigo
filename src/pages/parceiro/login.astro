@@ -40,11 +40,14 @@ if (Astro.request.method === "POST") {
           return Astro.redirect("/parceiro/dashboard");
         }
       }
-    } else if (action === "oauth_google") {
+      const origin = Astro.request.headers.get('x-forwarded-proto') 
+        ? `${Astro.request.headers.get('x-forwarded-proto')}://${Astro.request.headers.get('host')}` 
+        : Astro.url.origin;
+
       const { data: authData, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${Astro.url.origin}/api/auth/callback?next=/parceiro/dashboard`,
+          redirectTo: `${origin}/api/auth/callback?next=/parceiro/dashboard`,
         },
       });
       if (error) {
