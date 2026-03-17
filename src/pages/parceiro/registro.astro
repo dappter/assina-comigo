@@ -11,7 +11,22 @@ import {
 import { adminService } from "../../services/adminService";
 import { logError } from "../../utils/logger";
 
-const MAIN_TENANT_ID = "4a254f52-99bd-43dd-86e2-ec031206077a";
+// Tenta pegar o ID do tenant principal da variável de ambiente ou buscar o primeiro disponível no banco
+// Isso evita erros em bancos de dados novos/vazios
+let MAIN_TENANT_ID = import.meta.env.PUBLIC_MAIN_TENANT_ID;
+
+// Se não houver no env, buscar o primeiro perfil administrativo para definir o tenant base
+if (!MAIN_TENANT_ID) {
+    const { data: firstAdmin } = await supabaseAdmin
+        .from("profiles")
+        .select("tenant_id")
+        .eq("tipo_usuario", "admin")
+        .limit(1)
+        .single();
+    
+    MAIN_TENANT_ID = firstAdmin?.tenant_id || "4a254f52-99bd-43dd-86e2-ec031206077a"; // Fallback para segurança de build
+}
+
 const grupos = await adminService.getGrupos(MAIN_TENANT_ID);
 
 let errorMessage = "";
@@ -66,8 +81,7 @@ if (Astro.request.method === "POST") {
                     errorMessage = authError.message;
                 }
             } else if (authData.user) {
-                // Tenant principal da Top Conexões ISP
-                const MAIN_TENANT_ID = "4a254f52-99bd-43dd-86e2-ec031206077a";
+                // O MAIN_TENANT_ID já foi resolvido no topo do arquivo
 
                 // Insere o profile manual usando admin para contornar bloqueio de RLS no insert inicial
                 const { error: profileError } = await supabaseAdmin
