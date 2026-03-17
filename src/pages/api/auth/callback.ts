@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase as supabaseAnon } from '../../../lib/supabaseClient';
+import { getSupabaseServerClient } from '../../../lib/supabaseSSR';
 import { supabaseAdmin } from '../../../lib/supabaseAdmin';
 
 export const GET: APIRoute = async ({ url, cookies, redirect }) => {
@@ -10,28 +10,16 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
         return new Response('Nenhum código de autorização providenciado (Auth Code was missing)', { status: 400 });
     }
 
-    // Troca o código pela sessão
-    const { data, error } = await supabaseAnon.auth.exchangeCodeForSession(authCode);
+    // Troca o código pela sessão usando o cliente SSR
+    const supabaseSSR = getSupabaseServerClient(cookies);
+    const { data, error } = await supabaseSSR.auth.exchangeCodeForSession(authCode);
 
     if (error || !data.session) {
         return new Response(error?.message || 'Sessão inválida. Ocorreu um erro no servidor.', { status: 500 });
     }
 
-    const { user, access_token, refresh_token } = data.session;
-
-    // Define cookies de sessão no navegador
-    cookies.set("sb-access-token", access_token, {
-        path: "/",
-        secure: import.meta.env.PROD,
-        httpOnly: true,
-        sameSite: "lax",
-    });
-    cookies.set("sb-refresh-token", refresh_token, {
-        path: "/",
-        secure: import.meta.env.PROD,
-        httpOnly: true,
-        sameSite: "lax",
-    });
+    const { user } = data.session;
+    // O cliente SSR (supabaseSSR) já salva os tokens nos cookies automaticamente através do manipulador definido em supabaseSSR.ts
 
     // VERIFICAÇÃO E CRIAÇÃO DE PERFIL (CYBERSECURITY SKILL)
     // Se o usuário não existe na tabela profiles, precisamos criá-lo com um tenant padrão
