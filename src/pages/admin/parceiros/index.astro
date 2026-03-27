@@ -2,34 +2,49 @@
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import Badge from "../../../components/ui/Badge.astro";
 import { adminService } from "../../../services/adminService";
-import { Search, Mail, Phone } from "@lucide/astro";
+import { partnerService } from "../../../services/partnerService";
+import { Search, Mail, Phone, CheckCircle, XCircle, Clock } from "@lucide/astro";
 
 const tenantId = Astro.locals.tenantId;
 
 if (!tenantId) {
-    return Astro.redirect("/parceiro/login");
+    return Astro.redirect("/admin/login");
 }
+
+let notification = "";
 
 if (Astro.request.method === "POST") {
     try {
         const formData = await Astro.request.formData();
         const partnerId = formData.get("partner_id") as string;
+        const acao = formData.get("acao") as string;
         const grupoId = formData.get("grupo_id") as string;
 
-        if (partnerId) {
+        if (partnerId && acao === "setstatus") {
+            const novoStatus = formData.get("status") as "ativo" | "pendente" | "bloqueado";
+            await partnerService.setPartnerStatus(tenantId, partnerId, novoStatus);
+            notification = `success|Status do parceiro atualizado para "${novoStatus}" com sucesso.`;
+        } else if (partnerId) {
             const updateData: any = {};
-            if (grupoId) updateData.grupo_id = grupoId;
-            else updateData.grupo_id = null;
-            
+            if (grupoId !== undefined) updateData.grupo_id = grupoId || null;
             await adminService.updatePartner(tenantId, partnerId, updateData);
         }
     } catch (err: any) {
-        console.error("Erro ao atualizar grupo do parceiro:", err);
+        console.error("Erro ao atualizar parceiro:", err);
+        notification = `error|${err.message || "Erro ao atualizar parceiro."}`;
     }
 }
 
-const parceiros = await adminService.getParceiros(tenantId);
+const parceiros = await partnerService.getPartners(tenantId);
 const grupos = await adminService.getGrupos(tenantId);
+
+const pendentes = parceiros.filter(p => p.status === 'pendente');
+const ativos = parceiros.filter(p => p.status === 'ativo');
+const bloqueados = parceiros.filter(p => p.status === 'bloqueado');
+
+// Busca contagem de leads instaladas por parceiro para mostrar quem está "batendo as metas"
+const { data: leadsCountData } = await adminService.getPartnerLeadsCount(tenantId);
+const leadsMap = new Map((leadsCountData || []).map((lc: any) => [lc.parceiro_id, lc.count]));
 ---
 
 <AdminLayout title="Gestão de Parceiros">
@@ -38,7 +53,7 @@ const grupos = await adminService.getGrupos(tenantId);
             <div>
                 <h1 class="page-title">Rede de Parceiros</h1>
                 <p class="subtitle">
-                    Todos os {parceiros.length} afiliados cadastrados no sistema.
+                    {parceiros.length} parceiros · <span class="text-warning">{pendentes.length} pendentes de aprovação</span>
                 </p>
             </div>
             <div class="header-actions">
@@ -50,26 +65,51 @@ const grupos = await adminService.getGrupos(tenantId);
                         placeholder="Buscar por Nome, Email ou CPF..."
                     />
                 </div>
+                <div class="filter-pills" id="filterPills" role="group">
+                    <button class="pill active" data-filter="todos">Todos ({parceiros.length})</button>
+                    <button class="pill pill-warning" data-filter="pendente">Pendentes ({pendentes.length})</button>
+                    <button class="pill pill-success" data-filter="ativo">Ativos ({ativos.length})</button>
+                    <button class="pill pill-danger" data-filter="bloqueado">Bloqueados ({bloqueados.length})</button>
+                </div>
             </div>
         </header>
+
+        {notification && (
+            <div class={`notification ${notification.split("|")[0]}`}>
+                {notification.split("|")[1]}
+            </div>
+        )}
+
+        {pendentes.length > 0 && (
+            <div class="alert-banner">
+                <Clock size={18} />
+                <span>
+                    Há <strong>{pendentes.length} parceiro(s) aguardando aprovação.</strong>
+                    Revise e aprove ou bloqueie os cadastros abaixo.
+                </span>
+            </div>
+        )}
 
         <div class="table-container">
             <table class="admin-table" id="parceirosTable">
                 <thead>
                     <tr>
                         <th>Parceiro</th>
+                        <th>Status</th>
                         <th>Grupo / Nível</th>
                         <th>Contato</th>
-                        <th>CPF / CNPJ</th>
-                        <th>Status</th>
+                        <th>CPF</th>
+                        <th>Instaladas</th>
+                        <th>Link de Indicação</th>
+                        <th>Ações de Aprovação</th>
                     </tr>
                 </thead>
                 <tbody>
                     {
                         parceiros.length === 0 ? (
                             <tr>
-                                <td colspan="5" class="text-center empty-state">
-                                    Nenhum parceiro atuando na base.
+                                <td colspan="7" class="text-center empty-state">
+                                    Nenhum parceiro cadastrado ainda.
                                 </td>
                             </tr>
                         ) : (
@@ -77,21 +117,28 @@ const grupos = await adminService.getGrupos(tenantId);
                                 <tr
                                     class="partner-row"
                                     data-search={`${p.nome} ${p.email} ${p.cpf}`.toLowerCase()}
+                                    data-status={p.status || 'ativo'}
                                 >
                                     <td>
                                         <div class="partner-name">{p.nome}</div>
+                                        <div class="partner-email">{p.email}</div>
+                                    </td>
+                                    <td>
+                                        {(p.status === 'ativo' || !p.status) && <Badge variant="success">Ativo</Badge>}
+                                        {p.status === 'pendente' && <Badge variant="warning">Pendente</Badge>}
+                                        {p.status === 'bloqueado' && <Badge variant="danger">Bloqueado</Badge>}
                                     </td>
                                     <td>
                                         <form method="POST" style="margin: 0; display: inline-block;">
                                             <input type="hidden" name="partner_id" value={p.id} />
-                                            <select 
-                                                name="grupo_id" 
-                                                class="mini-select" 
+                                            <select
+                                                name="grupo_id"
+                                                class="mini-select"
                                                 onchange="this.form.submit()"
                                                 title="Alterar Grupo"
                                             >
                                                 <option value="">Sem Grupo</option>
-                                                {grupos.map(g => (
+                                                {grupos.map((g: any) => (
                                                     <option value={g.id} selected={p.grupo_id === g.id}>{g.nome}</option>
                                                 ))}
                                             </select>
@@ -99,27 +146,64 @@ const grupos = await adminService.getGrupos(tenantId);
                                     </td>
                                     <td>
                                         <div class="contact-item">
-                                            <Mail
-                                                size={14}
-                                                class="contact-icon"
-                                            />
+                                            <Mail size={14} class="contact-icon" />
                                             {p.email || "—"}
                                         </div>
                                         <div class="contact-item">
-                                            <Phone
-                                                size={14}
-                                                class="contact-icon"
-                                            />
-                                            {p.telefone || p.whatsapp || "—"}
+                                            <Phone size={14} class="contact-icon" />
+                                            {p.telefone || "—"}
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="mono-text">
-                                            {p.cpf || "—"}
-                                        </span>
+                                        <span class="mono-text">{p.cpf || "—"}</span>
                                     </td>
                                     <td>
-                                        <Badge variant="success">Ativo</Badge>
+                                        <div class="leads-stat">
+                                            <Badge variant={leadsMap.get(p.id) > 0 ? 'success' : 'neutral'}>
+                                                {leadsMap.get(p.id) || 0}
+                                            </Badge>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {p.slug ? (
+                                            <div class="link-cell">
+                                                <span class="link-slug">/ref/{p.slug}</span>
+                                                <button
+                                                    class="btn-copy-slug"
+                                                    data-url={`/ref/${p.slug}`}
+                                                    title="Copiar link"
+                                                    type="button"
+                                                >
+                                                    📋
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <span class="mono-text text-muted">—</span>
+                                        )}
+                                    </td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            {p.status !== 'ativo' && (
+                                                <form method="POST" style="display:inline;">
+                                                    <input type="hidden" name="partner_id" value={p.id} />
+                                                    <input type="hidden" name="acao" value="setstatus" />
+                                                    <input type="hidden" name="status" value="ativo" />
+                                                    <button type="submit" class="btn-approve" title="Aprovar parceiro">
+                                                        <CheckCircle size={16} /> Aprovar
+                                                    </button>
+                                                </form>
+                                            )}
+                                            {p.status !== 'bloqueado' && (
+                                                <form method="POST" style="display:inline;">
+                                                    <input type="hidden" name="partner_id" value={p.id} />
+                                                    <input type="hidden" name="acao" value="setstatus" />
+                                                    <input type="hidden" name="status" value="bloqueado" />
+                                                    <button type="submit" class="btn-block" title="Bloquear parceiro">
+                                                        <XCircle size={16} /> Bloquear
+                                                    </button>
+                                                </form>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))
@@ -131,12 +215,44 @@ const grupos = await adminService.getGrupos(tenantId);
     </div>
 
     <script is:inline>
+        // Busca por texto
         const searchInput = document.getElementById("searchInput");
-        searchInput?.addEventListener("input", (e) => {
-            const term = e.target.value.toLowerCase();
+        const filterPills = document.querySelectorAll(".pill");
+        let currentFilter = "todos";
+
+        function updateTable() {
+            const term = (searchInput?.value || "").toLowerCase();
             document.querySelectorAll(".partner-row").forEach((row) => {
                 const searchStr = row.getAttribute("data-search") || "";
-                row.style.display = searchStr.includes(term) ? "" : "none";
+                const status = row.getAttribute("data-status") || "ativo";
+                const matchesSearch = searchStr.includes(term);
+                const matchesFilter = currentFilter === "todos" || status === currentFilter;
+                row.style.display = matchesSearch && matchesFilter ? "" : "none";
+            });
+        }
+
+        searchInput?.addEventListener("input", updateTable);
+
+        filterPills.forEach((pill) => {
+            pill.addEventListener("click", (e) => {
+                filterPills.forEach((p) => p.classList.remove("active"));
+                e.currentTarget.classList.add("active");
+                currentFilter = e.currentTarget.getAttribute("data-filter") || "todos";
+                updateTable();
+            });
+        });
+
+        // Copiar link de indicação
+        document.querySelectorAll(".btn-copy-slug").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+                const url = window.location.origin + btn.dataset.url;
+                try {
+                    await navigator.clipboard.writeText(url);
+                    btn.textContent = "✓";
+                    setTimeout(() => { btn.textContent = "📋"; }, 2000);
+                } catch {
+                    prompt("Copie o link:", url);
+                }
             });
         });
     </script>
@@ -145,12 +261,12 @@ const grupos = await adminService.getGrupos(tenantId);
         .admin-page {
             display: flex;
             flex-direction: column;
-            gap: 2rem;
+            gap: 1.5rem;
         }
         .page-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-end;
+            align-items: flex-start;
             flex-wrap: wrap;
             gap: 1rem;
         }
@@ -163,6 +279,14 @@ const grupos = await adminService.getGrupos(tenantId);
         .subtitle {
             color: var(--color-subtle);
             margin-top: 0.25rem;
+        }
+        .text-warning { color: #d97706; font-weight: 700; }
+
+        .header-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: flex-end;
         }
 
         .search-box {
@@ -188,6 +312,49 @@ const grupos = await adminService.getGrupos(tenantId);
             box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1);
         }
 
+        .filter-pills {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+        .pill {
+            padding: 0.3rem 0.85rem;
+            border: 1px solid var(--color-border);
+            background: var(--color-surface);
+            border-radius: var(--radius-full);
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--color-subtle);
+            cursor: pointer;
+            transition: var(--transition-fast);
+        }
+        .pill:hover { background: var(--color-bg-base); }
+        .pill.active { background: rgba(0,98,255,0.08); color: var(--color-brand-secondary); border-color: var(--color-brand-secondary); }
+        .pill-warning.active { background: rgba(234,179,8,0.1); color: #92400e; border-color: #d97706; }
+        .pill-success.active { background: rgba(16,185,129,0.1); color: #065f46; border-color: #10b981; }
+        .pill-danger.active { background: rgba(239,68,68,0.1); color: #991b1b; border-color: #ef4444; }
+
+        .notification {
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .notification.success { background: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        .notification.error { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+
+        .alert-banner {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.9rem 1.25rem;
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: var(--radius-lg);
+            color: #92400e;
+            font-size: 0.9rem;
+        }
+
         .table-container {
             background: #fff;
             border: 1px solid var(--color-border);
@@ -197,14 +364,14 @@ const grupos = await adminService.getGrupos(tenantId);
         }
         .admin-table {
             width: 100%;
-            min-width: 800px;
+            min-width: 1000px;
             border-collapse: collapse;
             text-align: left;
         }
         .admin-table th {
-            padding: 1rem 1.5rem;
+            padding: 1rem 1.25rem;
             background: var(--color-bg-base);
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             font-weight: 800;
             color: var(--color-subtle);
             text-transform: uppercase;
@@ -212,13 +379,11 @@ const grupos = await adminService.getGrupos(tenantId);
             border-bottom: 1px solid var(--color-border);
         }
         .admin-table td {
-            padding: 1.25rem 1.5rem;
+            padding: 1.1rem 1.25rem;
             border-bottom: 1px solid var(--color-border);
             vertical-align: middle;
         }
-        .admin-table tr:hover td {
-            background: rgba(0, 0, 0, 0.01);
-        }
+        .admin-table tr:hover td { background: rgba(0, 0, 0, 0.01); }
         .empty-state {
             padding: 3rem;
             color: var(--color-subtle);
@@ -228,34 +393,60 @@ const grupos = await adminService.getGrupos(tenantId);
         .partner-name {
             font-weight: 700;
             color: var(--color-heading);
-            font-size: 1rem;
+            font-size: 0.95rem;
+        }
+        .partner-email {
+            font-size: 0.78rem;
+            color: var(--color-subtle);
+            margin-top: 1px;
         }
         .contact-item {
             display: flex;
             align-items: center;
             gap: 0.35rem;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             color: var(--color-subtle);
-            margin-bottom: 0.25rem;
+            margin-bottom: 0.2rem;
         }
-        .contact-icon {
-            color: var(--color-body);
-        }
+        .contact-icon { color: var(--color-body); }
         .mono-text {
             font-family: monospace;
             color: var(--color-heading);
-            font-size: 0.9rem;
+            font-size: 0.88rem;
         }
-        .col-date {
-            font-size: 0.85rem;
-            color: var(--color-subtle);
+        .text-muted { color: var(--color-subtle); }
+
+        .link-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .link-slug {
+            font-family: monospace;
+            font-size: 0.78rem;
+            background: var(--color-bg-base);
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
+            padding: 0.2rem 0.5rem;
+            color: var(--color-brand-secondary);
+            max-width: 130px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .btn-copy-slug {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0.2rem;
         }
 
         .mini-select {
-            padding: 0.4rem 2rem 0.4rem 0.75rem;
+            padding: 0.35rem 1.75rem 0.35rem 0.6rem;
             border: 1px solid var(--color-border);
             border-radius: 6px;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             background-color: var(--color-bg-base);
             cursor: pointer;
             outline: none;
@@ -263,16 +454,40 @@ const grupos = await adminService.getGrupos(tenantId);
             appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 0.5rem center;
-            background-size: 1rem;
-            min-width: 140px;
+            background-position: right 0.4rem center;
+            background-size: 0.9rem;
+            min-width: 130px;
         }
-        .mini-select:hover {
-            border-color: var(--color-brand-secondary);
+        .mini-select:hover { border-color: var(--color-brand-secondary); }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
         }
-        .mini-select:focus {
-            border-color: var(--color-brand-secondary);
-            box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1);
+        .btn-approve, .btn-block {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid;
         }
+        .btn-approve {
+            background: #ecfdf5;
+            color: #065f46;
+            border-color: #34d399;
+        }
+        .btn-approve:hover { background: #d1fae5; }
+        .btn-block {
+            background: #fef2f2;
+            color: #991b1b;
+            border-color: #f87171;
+        }
+        .btn-block:hover { background: #fee2e2; }
     </style>
 </AdminLayout>

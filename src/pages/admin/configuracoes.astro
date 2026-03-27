@@ -9,7 +9,7 @@ import { getSupabaseServerClient } from "../../lib/supabaseSSR";
 const tenantId = Astro.locals.tenantId;
 
 if (!tenantId) {
-    return Astro.redirect("/parceiro/login");
+    return Astro.redirect("/admin/login");
 }
 
 let notification = "";

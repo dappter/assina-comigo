@@ -11,6 +11,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         pathname.startsWith('/api/') ||
         pathname.startsWith('/_image') ||
         pathname.startsWith('/ref/') ||
+        pathname.startsWith('/grupo/') ||   // Página pública de captação por grupo
         pathname.startsWith('/_astro/') ||
         pathname.startsWith('/@vite/') ||
         pathname.startsWith('/@fs/') ||
@@ -69,8 +70,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
             return context.redirect('/parceiro/login');
         }
 
-        // Se estiver logado e tentar acessar login ou registro, manda pro dashboard
-        if (context.locals.tenantId && ['/parceiro/login', '/parceiro/registro'].includes(pathname)) {
+        // Se estiver logado e tentar acessar login, manda pro dashboard 
+        // (registro liberado para permitir convites/testes mesmo logado)
+        if (context.locals.tenantId && pathname === '/parceiro/login') {
             if (context.locals.role === 'admin') {
                 return context.redirect('/admin/dashboard');
             }

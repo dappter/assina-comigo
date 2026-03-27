@@ -60,6 +60,38 @@ export const adminService = {
         return data || [];
     },
 
+    async getParceiroById(tenantId: string, id: string) {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', id)
+            .eq('tenant_id', tenantId)
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    async deletePartner(tenantId: string, id: string) {
+        const { error } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('parceiro_id', id)
+            .eq('tenant_id', tenantId)
+            .limit(1);
+        
+        // Se desejar bloquear deleção de parceiros com leads, pode fazer aqui.
+        // Por enquanto, deletando direto com filtro de tenant.
+        const { error: deleteError } = await supabase
+            .from('profiles')
+            .delete()
+            .eq('id', id)
+            .eq('tenant_id', tenantId);
+
+        if (deleteError) throw deleteError;
+        return true;
+    },
+
     async updatePartner(tenantId: string, partnerId: string, data: any) {
         const { error } = await supabase
             .from('profiles')
@@ -82,71 +114,68 @@ export const adminService = {
         return data || [];
     },
 
-    async updateIndicacaoStatus(leadId: string, status: string, tenantId?: string) {
-        // Updated lead status
+    async updateIndicacaoStatus(leadId: string, status: string, tenantId: string) {
+        // Atualiza o status do lead
         const { error } = await supabase
             .from('leads')
             .update({ status })
-            .eq('id', leadId);
+            .eq('id', leadId)
+            .eq('tenant_id', tenantId);
 
         if (error) throw error;
 
-        // --- SISTEMA INTERNO DE GERAÇÃO DE COMISSÃO (Sem depender do n8n) ---
-        // Se o status for de sucesso (Instalado / Aceito, dependendo da regra geral)
-        if (status.toLowerCase() === 'instalado' || status.toLowerCase() === 'aceito') {
-            // Buscamos o lead para saber quem é o parceiro
-            const { data: leadData } = await supabase
-                .from('leads')
-                .select('parceiro_id, tenant_id')
-                .eq('id', leadId)
+        // Regra de negócio: "Implementar sistema onde o usuário ganha sempre, sem metas"
+        // E "Remover qualquer referência ao card quarentena" (Entra direto como 'a_pagar')
+        if (status === 'Instalado' || status === 'instalado') {
+            // Verificar se já existe comissão processada/pendente para este lead
+            const { data: existingComissao } = await supabase
+                .from('comissoes')
+                .select('id')
+                .eq('lead_id', leadId)
                 .single();
 
-            if (leadData) {
-                const parceiroId = leadData.parceiro_id;
-                const leadTenant = tenantId || leadData.tenant_id;
-
-                // Evitar duplicidade de comissão para o mesmo lead
-                const { data: comissaoExistente } = await supabase
-                    .from('comissoes')
-                    .select('id')
-                    .eq('lead_id', leadId)
+            if (!existingComissao) {
+                // Busca o lead para pegar o parceiro_id
+                const { data: leadData } = await supabase
+                    .from('leads')
+                    .select('parceiro_id')
+                    .eq('id', leadId)
                     .single();
 
-                if (!comissaoExistente) {
-                    // Puxar as regras financeiras do grupo do parceiro
-                    const { data: parceiroData } = await supabase
+                if (leadData?.parceiro_id) {
+                    // Busca o grupo do parceiro para obter o valor da recompensa e o tipo (dinheiro/pontos)
+                    const { data: profile } = await supabase
                         .from('profiles')
                         .select('grupo_id')
-                        .eq('id', parceiroId)
+                        .eq('id', leadData.parceiro_id)
                         .single();
 
-                    let valorRecompensa = 0; // fallback
-                    let tipoRemuneracao = 'dinheiro';
-
-                    if (parceiroData && parceiroData.grupo_id) {
-                        const { data: grupoData } = await supabase
+                    let recompensa = 0;
+                    if (profile?.grupo_id) {
+                        const { data: grupo } = await supabase
                             .from('grupos_parceiros')
-                            .select('valor_recompensa, tipo_remuneracao')
-                            .eq('id', parceiroData.grupo_id)
+                            .select('valor_recompensa')
+                            .eq('id', profile.grupo_id)
                             .single();
-
-                        if (grupoData) {
-                            valorRecompensa = grupoData.valor_recompensa || 0;
-                            tipoRemuneracao = grupoData.tipo_remuneracao || 'dinheiro';
-                        }
+                        recompensa = grupo?.valor_recompensa || 0;
                     }
 
-                    // Insere a comissão diretamente para pagamento ('a_pagar') - Removido quarentena
-                    await supabase
+                    // Insere direto em 'a_pagar'
+                    const { error: comissaoError } = await supabase
                         .from('comissoes')
-                        .insert([{
-                            tenant_id: leadTenant,
-                            parceiro_id: parceiroId,
+                        .insert({
+                            tenant_id: tenantId,
                             lead_id: leadId,
-                            valor: valorRecompensa,
-                            tipo: tipoRemuneracao,
+                            parceiro_id: leadData.parceiro_id,
+                            valor: recompensa,
                             status: 'a_pagar'
-                        }]);
+                        });
+
+                    if (comissaoError) {
+                        console.error('[adminService] Erro ao criar comissão a pagar:', comissaoError);
+                    } else {
+                        console.log(`[adminService] Comissão de R$${recompensa} criada para lead ${leadId} e atribuída ao parceiro ${leadData.parceiro_id}`);
+                    }
                 }
             }
         }
@@ -165,17 +194,18 @@ export const adminService = {
         return data || [];
     },
 
-    async updatePagamento(comissaoId: string, status: string, valor?: number) {
+    async updatePagamento(comissaoId: string, status: string, tenantId: string, valor?: number) {
         let finalStatus = status;
         let finalTipo: string | undefined = undefined;
 
         // Se for pagamento em pontos, precisamos creditar no perfil do parceiro
         if (status === 'pago_pontos') {
-            // Buscamos a comissão para saber o valor e o parceiro
+            // Buscamos a comissão para saber o valor e o parceiro, validando o tenant
             const { data: comissao } = await supabase
                 .from('comissoes')
                 .select('valor, parceiro_id')
                 .eq('id', comissaoId)
+                .eq('tenant_id', tenantId)
                 .single();
 
             if (comissao && comissao.parceiro_id) {
@@ -184,9 +214,9 @@ export const adminService = {
                     .from('profiles')
                     .select('saldo_pontos')
                     .eq('id', comissao.parceiro_id)
+                    .eq('tenant_id', tenantId)
                     .single();
 
-                // CORREÇÃO CRÍTICA: Priorizar valor editado e evitar fallback de || para 0 ou undefined
                 const valorFinal = valor !== undefined && valor !== null ? Number(valor) : (Number(comissao.valor) || 0);
                 const novoSaldo = (Number(profile?.saldo_pontos) || 0) + valorFinal;
 
@@ -195,9 +225,9 @@ export const adminService = {
                 await supabase
                     .from('profiles')
                     .update({ saldo_pontos: novoSaldo })
-                    .eq('id', comissao.parceiro_id);
+                    .eq('id', comissao.parceiro_id)
+                    .eq('tenant_id', tenantId);
 
-                // Marca a comissão como paga e agora convertida em pontos
                 finalStatus = 'pago';
                 finalTipo = 'pontos';
             }
@@ -210,11 +240,36 @@ export const adminService = {
         const { error } = await supabase
             .from('comissoes')
             .update(updateData)
-            .eq('id', comissaoId);
+            .eq('id', comissaoId)
+            .eq('tenant_id', tenantId);
 
         if (error) throw error;
+
+        // ─── ATUALIZAR O STATUS DO LEAD PARA 'PAGO' ───────────────────────────
+        try {
+            const { data: comissaoVinculo } = await supabase
+                .from('comissoes')
+                .select('lead_id')
+                .eq('id', comissaoId)
+                .eq('tenant_id', tenantId)
+                .single();
+
+            if (comissaoVinculo?.lead_id) {
+                await supabase
+                    .from('leads')
+                    .update({ status: 'PAGO' })
+                    .eq('id', comissaoVinculo.lead_id)
+                    .eq('tenant_id', tenantId);
+
+                console.log(`[PAGAMENTO] Lead ${comissaoVinculo.lead_id} atualizado para PAGO.`);
+            }
+        } catch (leadUpdateError) {
+            console.error('[PAGAMENTO] Aviso: falha ao atualizar status do lead:', leadUpdateError);
+        }
+
         return true;
     },
+
 
 
 
@@ -232,7 +287,10 @@ export const adminService = {
     async saveGrupo(tenantId: string, grupo: any) {
         const payload = { ...grupo, tenant_id: tenantId };
         if (grupo.id) {
-            const { error } = await supabase.from('grupos_parceiros').update(payload).eq('id', grupo.id);
+            const { error } = await supabase.from('grupos_parceiros')
+                .update(payload)
+                .eq('id', grupo.id)
+                .eq('tenant_id', tenantId);
             if (error) throw error;
         } else {
             const { error } = await supabase.from('grupos_parceiros').insert([payload]);
@@ -274,5 +332,35 @@ export const adminService = {
 
         if (error) throw error;
         return true;
+    },
+
+    async getPartnerLeadsCount(tenantId: string) {
+        // Busca apenas o parceiro_id de todos os leads instalados do tenant
+        const { data, error } = await supabase
+            .from('leads')
+            .select('parceiro_id')
+            .eq('tenant_id', tenantId)
+            .eq('status', 'Instalado');
+        
+        if (error) {
+            console.error('[adminService] Erro ao buscar leads para contagem:', error);
+            return { data: [] };
+        }
+
+        // Agrupa e conta em memória (seguro para escala atual)
+        const counts: Record<string, number> = {};
+        data?.forEach(lead => {
+            if (lead.parceiro_id) {
+                counts[lead.parceiro_id] = (counts[lead.parceiro_id] || 0) + 1;
+            }
+        });
+
+        // Converte para o formato esperado pelo Map no frontend
+        const formatted = Object.entries(counts).map(([parceiro_id, count]) => ({
+            parceiro_id,
+            count
+        }));
+
+        return { data: formatted };
     }
 };

@@ -51,7 +51,7 @@ try {
     // silencia erros de fetch
 }
 
-// Ganhos pendentes
+// Ganhos pendentes (em a_pagar)
 try {
     const rewards = await rewardService.getRewards(tenantId, profileId);
     const pendentes = rewards
@@ -67,9 +67,30 @@ try {
             link: "/parceiro/ganhos",
         });
     });
+
+    // ─── NOTIFICAÇÕES DE PAGAMENTO RECEBIDO ────────────────────────────────
+    // Exibe confirmação quando uma comissão foi marcada como 'pago' pelo admin.
+    const pagas = rewards
+        .filter((r) => r.status?.toLowerCase() === "pago")
+        .slice(0, 5);
+    pagas.forEach((r) => {
+        const isPontos = r.tipo?.toLowerCase() === "pontos";
+        const valorFormatado = isPontos
+            ? `${r.valor || 0} pontos`
+            : `R$ ${(r.valor || 0).toFixed(2).replace(".", ",")}`;
+        notificacoes.push({
+            id: `pago-${r.id}`,
+            tipo: "sucesso",
+            titulo: `💸 Pagamento recebido!`,
+            descricao: `Você recebeu ${valorFormatado} referente a uma indicação aprovada.`,
+            data: r.created_at,
+            link: isPontos ? "/parceiro/pontos" : "/parceiro/ganhos",
+        });
+    });
 } catch {
     // silencia
 }
+
 
 // Ordenar por data mais recente
 notificacoes.sort(

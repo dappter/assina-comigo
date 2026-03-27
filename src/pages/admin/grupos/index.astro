@@ -3,223 +3,254 @@ import AdminLayout from "../../../layouts/AdminLayout.astro";
 import Badge from "../../../components/ui/Badge.astro";
 import Button from "../../../components/ui/Button.astro";
 import Card from "../../../components/ui/Card.astro";
-import { Plus, Edit2 } from "@lucide/astro";
-import { adminService } from "../../../services/adminService";
+import { Plus, Link, Copy } from "@lucide/astro";
+import { groupService } from "../../../services/groupService";
 
 const tenantId = Astro.locals.tenantId;
 
 if (!tenantId) {
-    return Astro.redirect("/parceiro/login");
+    return Astro.redirect("/admin/login");
 }
 
 let notification = "";
 
+// Processa criação de novo grupo via POST
 if (Astro.request.method === "POST") {
     try {
         const formData = await Astro.request.formData();
         const nome = formData.get("nome") as string;
+        const tipoRemuneracao = (formData.get("tipo_remuneracao") as string) || "dinheiro";
         const valor = parseFloat(formData.get("valor_recompensa") as string) || 0;
-
-        if (nome) {
-            await adminService.saveGrupo(tenantId, {
-                nome,
-                tipo_remuneracao: formData.get("tipo_remuneracao") as string,
+        const descricao = (formData.get("descricao") as string) || "";
+        if (!nome?.trim()) {
+            notification = "error|Nome do grupo é obrigatório.";
+        } else {
+            await groupService.createGroup(tenantId, {
+                nome: nome.trim(),
+                tipo_remuneracao: tipoRemuneracao as "dinheiro" | "pontos",
                 valor_recompensa: valor,
+                meta_vendas: 1, // Fixado em 1, lógica de meta removida
+                descricao,
             });
-            notification = "success|Grupo salvo com sucesso!";
+            notification = "success|Grupo criado com sucesso! O link de captação foi gerado automaticamente.";
         }
     } catch (err: any) {
-        notification = `error|${err.message || "Erro ao salvar grupo."}`;
+        const msg = err?.message?.includes("unique")
+            ? "Já existe um grupo com esse nome. Escolha outro."
+            : err.message || "Erro ao criar grupo.";
+        notification = `error|${msg}`;
     }
 }
 
-const grupos = await adminService.getGrupos(tenantId);
-const formatMoney = (v: number) =>
-    new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-    }).format(v || 0);
+const grupos = await groupService.getGroups(tenantId);
+
+const formatRecompensa = (g: typeof grupos[0]) =>
+    g.tipo_remuneracao === "pontos"
+        ? `${g.valor_recompensa} pts`
+        : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(g.valor_recompensa || 0);
+
+// Domínio base (usado para montar URL completa de captação)
+const baseUrl = Astro.url.origin;
 ---
 
 <AdminLayout title="Gestão de Grupos">
     <div class="admin-page">
         <header class="page-header">
             <div>
-                <h1 class="page-title">Grupos e Níveis (Gamificação)</h1>
+                <h1 class="page-title">Grupos e Remuneração</h1>
                 <p class="subtitle">
-                    Defina as categorias de parceiros e os valores de recompensa
-                    por nível.
+                    Crie grupos de parceiros, defina o tipo de recompensa e compartilhe o link de captação.
                 </p>
             </div>
         </header>
 
-        {
-            notification && (
-                <div class={`notification ${notification.split("|")[0]}`}>
-                    {notification.split("|")[1]}
-                </div>
-            )
-        }
+        {notification && (
+            <div class={`notification ${notification.split("|")[0]}`}>
+                {notification.split("|")[1]}
+            </div>
+        )}
 
         <div class="layout-grid">
+            {/* Lista de grupos */}
             <div class="col-main">
                 <div class="table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Nível / Grupo</th>
-                                <th>Tipo</th>
-                                <th>Valor de Recompensa</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {
-                                grupos.length === 0 ? (
+                    {grupos.length === 0 ? (
+                        <div class="empty-state">
+                            <p>Nenhum grupo criado ainda.</p>
+                            <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--color-subtle);">
+                                Use o formulário ao lado para criar o primeiro grupo.
+                            </p>
+                        </div>
+                    ) : (
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Grupo</th>
+                                    <th>Tipo</th>
+                                    <th>Recompensa</th>
+                                    <th>Descrição</th>
+                                    <th>Link de Captação</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {grupos.map((g) => (
                                     <tr>
-                                        <td
-                                            colspan="3"
-                                            class="text-center empty-state"
-                                        >
-                                            Nenhum grupo configurado.
+                                        <td>
+                                            <div class="group-name">{g.nome}</div>
+                                            <div class="group-slug">/{g.slug}</div>
+                                        </td>
+                                        <td>
+                                            <Badge variant={g.tipo_remuneracao === "pontos" ? "neutral" : "success"}>
+                                                {g.tipo_remuneracao === "pontos" ? "🏆 Pontos" : "💰 Dinheiro"}
+                                            </Badge>
+                                        </td>
+                                        <td class="money-text">
+                                            {formatRecompensa(g)}
+                                        </td>
+                                        <td class="desc-text">
+                                            {(g as any).descricao || <span class="text-muted">—</span>}
+                                        </td>
+                                        <td>
+                                            <div class="link-captacao-cell">
+                                                <span class="link-url" title={`${baseUrl}/grupo/${g.slug}`}>
+                                                    /grupo/{g.slug}
+                                                </span>
+                                                <button
+                                                    class="btn-copy"
+                                                    data-url={`${baseUrl}/grupo/${g.slug}`}
+                                                    title="Copiar link"
+                                                    type="button"
+                                                >
+                                                    <Copy size={14} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
-                                ) : (
-                                    grupos.map((g) => (
-                                        <tr>
-                                            <td>
-                                                <div class="group-name">
-                                                    {g.nome}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <Badge variant={g.tipo_remuneracao === 'pontos' ? 'neutral' : 'success'}>
-                                                    {g.tipo_remuneracao === 'pontos' ? 'Pontos' : 'Dinheiro'}
-                                                </Badge>
-                                            </td>
-                                            <td class="money-text">
-                                                {g.tipo_remuneracao === 'pontos' 
-                                                    ? `${g.valor_recompensa} pts` 
-                                                    : formatMoney(g.valor_recompensa)}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )
-                            }
-                        </tbody>
-                    </table>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
 
+            {/* Formulário de criação */}
             <div class="col-side">
                 <Card>
-                    <h3
-                        style="margin-bottom: 1.5rem; font-size: 1.1rem; color: var(--color-heading);"
-                    >
+                    <h3 style="margin-bottom: 1.5rem; font-size: 1.1rem; color: var(--color-heading);">
                         Novo Grupo
                     </h3>
                     <form method="POST" class="group-form">
                         <div class="form-group">
-                            <label>Nome do Nível (ex: Ouro)</label>
+                            <label for="nome">Nome do Grupo</label>
                             <input
                                 type="text"
+                                id="nome"
                                 name="nome"
                                 required
                                 class="form-input"
+                                placeholder="Ex: Barbeiros Premium"
                             />
+                            <small class="form-hint">O slug e o link serão gerados automaticamente.</small>
                         </div>
                         <div class="form-group">
-                            <label>Tipo de Remuneração</label>
-                            <select name="tipo_remuneracao" required class="form-input">
-                                <option value="dinheiro">Dinheiro (R$)</option>
-                                <option value="pontos">Pontos</option>
+                            <label for="tipo_remuneracao">Tipo de Remuneração</label>
+                            <select id="tipo_remuneracao" name="tipo_remuneracao" required class="form-input">
+                                <option value="dinheiro">💰 Dinheiro (PIX/R$)</option>
+                                <option value="pontos">🏆 Pontos</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Valor da Recompensa</label>
+                            <label for="valor_recompensa">Valor por Indicação Aprovada</label>
                             <input
                                 type="number"
+                                id="valor_recompensa"
                                 name="valor_recompensa"
                                 required
                                 step="0.01"
                                 min="0"
                                 class="form-input"
-                                placeholder="Ex: 50.00 ou 100"
+                            placeholder="Ex: 50.00 (R$) ou 100 (pts)"
                             />
                         </div>
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            class="w-full mt-2"
-                            iconLeft={Plus}>Criar Nível</Button
-                        >
+                        <div class="form-group">
+                            <label for="descricao">Descrição (visível ao parceiro)</label>
+                            <textarea
+                                id="descricao"
+                                name="descricao"
+                                class="form-input"
+                                rows="3"
+                                placeholder="Ex: Receba R$50 por cada cliente instalado que permanecer ativo por 7 dias."
+                            ></textarea>
+                            <small class="form-hint">Exibida na página de captação do grupo (/grupo/slug).</small>
+                        </div>
+                        <Button type="submit" variant="primary" class="w-full mt-2" iconLeft={Plus}>
+                            Criar Grupo e Gerar Link
+                        </Button>
                     </form>
                 </Card>
+
+                {/* Informativo sobre o fluxo */}
+                <div class="info-card" style="margin-top: 1rem;">
+                    <div class="info-icon"><Link size={18} /></div>
+                    <div>
+                        <strong>Como funciona o link?</strong>
+                        <p>Ao criar um grupo, o sistema gera um link único. Compartilhe com parceiros — ao acessarem o link e se cadastrarem, são atribuídos automaticamente ao grupo.</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
+    <script is:inline>
+        // Copiar link de captação para a área de transferência
+        document.querySelectorAll(".btn-copy").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+                const url = btn.dataset.url;
+                try {
+                    await navigator.clipboard.writeText(url);
+                    const original = btn.innerHTML;
+                    btn.innerHTML = "✓";
+                    btn.style.color = "var(--color-success, #10b981)";
+                    setTimeout(() => {
+                        btn.innerHTML = original;
+                        btn.style.color = "";
+                    }, 2000);
+                } catch {
+                    prompt("Copie o link abaixo:", url);
+                }
+            });
+        });
+    </script>
+
     <style>
-        .admin-page {
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-        }
-        .page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-        }
-        .page-title {
-            font-size: 2rem;
-            font-weight: 800;
-            color: var(--color-heading);
-            letter-spacing: -0.02em;
-        }
-        .subtitle {
-            color: var(--color-subtle);
-            margin-top: 0.25rem;
-        }
+        .admin-page { display: flex; flex-direction: column; gap: 2rem; }
+        .page-header { display: flex; justify-content: space-between; align-items: flex-end; }
+        .page-title { font-size: 2rem; font-weight: 800; color: var(--color-heading); letter-spacing: -0.02em; }
+        .subtitle { color: var(--color-subtle); margin-top: 0.25rem; }
 
         .notification {
-            padding: 1rem;
+            padding: 1rem 1.25rem;
             border-radius: 8px;
             font-weight: 600;
-            margin-bottom: 1rem;
+            font-size: 0.9rem;
         }
-        .notification.success {
-            background: #d1fae5;
-            color: #065f46;
-            border: 1px solid #34d399;
-        }
-        .notification.error {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #f87171;
-        }
+        .notification.success { background: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        .notification.error { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
 
-        .layout-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 2rem;
-            align-items: start;
-        }
+        .layout-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items: start; }
 
         .table-container {
             background: #fff;
             border: 1px solid var(--color-border);
             border-radius: var(--radius-xl);
-            overflow-x: auto;
+            overflow: hidden;
             box-shadow: var(--shadow-sm);
         }
-        .admin-table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-        }
+        .admin-table { width: 100%; border-collapse: collapse; text-align: left; }
         .admin-table th {
-            padding: 1rem 1.5rem;
+            padding: 0.9rem 1.25rem;
             background: var(--color-bg-base);
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             font-weight: 800;
             color: var(--color-subtle);
             text-transform: uppercase;
@@ -227,44 +258,65 @@ const formatMoney = (v: number) =>
             border-bottom: 1px solid var(--color-border);
         }
         .admin-table td {
-            padding: 1.25rem 1.5rem;
+            padding: 1rem 1.25rem;
             border-bottom: 1px solid var(--color-border);
             vertical-align: middle;
         }
-        .admin-table tr:hover td {
-            background: rgba(0, 0, 0, 0.01);
+        .desc-text {
+            font-size: 0.82rem;
+            color: var(--color-subtle);
+            max-width: 200px;
+            line-height: 1.4;
         }
+        .text-muted { color: var(--color-border); }
+        .admin-table tr:last-child td { border-bottom: none; }
+        .admin-table tr:hover td { background: rgba(0,0,0,0.01); }
+
+        .group-name { font-weight: 700; color: var(--color-heading); font-size: 0.95rem; }
+        .group-slug { font-size: 0.75rem; color: var(--color-subtle); margin-top: 2px; font-family: monospace; }
+        .money-text { font-weight: 800; color: var(--color-brand-primary-dark, #b45309); }
+
+        .link-captacao-cell { display: flex; align-items: center; gap: 0.5rem; }
+        .link-url {
+            font-size: 0.8rem;
+            font-family: monospace;
+            color: var(--color-body);
+            background: var(--color-bg-base);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            border: 1px solid var(--color-border);
+            max-width: 160px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .btn-copy {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            color: var(--color-subtle);
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+        .btn-copy:hover { background: var(--color-bg-base); color: var(--color-heading); }
+
         .empty-state {
             padding: 3rem;
             color: var(--color-subtle);
             text-align: center;
+            font-weight: 500;
         }
 
-        .group-name {
-            font-weight: 700;
-            color: var(--color-heading);
-            font-size: 1rem;
-        }
-        .money-text {
-            font-weight: 800;
-            color: var(--color-brand-primary-dark);
-        }
-
-        .group-form {
-            display: flex;
-            flex-direction: column;
-            gap: 1.25rem;
-        }
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        .form-group label {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--color-body);
-        }
+        .group-form { display: flex; flex-direction: column; gap: 1.25rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .form-group label { font-size: 0.85rem; font-weight: 600; color: var(--color-body); }
+        .form-hint { font-size: 0.75rem; color: var(--color-subtle); }
         .form-input {
             padding: 0.75rem 1rem;
             border: 1px solid var(--color-border);
@@ -275,23 +327,26 @@ const formatMoney = (v: number) =>
             transition: 0.2s;
             background: var(--color-bg-base);
         }
-        .form-input:focus {
-            border-color: var(--color-brand-secondary);
-            box-shadow: 0 0 0 3px rgba(0, 98, 255, 0.1);
-            background: #fff;
-        }
+        .form-input:focus { border-color: var(--color-brand-secondary); box-shadow: 0 0 0 3px rgba(0,98,255,0.1); background: #fff; }
 
-        .w-full {
-            width: 100%;
+        .info-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            color: #1e40af;
+            line-height: 1.5;
         }
-        .mt-2 {
-            margin-top: 0.5rem;
-        }
+        .info-card strong { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; }
+        .info-icon { color: #3b82f6; flex-shrink: 0; margin-top: 2px; }
 
-        @media (max-width: 900px) {
-            .layout-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+        .w-full { width: 100%; }
+        .mt-2 { margin-top: 0.5rem; }
+
+        @media (max-width: 900px) { .layout-grid { grid-template-columns: 1fr; } }
     </style>
 </AdminLayout>

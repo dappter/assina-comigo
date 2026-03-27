@@ -8,7 +8,7 @@ import { adminService } from "../../../services/adminService";
 const tenantId = Astro.locals.tenantId;
 
 if (!tenantId) {
-    return Astro.redirect("/parceiro/login");
+    return Astro.redirect("/admin/login");
 }
 
 let notification = "";
@@ -22,10 +22,10 @@ if (Astro.request.method === "POST") {
         const valorEditado = formData.get("valor") ? Number(formData.get("valor")) : undefined;
         
         if (action === "pay" && comissaoId) {
-            await adminService.updatePagamento(comissaoId, "pago", valorEditado);
+            await adminService.updatePagamento(comissaoId, "pago", tenantId, valorEditado);
             notification = "success|Pagamento marcado como pago com sucesso!";
         } else if (action === "pay_points" && comissaoId) {
-            await adminService.updatePagamento(comissaoId, "pago_pontos", valorEditado);
+            await adminService.updatePagamento(comissaoId, "pago_pontos", tenantId, valorEditado);
             notification = "success|Pontos creditados com sucesso ao parceiro!";
         }
     } catch (err: any) {
@@ -45,8 +45,11 @@ const formatMoney = (v: number) =>
 const aPagar = pagamentos.filter((p) => p.status === "a_pagar");
 const pagos = pagamentos.filter((p) => p.status === "pago");
 
-const totalAPagar = aPagar.reduce((acc, curr) => acc + (curr.valor || 0), 0);
-const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+const totalAPagarDinheiro = aPagar.filter(p => p.tipo !== 'pontos').reduce((acc, curr) => acc + (curr.valor || 0), 0);
+const totalAPagarPontos = aPagar.filter(p => p.tipo === 'pontos').reduce((acc, curr) => acc + (curr.valor || 0), 0);
+
+const totalHistoricoDinheiro = pagos.filter(p => p.tipo !== 'pontos').reduce((acc, curr) => acc + (curr.valor || 0), 0);
+const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc, curr) => acc + (curr.valor || 0), 0);
 ---
 
 <AdminLayout title="Gestão de Pagamentos">
@@ -71,15 +74,27 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
 
         <div class="stats-overview">
             <div class="stat-card">
-                <span class="stat-label">Total a Pagar (Filtrado)</span>
+                <span class="stat-label">Dinheiro a Pagar (Filtrado)</span>
                 <span class="stat-value text-primary" id="displayTotalAPagar"
-                    >{formatMoney(totalAPagar)}</span
+                    >{formatMoney(totalAPagarDinheiro)}</span
                 >
             </div>
             <div class="stat-card">
-                <span class="stat-label">Total Pago (Filtrado)</span>
+                <span class="stat-label">Dinheiro Pago (Filtrado)</span>
                 <span class="stat-value text-success" id="displayTotalHistorico"
-                    >{formatMoney(totalHistorico)}</span
+                    >{formatMoney(totalHistoricoDinheiro)}</span
+                >
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Pontos a Creditar (Filtrado)</span>
+                <span class="stat-value text-amber" id="displayTotalAPagarPontos"
+                    >{totalAPagarPontos} pts</span
+                >
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Pontos Concluídos (Filtrado)</span>
+                <span class="stat-value text-blue" id="displayTotalHistoricoPontos"
+                    >{totalHistoricoPontos} pts</span
                 >
             </div>
         </div>
@@ -109,11 +124,11 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                 <table class="admin-table">
                     <thead>
                         <tr>
-                            <th>Parceiro</th>
-                            <th>Lead Referência</th>
-                            <th>Status Recompensa</th>
-                            <th>Valor a Pagar</th>
-                            <th class="text-right">Ação</th>
+                             <th>Parceiro</th>
+                             <th>Referência</th>
+                             <th>Tipo</th>
+                             <th>Valor/Qtd</th>
+                             <th class="text-right">Ação</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -137,6 +152,7 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                                                 ""
                                             }
                                             data-value={p.valor || 0}
+                                            data-tipo={p.tipo || 'dinheiro'}
                                         >
                                             <td>
                                                 <strong>
@@ -144,25 +160,25 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                                                         "Desconhecido"}
                                                 </strong>
                                             </td>
-                                            <td>{p.lead?.nome || "N/A"}</td>
-                                            <td>
-                                                <Badge variant="success">
-                                                    Liberado para Pagamento
-                                                </Badge>
-                                            </td>
-                                            <td class="money-text">
-                                                {formatMoney(p.valor)}
-                                            </td>
-                                            <td class="text-right">
-                                                <button
-                                                    type="button"
-                                                    class="btn-pay-modal"
-                                                    onclick={`openPixModal('${p.id}', '${p.parceiro?.nome?.replace(/'/g, "\\'")}', '${p.parceiro?.chave_pix || ""}', '${p.parceiro?.tipo_pix || ""}', ${p.valor})`}
-                                                >
-                                                    <DollarSign size={16} />{" "}
-                                                    Marcar como Pago
-                                                </button>
-                                            </td>
+                                             <td>{p.lead?.nome || "N/A"}</td>
+                                             <td>
+                                                 <Badge variant={p.tipo === 'pontos' ? 'neutral' : 'success'}>
+                                                     {p.tipo === 'pontos' ? '🏆 Pontos' : '💰 Dinheiro'}
+                                                 </Badge>
+                                             </td>
+                                             <td class="money-text">
+                                                 {p.tipo === 'pontos' ? `${p.valor} pts` : formatMoney(p.valor)}
+                                             </td>
+                                             <td class="text-right">
+                                                 <button
+                                                     type="button"
+                                                     class="btn-pay-modal"
+                                                     onclick={`openPixModal('${p.id}', '${p.parceiro?.nome?.replace(/'/g, "\\'")}', '${p.parceiro?.chave_pix || ""}', '${p.parceiro?.tipo_pix || ""}', ${p.valor}, '${p.tipo}')`}
+                                                 >
+                                                     <DollarSign size={16} />{" "}
+                                                     Analisar
+                                                 </button>
+                                             </td>
                                         </tr>
                                     );
                                 })
@@ -203,6 +219,7 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                                             ""
                                         }
                                         data-value={p.valor || 0}
+                                        data-tipo={p.tipo || 'dinheiro'}
                                     >
                                         <td>
                                             <strong>
@@ -217,7 +234,7 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                                             </Badge>
                                         </td>
                                         <td class="money-text">
-                                            {formatMoney(p.valor)}
+                                            {p.tipo === 'pontos' ? `${p.valor} pts` : formatMoney(p.valor)}
                                         </td>
                                         <td class="col-date">
                                             {new Date(
@@ -253,62 +270,65 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                     <label for="pixValueInput" style="display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-subtle); text-transform: uppercase; margin-bottom: 0.5rem;">Valor a Pagar (R$)</label>
                     <input type="number" id="pixValueInput" step="0.01" min="0" class="pix-value-edit" style="width: 100%; text-align: center; font-size: 2.5rem; font-weight: 800; color: #10b981; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 0.5rem; background: #f0fdf4;" />
                 </div>
-                  <div
-                    id="pixQrCodeContainer"
-                    style="display:none; margin: 1rem auto; text-align: center;"
-                >
-                    <a
-                        id="pixQrCodeLink"
-                        href="#"
-                        target="_blank"
-                        title="Abrir imagem do QR Code em tela cheia"
-                    >
-                        <img
-                            id="pixQrCode"
-                            src=""
-                            alt="QR Code PIX"
-                            style="width: 200px; height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.5rem; background: white;"
-                        />
-                    </a>
-                    <p
-                        style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;"
-                    >
-                        Escaneie com o app do seu banco
-                    </p>
-
+                <div id="pixDetailsArea">
                     <div
-                        style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+                        id="pixQrCodeContainer"
+                        style="display:none; margin: 1rem auto; text-align: center;"
                     >
-                        <input
-                            type="text"
-                            id="pixQrUrlInput"
-                            readonly
-                            title="Conteúdo / Link do QR Code"
-                            value=""
-                            style="font-size: 0.75rem; color: #64748b; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0.4rem 0.5rem; width: 140px; background: #f8fafc;"
-                        />
+                        <a
+                            id="pixQrCodeLink"
+                            href="#"
+                            target="_blank"
+                            title="Abrir imagem do QR Code em tela cheia"
+                        >
+                            <img
+                                id="pixQrCode"
+                                src=""
+                                alt="QR Code PIX"
+                                style="width: 200px; height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; padding: 0.5rem; background: white;"
+                            />
+                        </a>
+                        <p
+                            style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;"
+                        >
+                            Escaneie com o app do seu banco
+                        </p>
+
+                        <div
+                            style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+                        >
+                            <input
+                                type="text"
+                                id="pixQrUrlInput"
+                                readonly
+                                title="Conteúdo / Link do QR Code"
+                                value=""
+                                style="font-size: 0.75rem; color: #64748b; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0.4rem 0.5rem; width: 140px; background: #f8fafc;"
+                            />
+                            <button
+                                type="button"
+                                class="copy-pix-btn"
+                                id="btnCopyQrUrl"
+                                onclick="copyQrUrl()"
+                                style="padding: 0.4rem 0.6rem; font-size: 0.75rem;"
+                                >Copiar Payload</button
+                            >
+                        </div>
+                    </div>
+
+                    <div class="pix-key-box" id="pixKeyBox">
+                        <div class="pix-key-info">
+                            <span class="pix-type" id="pixType">Chave</span>
+                            <strong class="pix-key" id="pixKey"></strong>
+                        </div>
                         <button
                             type="button"
                             class="copy-pix-btn"
-                            id="btnCopyQrUrl"
-                            onclick="copyQrUrl()"
-                            style="padding: 0.4rem 0.6rem; font-size: 0.75rem;"
-                            >Copiar Payload</button
+                            onclick="copyPix()">Copiar</button
                         >
                     </div>
                 </div>
 
-                <div class="pix-key-box" id="pixKeyBox">
-                    <div class="pix-key-info">
-                        <span class="pix-type" id="pixType">Chave</span>
-                        <strong class="pix-key" id="pixKey"></strong>
-                    </div>
-                    <button
-                        type="button"
-                        class="copy-pix-btn"
-                        onclick="copyPix()">Copiar</button
-                    >
-                </div>
                 <p
                     id="pixWarning"
                     style="display:none; color:#dc2626; font-size:0.85rem; margin-top:0.5rem; background: #fee2e2; padding: 0.5rem; border-radius: 6px;"
@@ -320,7 +340,7 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                 <form
                     method="POST"
                     id="formPayNow"
-                    style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"
+                    style="margin-top: 1.5rem; display: grid; grid-template-columns: 1fr; gap: 1rem;"
                 >
                     <input
                         type="hidden"
@@ -342,17 +362,17 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                         style="background: #10b981; border-color: #10b981;"
                         id="btnConfirmPay"
                     >
-                        <CheckCircle2 size={18} style="margin-right: 0.5rem;" /> PIX
-                        Pago
+                        <CheckCircle2 size={18} style="margin-right: 0.5rem;" /> Marcar como Pago (Dinheiro)
                     </Button>
 
                     <Button
                         type="button"
-                        variant="outline"
-                        style="border-color: #f59e0b; color: #d97706;"
+                        variant="primary"
+                        style="background: #3b82f6; border-color: #3b82f6; display: none;"
+                        id="btnConfirmPoints"
                         onclick="payPoints()"
                     >
-                        ⭐ Pagar em Pontos
+                        🏆 Premiar com Pontos
                     </Button>
                 </form>
             </div>
@@ -373,28 +393,36 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
 
         // Sistema de busca por parceiro e totalização dinâmica
         const partnerSearch = document.getElementById("partnerSearch");
-        const displayTotalAPagar =
-            document.getElementById("displayTotalAPagar");
-        const displayTotalHistorico = document.getElementById(
-            "displayTotalHistorico",
-        );
+        const displayTotalAPagar = document.getElementById("displayTotalAPagar");
+        const displayTotalHistorico = document.getElementById("displayTotalHistorico");
+        const displayTotalAPagarPts = document.getElementById("displayTotalAPagarPontos");
+        const displayTotalHistoricoPts = document.getElementById("displayTotalHistoricoPontos");
 
         partnerSearch?.addEventListener("input", (e) => {
             const term = e.target.value.toLowerCase();
             let sumAPagar = 0;
             let sumPagos = 0;
+            let sumAPagarPts = 0;
+            let sumPagosPts = 0;
 
             document.querySelectorAll(".payment-row").forEach((row) => {
                 const partnerName = row.getAttribute("data-partner") || "";
                 const isVisible = partnerName.includes(term);
+                const tipo = row.getAttribute("data-tipo") || "dinheiro";
+                const valueAttr = row.getAttribute("data-value") || "0";
+                const value = parseFloat(valueAttr);
+                
                 row.style.display = isVisible ? "" : "none";
 
                 if (isVisible) {
-                    const valueAttr = row.getAttribute("data-value") || "0";
-                    const value = parseFloat(valueAttr);
-                    const isAPagar = row.closest("#tab-apagar");
-                    if (isAPagar) sumAPagar += value;
-                    else sumPagos += value;
+                    const isAPagarTab = row.closest("#tab-apagar");
+                    if (isAPagarTab) {
+                        if (tipo === 'pontos') sumAPagarPts += value;
+                        else sumAPagar += value;
+                    } else {
+                        if (tipo === 'pontos') sumPagosPts += value;
+                        else sumPagos += value;
+                    }
                 }
             });
 
@@ -402,27 +430,43 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
                 style: "currency",
                 currency: "BRL",
             });
-            if (displayTotalAPagar)
-                displayTotalAPagar.textContent = formatter.format(sumAPagar);
-            if (displayTotalHistorico)
-                displayTotalHistorico.textContent = formatter.format(sumPagos);
+            
+            if (displayTotalAPagar) displayTotalAPagar.textContent = formatter.format(sumAPagar);
+            if (displayTotalHistorico) displayTotalHistorico.textContent = formatter.format(sumPagos);
+            if (displayTotalAPagarPts) displayTotalAPagarPts.textContent = sumAPagarPts + " pts";
+            if (displayTotalHistoricoPts) displayTotalHistoricoPts.textContent = sumPagosPts + " pts";
         });
 
-        function openPixModal(id, name, pixKey, pixType, valor) {
-            document.getElementById("pixComissaoId").value = id;
-            document.getElementById("pixPartnerName").textContent = name;
+        function openPixModal(id, name, pixKey, pixType, valor, tipo) {
+             document.getElementById("pixComissaoId").value = id;
+             document.getElementById("pixPartnerName").textContent = name;
 
-            const inputValor = document.getElementById('pixValueInput');
-            inputValor.value = valor;
-            document.getElementById('pixValorFinal').value = valor;
+             const inputValor = document.getElementById('pixValueInput');
+             inputValor.value = valor;
+             document.getElementById('pixValorFinal').value = valor;
 
-            // Guardar dados para regeneração dinâmica
-            pixModal._currentData = { pixKey, name, pixType };
+             // Guardar dados para regeneração dinâmica
+             pixModal._currentData = { pixKey, name, pixType, tipo };
 
-            updatePixDisplay(pixKey, name, valor, pixType);
+             // Ajustar visibilidade de botões conforme o tipo
+             const btnConfirmPay = document.getElementById("btnConfirmPay");
+             const btnConfirmPoints = document.getElementById("btnConfirmPoints");
+             const pixDetails = document.getElementById("pixDetailsArea");
 
-            document.getElementById("pixModal").showModal();
-        }
+             if (tipo === 'pontos') {
+                btnConfirmPay.style.display = 'none';
+                btnConfirmPoints.style.display = 'flex';
+                pixDetails.style.display = 'none';
+             } else {
+                btnConfirmPay.style.display = 'flex';
+                btnConfirmPoints.style.display = 'none';
+                pixDetails.style.display = 'block';
+             }
+
+             updatePixDisplay(pixKey, name, valor, pixType);
+
+             document.getElementById("pixModal").showModal();
+         }
 
         // Função para atualizar o display do PIX (QR Code e Payload)
         function updatePixDisplay(pixKey, name, valor, pixType) {
@@ -643,6 +687,12 @@ const totalHistorico = pagos.reduce((acc, curr) => acc + (curr.valor || 0), 0);
         }
         .text-success {
             color: #10b981;
+        }
+        .text-amber {
+            color: #d97706;
+        }
+        .text-blue {
+            color: #3b82f6;
         }
 
         .notification {

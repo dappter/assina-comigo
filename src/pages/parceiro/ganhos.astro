@@ -40,7 +40,7 @@ const statusLabel = (status: string | null) => {
     if (!status) return "Indefinido";
     const normalized = status.toLowerCase();
     if (normalized === "pago") return "Pago";
-    if (normalized === "pendente") return "Em Quarentena";
+    if (normalized === "pendente") return "Pendente";
     if (normalized === "a_pagar") return "Pronto p/ Saque";
     return status;
 }
@@ -79,10 +79,6 @@ const statusClass = (status: string | null) => {
                 <span title="Disponível para admin pagar">Liberados</span>
                 <strong>{formatBR(stats.aPagar)}</strong>
             </article>
-            <article class="summary-card pending">
-                <span>Em Quarentena</span>
-                <strong>{formatBR(stats.pendentes)}</strong>
-            </article>
         </section>
 
         <section class="list-wrapper">
@@ -91,7 +87,7 @@ const statusClass = (status: string | null) => {
                 <div class="header-stats">
                     <span>{paidRewards.length} pagos</span>
                     <span>{aPagarRewards.length} liberados</span>
-                    <span>{pendingRewards.length} em quarentena</span>
+                    {pendingRewards.length > 0 && <span>{pendingRewards.length} pendentes</span>}
                 </div>
             </div>
 
@@ -151,7 +147,7 @@ const statusClass = (status: string | null) => {
         .summary-grid {
             display: grid;
             gap: 1rem;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
         .summary-card {

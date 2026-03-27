@@ -3,7 +3,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { getSupabaseServerClient } from "../../lib/supabaseSSR";
 import { logError } from "../../utils/logger";
 
-// Tela gerada a partir do Design System e UI do Stitch
+// Tela gerada a partir do Design System Ligeira Premium (stitch_screens.md)
 
 let errorMessage = "";
 let successMessage = "";
@@ -36,8 +36,8 @@ if (Astro.request.method === "POST") {
           return Astro.redirect("/parceiro/dashboard");
         }
       }
-    } 
-    
+    }
+
     // 2. Lógica de Login com Google
     else if (action === "oauth_google") {
       const host = Astro.request.headers.get("host") || Astro.url.host;
@@ -73,252 +73,480 @@ if (Astro.request.method === "POST") {
 ---
 
 <!doctype html>
-<html class="light" lang="pt-br">
+<html lang="pt-br">
   <head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>Login do Parceiro - Assina Comigo</title>
-    <script
-      is:inline
-      src="https://cdn.tailwindcss.com?plugins=forms,container-queries"
-    ></script>
+    <title>Login do Parceiro — Assina Comigo × Ligeira Telecom</title>
+    <meta name="description" content="Acesse sua conta de parceiro Ligeira Telecom e acompanhe suas indicações e comissões em tempo real." />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=Outfit:wght@700;800&display=swap"
       rel="stylesheet"
     />
     <link
-      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined"
       rel="stylesheet"
     />
-    <script is:inline>
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {
-              primary: "#FFB918", // Vibrant Yellow
-              secondary: "#0062FF", // Action Blue
-              "background-light": "#F8FAFC",
-              "background-dark": "#0F172A",
-            },
-            fontFamily: {
-              display: ["Inter", "sans-serif"],
-            },
-            borderRadius: {
-              DEFAULT: "8px",
-            },
-          },
-        },
-      };
-
-      // Handle Dark Mode preference
-      if (
-        typeof window !== "undefined" &&
-        window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches
-      ) {
-        document.documentElement.classList.add("dark");
-      }
-    </script>
     <style>
-      body {
-        font-family: "Inter", sans-serif;
-        -webkit-tap-highlight-color: transparent;
-        min-height: max(884px, 100dvh);
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --brand-primary: #6028FF;
+        --brand-primary-dark: #4B1AC8;
+        --brand-primary-light: #E0D4FF;
+        --brand-secondary: #FFBF1A;
+        --sidebar-bg: #140030;
+        --sidebar-bg-alt: #1E0050;
+        --text-heading: #111827;
+        --text-body: #374151;
+        --text-subtle: #6B7280;
+        --text-on-dark: #F1F5F9;
+        --text-on-dark-dim: #94A3B8;
+        --surface: #FFFFFF;
+        --surface-alt: #F5F3FF;
+        --border: #E5E7EB;
+        --shadow-card: 0 4px 16px rgba(20, 0, 48, 0.08), 0 1px 4px rgba(0,0,0,0.04);
+        --shadow-glow-purple: 0 0 28px rgba(96, 40, 255, 0.25);
       }
-      .ios-shadow {
-        box-shadow:
-          0 4px 6px -1px rgba(0, 0, 0, 0.05),
-          0 2px 4px -1px rgba(0, 0, 0, 0.03);
+
+      html, body { height: 100%; }
+
+      body {
+        font-family: 'Inter', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        background: var(--surface-alt);
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .split-layout {
+        display: grid;
+        grid-template-columns: 2fr 3fr;
+        flex: 1;
+        min-height: 100dvh;
+      }
+
+      /* ========================= HERO SIDEBAR ========================= */
+      .hero-sidebar {
+        position: relative;
+        background: linear-gradient(160deg, var(--sidebar-bg) 0%, var(--sidebar-bg-alt) 100%);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 2.5rem;
+      }
+      .glow-orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        pointer-events: none;
+      }
+      .glow-orb-1 {
+        width: 300px; height: 300px;
+        background: rgba(96, 40, 255, 0.2);
+        top: -80px; right: -80px;
+      }
+      .glow-orb-2 {
+        width: 280px; height: 280px;
+        background: rgba(255, 191, 26, 0.1);
+        bottom: -60px; left: -60px;
+      }
+
+      .hero-content {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        gap: 2.5rem;
+        max-width: 380px;
+        width: 100%;
+      }
+
+      .hero-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .logo-icon {
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark));
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        box-shadow: var(--shadow-glow-purple);
+        flex-shrink: 0;
+      }
+      .logo-text {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: var(--text-on-dark);
+      }
+      .logo-text span { color: var(--brand-secondary); }
+
+      .hero-headline {
+        font-family: 'Outfit', sans-serif;
+        font-size: 2.25rem;
+        font-weight: 800;
+        color: var(--text-on-dark);
+        line-height: 1.15;
+        letter-spacing: -0.025em;
+      }
+      .hero-headline em {
+        font-style: normal;
+        color: var(--brand-secondary);
+      }
+
+      .benefit-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        list-style: none;
+      }
+      .benefit-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+      .benefit-check {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(255, 191, 26, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .benefit-check .material-symbols-outlined { font-size: 14px; color: var(--brand-secondary); }
+      .benefit-item p { font-size: 0.9rem; color: var(--text-on-dark-dim); line-height: 1.5; }
+
+      .stat-pills {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .stat-pill {
+        padding: 0.5rem 1rem;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 100px;
+        font-size: 0.8rem;
+        color: var(--text-on-dark-dim);
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+      .stat-pill strong { color: var(--text-on-dark); font-weight: 700; }
+
+      /* ========================= FORM AREA ========================= */
+      .form-area {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 2rem;
+        background: var(--surface-alt);
+      }
+
+      .form-card { width: 100%; max-width: 420px; }
+
+      .form-header { margin-bottom: 2rem; }
+      .form-header h1 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: var(--text-heading);
+        margin-bottom: 0.375rem;
+        letter-spacing: -0.02em;
+      }
+      .form-header p { font-size: 0.9rem; color: var(--text-subtle); }
+
+      /* Alert Messages */
+      .alert {
+        margin-bottom: 1.5rem;
+        padding: 0.875rem 1.125rem;
+        border-radius: 14px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.625rem;
+      }
+      .alert .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
+      .alert-error { background: #FFF1F2; border: 1px solid #FDA4AF; color: #9F1239; }
+      .alert-success { background: #ECFDF5; border: 1px solid #6EE7B7; color: #065F46; }
+
+      /* Google Button */
+      .btn-google {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.625rem;
+        padding: 0.875rem;
+        background: white;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-heading);
+        cursor: pointer;
+        transition: all 0.15s ease;
+        box-shadow: var(--shadow-card);
+      }
+      .btn-google:hover {
+        border-color: rgba(96, 40, 255, 0.2);
+        box-shadow: 0 2px 8px rgba(96, 40, 255, 0.1);
+        transform: translateY(-1px);
+      }
+      .btn-google img { width: 20px; height: 20px; }
+
+      /* Divider */
+      .divider {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin: 1.25rem 0;
+      }
+      .divider::before, .divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+      .divider span {
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-subtle);
+        white-space: nowrap;
+      }
+
+      /* Form inputs */
+      .field { margin-bottom: 1rem; }
+      .field label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-body);
+        margin-bottom: 0.375rem;
+      }
+      .field input {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        background: white;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-family: 'Inter', sans-serif;
+        color: var(--text-heading);
+        transition: all 0.15s ease;
+        outline: none;
+      }
+      .field input::placeholder { color: var(--text-subtle); }
+      .field input:focus {
+        border-color: var(--brand-primary);
+        box-shadow: 0 0 0 3px rgba(96, 40, 255, 0.12);
+      }
+
+      /* Primary button */
+      .btn-primary {
+        width: 100%;
+        padding: 1rem;
+        background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark));
+        color: white;
+        border: none;
+        border-radius: 14px;
+        font-size: 1rem;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        box-shadow: var(--shadow-glow-purple);
+      }
+      .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(96, 40, 255, 0.35); }
+      .btn-primary:active { transform: translateY(0); }
+      .btn-primary .material-symbols-outlined { font-size: 20px; }
+
+      /* Footer links */
+      .form-footer {
+        margin-top: 1.75rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        text-align: center;
+      }
+      .form-footer p { font-size: 0.875rem; color: var(--text-subtle); }
+      .form-footer a {
+        color: var(--brand-primary);
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .form-footer a:hover { color: var(--brand-primary-dark); text-decoration: underline; }
+
+      .admin-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        margin-top: 1rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-subtle);
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+      .admin-link:hover { color: var(--brand-primary); }
+      .admin-link .material-symbols-outlined { font-size: 14px; }
+
+      /* Responsive */
+      @media (max-width: 800px) {
+        .split-layout { grid-template-columns: 1fr; }
+        .hero-sidebar { display: none; }
+        .form-area { padding: 2.5rem 1.25rem; }
       }
     </style>
   </head>
-  <body
-    class="bg-gradient-to-br from-[#e0f2fe] to-[#f8fafc] dark:from-slate-900 dark:to-slate-950 min-h-screen flex flex-col items-center justify-start p-6"
-  >
-    <div class="h-12 w-full"></div>
-    <div class="w-full max-w-sm flex flex-col items-center mb-12">
-      <div
-        class="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mb-4 ios-shadow shadow-[0_0_35px_rgba(0,98,255,0.4)] relative"
-      >
-        <span class="material-symbols-outlined text-white text-4xl"
-          >handshake</span
-        >
-      </div>
-      <h1 class="text-2xl font-bold text-blue-950 dark:text-white text-center">
-        Assina Comigo
-      </h1>
-      <p class="text-blue-800/70 dark:text-slate-400 text-sm mt-1 font-medium">
-        Gestão de Indicações ISP
-      </p>
-    </div>
-    <main
-      class="w-full max-w-sm bg-white/90 backdrop-blur-sm dark:bg-slate-800 rounded-3xl p-8 ios-shadow border border-white/50"
-    >
-      <div class="mb-8">
-        <h2 class="text-xl font-bold text-blue-950 dark:text-white">
-          Entrar como parceiro
-        </h2>
-        <p class="text-blue-800/70 dark:text-slate-400 text-sm mt-2">
-          Acesse sua conta para visualizar seu dashboard.
-        </p>
-      </div>
+  <body>
+    <div class="split-layout">
 
-      {
-        errorMessage && (
-          <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm text-center font-medium">
-            {errorMessage === "Invalid login credentials"
-              ? "E-mail ou senha inválidos."
-              : errorMessage}
+      <!-- ===== HERO SIDEBAR ===== -->
+      <aside class="hero-sidebar">
+        <div class="glow-orb glow-orb-1"></div>
+        <div class="glow-orb glow-orb-2"></div>
+
+        <div class="hero-content">
+          <div class="hero-logo">
+            <div class="logo-icon">⚡</div>
+            <div class="logo-text">Assina <span>Comigo</span></div>
           </div>
-        )
-      }
 
-      {
-        successMessage && (
-          <div class="mb-6 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl text-green-600 dark:text-green-400 text-sm text-center font-medium">
-            {successMessage}
-          </div>
-        )
-      }
+          <h2 class="hero-headline">
+            Transforme sua rede em<br/><em>lucro real.</em>
+          </h2>
 
-      <div class="mt-8">
-        <form
-          method="POST"
-          class="mb-6"
-          enctype="application/x-www-form-urlencoded"
-        >
-          <input type="hidden" name="action" value="oauth_google" />
-          <button
-            type="submit"
-            class="w-full flex items-center justify-center gap-3 py-3.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm hover:shadow-md hover:bg-slate-50 dark:hover:bg-slate-800 transition-all font-bold text-slate-700 dark:text-slate-300 group"
-          >
-            <img
-              src="https://www.svgrepo.com/show/475656/google-color.svg"
-              alt="Google Logo"
-              class="w-5 h-5 group-hover:scale-110 transition-transform"
-            />
-            Continuar com o Google
-          </button>
-        </form>
+          <ul class="benefit-list">
+            <li class="benefit-item">
+              <div class="benefit-check"><span class="material-symbols-outlined">check</span></div>
+              <p>Comissões automáticas por cada cliente indicado</p>
+            </li>
+            <li class="benefit-item">
+              <div class="benefit-check"><span class="material-symbols-outlined">check</span></div>
+              <p>Acompanhe seus ganhos em tempo real</p>
+            </li>
+            <li class="benefit-item">
+              <div class="benefit-check"><span class="material-symbols-outlined">check</span></div>
+              <p>Receba via PIX automaticamente</p>
+            </li>
+            <li class="benefit-item">
+              <div class="benefit-check"><span class="material-symbols-outlined">check</span></div>
+              <p>Suporte dedicado para parceiros</p>
+            </li>
+          </ul>
 
-        <div class="relative flex py-2 items-center mb-6">
-          <div
-            class="flex-grow border-t border-slate-200 dark:border-slate-700"
-          >
-          </div>
-          <span
-            class="flex-shrink-0 mx-4 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest"
-          >
-            ou use link mágico
-          </span>
-          <div
-            class="flex-grow border-t border-slate-200 dark:border-slate-700"
-          >
+          <div class="stat-pills">
+            <div class="stat-pill"><strong>+R$ 1.2M</strong> em comissões</div>
+            <div class="stat-pill"><strong>99.9%</strong> satisfação</div>
           </div>
         </div>
+      </aside>
 
-        <div
-          class="flex p-1 bg-blue-50/50 dark:bg-slate-700 rounded-xl mb-8 border border-blue-100/50"
-        >
-          <button
-            type="button"
-            class="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all text-blue-800/60 dark:text-slate-400 hover:text-blue-950 dark:hover:text-slate-200"
-            id="btn-whatsapp"
-            onclick="alert('Login por WhatsApp será liberado na Fase 2.');"
-          >
-            <span class="material-symbols-outlined text-lg text-green-500">
-              chat
-            </span>
-            WhatsApp
-          </button>
-          <button
-            type="button"
-            class="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-all bg-white dark:bg-slate-600 text-blue-950 dark:text-white shadow-sm"
-            id="btn-email"
-          >
-            <span class="material-symbols-outlined text-lg">mail</span>
-            E-mail
-          </button>
-        </div>
+      <!-- ===== FORM AREA ===== -->
+      <section class="form-area">
+        <div class="form-card">
+          <div class="form-header">
+            <h1>Bem-vindo de volta!</h1>
+            <p>Acesse sua conta de parceiro Ligeira Telecom</p>
+          </div>
 
-        <form
-          class="space-y-6"
-          method="POST"
-          enctype="application/x-www-form-urlencoded"
-        >
-          <input type="hidden" name="action" value="login_password" />
-          <div class="space-y-4">
-            <div>
-              <label
-                class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
-                for="contact"
-              >
-                Seu E-mail
-              </label>
+          {errorMessage && (
+            <div class="alert alert-error">
+              <span class="material-symbols-outlined">error</span>
+              {errorMessage === "Invalid login credentials"
+                ? "E-mail ou senha inválidos."
+                : errorMessage}
+            </div>
+          )}
+
+          {successMessage && (
+            <div class="alert alert-success">
+              <span class="material-symbols-outlined">check_circle</span>
+              {successMessage}
+            </div>
+          )}
+
+          <!-- Google OAuth -->
+          <form method="POST" enctype="application/x-www-form-urlencoded">
+            <input type="hidden" name="action" value="oauth_google" />
+            <button type="submit" class="btn-google">
+              <img
+                src="https://www.svgrepo.com/show/475656/google-color.svg"
+                alt="Google"
+              />
+              Entrar com Google
+            </button>
+          </form>
+
+          <div class="divider"><span>ou use e-mail e senha</span></div>
+
+          <!-- Password Login -->
+          <form method="POST" enctype="application/x-www-form-urlencoded">
+            <input type="hidden" name="action" value="login_password" />
+
+            <div class="field">
+              <label for="contact">E-mail</label>
               <input
-                class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
                 id="contact"
                 name="contact"
-                placeholder="exemplo@email.com.br"
                 type="email"
+                placeholder="exemplo@email.com.br"
+                value={emailAddress}
                 required
               />
             </div>
-            <div>
-              <label
-                class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
-                for="password"
-              >
-                Sua Senha
-              </label>
+
+            <div class="field">
+              <label for="password">Senha</label>
               <input
-                class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
                 id="password"
                 name="password"
-                placeholder="Sua senha secreta"
                 type="password"
+                placeholder="Sua senha secreta"
                 required
               />
             </div>
+
+            <button type="submit" class="btn-primary">
+              Entrar
+              <span class="material-symbols-outlined">login</span>
+            </button>
+          </form>
+
+          <div class="form-footer">
+            <p>
+              Ainda não é parceiro?
+              <a href="/parceiro/registro">Solicitar adesão agora</a>
+            </p>
+            <a href="/admin/login" class="admin-link">
+              <span class="material-symbols-outlined">shield_lock</span>
+              Acesso Corporativo (Gestores)
+            </a>
           </div>
-          <button
-            class="w-full bg-gradient-to-r from-yellow-400 to-primary hover:from-yellow-300 hover:to-yellow-400 active:scale-[0.98] transition-all text-blue-950 font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2"
-            type="submit"
-          >
-            Entrar
-            <span class="material-symbols-outlined">login</span>
-          </button>
-        </form>
-      </div>
+        </div>
+      </section>
 
-      <div
-        class="mt-8 pt-8 border-t border-blue-100 dark:border-slate-700 text-center"
-      >
-        <p class="text-sm text-blue-800/70 dark:text-slate-400">
-          Ainda não é um parceiro?
-          <a
-            class="text-secondary font-bold hover:underline"
-            href="/parceiro/registro">Solicitar adesão agora</a
-          >
-        </p>
-      </div>
-    </main>
-    <footer class="mt-auto py-8 text-center flex flex-col items-center gap-4">
-      <button
-        class="flex items-center justify-center gap-2 text-blue-800/60 dark:text-slate-500 text-sm font-semibold hover:text-secondary transition-colors"
-      >
-        <span class="material-symbols-outlined text-lg">help</span>
-        Preciso de ajuda para acessar
-      </button>
-
-      <a
-        href="/admin/login"
-        class="flex items-center justify-center gap-2 text-rose-500/80 hover:text-rose-600 text-xs font-bold transition-colors uppercase tracking-widest mt-4"
-      >
-        <span class="material-symbols-outlined text-sm">shield_lock</span>
-        Acesso Corporativo (Gestores)
-      </a>
-    </footer>
+    </div>
   </body>
 </html>

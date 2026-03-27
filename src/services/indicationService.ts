@@ -82,6 +82,7 @@ export const indicationService = {
             emContato: data?.filter(l => l.status === 'Em contato') || [],
             aceitas: data?.filter(l => l.status === 'Aceito') || [],
             instaladas: data?.filter(l => l.status === 'Instalado') || [],
+            pagos: data?.filter(l => l.status === 'Pago' || l.status === 'PAGO') || [],
             canceladas: data?.filter(l => l.status === 'Cancelado') || [],
         };
 

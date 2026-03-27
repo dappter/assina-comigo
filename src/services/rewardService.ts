@@ -45,23 +45,31 @@ export const rewardService = {
             throw error;
         }
 
-        let aPagar = 0; // Prontos para pagamento
-        let concluidas = 0; // Já pagas e finalizadas
-        let pendentes = 0; // Em quarentena / pendentes
+        let aPagar = 0; // Dinheiro pronto para pagamento
+        let concluidas = 0; // Dinheiro já pago
+        let pendentes = 0; // Dinheiro em quarentena
+        let pontosPendentes = 0; // Pontos aguardando aprovação
+        let pontosConcluidos = 0; // Pontos já creditados
 
         data?.forEach(reward => {
-            // Ignoramos recompensas do tipo 'pontos' nos cálculos financeiros
-            if (reward.tipo?.toLowerCase() === 'pontos') return;
-
-            const valor = reward.valor || 0;
+            const valor = Number(reward.valor) || 0;
             const sts = reward.status?.toLowerCase();
+            const tipo = reward.tipo?.toLowerCase();
             
-            if (sts === 'a_pagar') {
-                aPagar += valor;
-            } else if (sts === 'pago') {
-                concluidas += valor;
-            } else if (sts === 'pendente') {
-                pendentes += valor;
+            if (tipo === 'pontos') {
+                if (sts === 'a_pagar') {
+                    pontosPendentes += valor;
+                } else if (sts === 'pago') {
+                    pontosConcluidos += valor;
+                }
+            } else {
+                if (sts === 'a_pagar') {
+                    aPagar += valor;
+                } else if (sts === 'pago') {
+                    concluidas += valor;
+                } else if (sts === 'pendente') {
+                    pendentes += valor;
+                }
             }
         });
 
@@ -69,6 +77,8 @@ export const rewardService = {
             aPagar,
             concluidas,
             pendentes,
+            pontosPendentes,
+            pontosConcluidos,
             total: aPagar + concluidas + pendentes
         };
     },

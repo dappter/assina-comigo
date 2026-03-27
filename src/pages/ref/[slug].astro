@@ -1,14 +1,4 @@
 ---
-import Layout from "../../layouts/Layout.astro";
-import Button from "../../components/ui/Button.astro";
-import {
-    User,
-    Smartphone,
-    MapPin,
-    CreditCard,
-    Send,
-    Sparkles,
-} from "@lucide/astro";
 import { partnerService } from "../../services/partnerService";
 import { indicationService } from "../../services/indicationService";
 
@@ -18,10 +8,9 @@ if (!slug) {
     return Astro.redirect("/404");
 }
 
-const partner = await partnerService.getPartnerByIdGlobal(slug);
+const partner = await partnerService.getPartnerBySlug(slug);
 
 if (!partner) {
-    // Parceiro não existe
     return Astro.redirect("/404?error=partner_not_found");
 }
 
@@ -38,17 +27,10 @@ if (Astro.request.method === "POST") {
         const cpf = data.get("cpf") as string;
         const local = data.get("local") as string;
 
-        console.log(
-            `[Backend Log] Tentativa de criação de indicação - Parceiro: ${partner.nome} (ID: ${partner.id}), Tenant: ${partner.tenant_id}`,
-        );
-        console.log(
-            `[Backend Log] Dados recebidos -> Nome: ${nome}, Tel: ${telefone}, CPF: ${cpf}, Local: ${local}`,
-        );
-
         if (nome && telefone) {
             const leadNome = local ? `${nome} (${local})` : nome;
 
-            const lead = await indicationService.createIndication(
+            await indicationService.createIndication(
                 partner.tenant_id,
                 {
                     parceiro_id: partner.id,
@@ -59,346 +41,350 @@ if (Astro.request.method === "POST") {
                 },
             );
 
-            console.log(
-                `[Backend Log] Sucesso: Indicação criada no banco -> ID: ${lead.id}`,
-            );
             success = true;
         } else {
-            console.log(`[Backend Log] Erro: Nome e telefone não fornecidos.`);
             errorMsg = "Nome e telefone são obrigatórios.";
         }
     } catch (error: any) {
-        errorMsg = "Ocorreu um erro ao enviar sua indicação. Tente novamente.";
-        console.error("[Backend Log] Erro crítico ao salvar lead:", error);
+        errorMsg = "Ocorreu um erro ao enviar sua requisição. Tente novamente.";
+        console.error("[Backend Log] Erro ao salvar lead:", error);
     }
 }
 ---
 
-<Layout title={`Indicação de ${partnerName}`}>
-    <div
-        class="min-h-screen flex flex-col font-sans bg-slate-50 relative overflow-hidden"
-    >
-        {/* Background Gradients */}
-        <div class="absolute inset-0 pointer-events-none z-0">
-            <div
-                class="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-gradient-to-br from-yellow-400/20 to-primary/10 blur-[80px]"
-            >
+<!DOCTYPE html>
+<html class="scroll-smooth" lang="pt-BR">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Convite de {partnerName} | Ligeira Telecom</title>
+    
+    <script is:inline src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    
+    <script is:inline>
+                tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        background: "#F1F1F1",
+                        error: "#BA1A1A",
+                        "error-container": "#FFDAD6",
+                        "inverse-on-surface": "#F1F1F1",
+                        "inverse-primary": "#C8BFFF",
+                        "inverse-surface": "#313033",
+                        "on-background": "#1C1B1E",
+                        "on-error": "#FFFFFF",
+                        "on-error-container": "#410002",
+                        "on-primary": "#FFFFFF",
+                        "on-primary-container": "#1E0061",
+                        "on-primary-fixed": "#1E0061",
+                        "on-primary-fixed-variant": "#4300B7",
+                        "on-secondary": "#402D00",
+                        "on-secondary-container": "#251A00",
+                        "on-secondary-fixed": "#251A00",
+                        "on-secondary-fixed-variant": "#402D00",
+                        "on-surface": "#1C1B1E",
+                        "on-surface-variant": "#49454E",
+                        "on-tertiary": "#402D00",
+                        "on-tertiary-container": "#251A00",
+                        "on-tertiary-fixed": "#251A00",
+                        "on-tertiary-fixed-variant": "#402D00",
+                        outline: "#7A757F",
+                        "outline-variant": "#CABEFF",
+                        primary: "#6028FF",
+                        "primary-container": "#E6DEFF",
+                        "primary-fixed": "#E6DEFF",
+                        "primary-fixed-dim": "#C8BFFF",
+                        secondary: "#FFBF1A",
+                        "secondary-container": "#FFECAE",
+                        "secondary-fixed": "#FFECAE",
+                        "secondary-fixed-dim": "#FFBF1A",
+                        surface: "#F1F1F1",
+                        "surface-bright": "#F1F1F1",
+                        "surface-container": "#FFFFFF",
+                        "surface-container-high": "#E5E5E5",
+                        "surface-container-highest": "#DFDFDF",
+                        "surface-container-low": "#F1F1F1",
+                        "surface-container-lowest": "#FFFFFF",
+                        "surface-dim": "#D8D8D8",
+                        "surface-tint": "#6028FF",
+                        "surface-variant": "#E0E0E0",
+                        tertiary: "#FFBF1A",
+                        "tertiary-container": "#FFECAE",
+                        "tertiary-fixed": "#FFECAE",
+                        "tertiary-fixed-dim": "#FFBF1A"
+                    },
+                    fontFamily: {
+                        headline: ["Plus Jakarta Sans", "sans-serif"],
+                        body: ["Manrope", "sans-serif"],
+                        label: ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", "2xl": "1.5rem", "3xl": "2rem", full: "9999px"},
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-nav {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background-color: rgba(255, 255, 255, 0.8); 
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        .btn-glow {
+            box-shadow: 0 0 25px rgba(96, 40, 255, 0.4);
+            animation: pulse-glow 3s infinite alternate;
+        }
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 15px rgba(96, 40, 255, 0.2); }
+            100% { box-shadow: 0 0 35px rgba(96, 40, 255, 0.6); }
+        }
+        .ambient-shadow {
+            box-shadow: 0 20px 40px -12px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface antialiased selection:bg-primary-container selection:text-slate-900">
+
+    <!-- Navbar -->
+    <nav class="fixed top-0 w-full z-50 bg-primary/95 backdrop-blur-md transition-all duration-300 shadow-xl border-b border-white/10">
+        <div class="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto">
+            <div class="text-2xl font-black text-white italic font-headline tracking-tighter flex items-center gap-2">
+                <span class="material-symbols-outlined text-tertiary">bolt</span>
+                Ligeira <span class="text-tertiary">Telecom</span>
             </div>
-            <div
-                class="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-blue-500/10 to-transparent blur-[100px]"
-            >
+            <div class="hidden md:flex items-center space-x-10 font-label font-bold text-sm tracking-wide text-white/90">
+                <span class="bg-surface-container-high px-4 py-1.5 rounded-full flex items-center gap-2 text-slate-900 shadow-sm border border-slate-900/5">
+                    <span class="material-symbols-outlined text-tertiary text-sm">handshake</span>
+                    Recomendado por {partnerName}
+                </span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <a class="bg-tertiary text-on-tertiary px-6 py-2.5 rounded-full font-headline font-extrabold text-sm hover:scale-105 active:scale-95 transition-all duration-200 btn-glow" href="#signup">
+                    Consultar Viabilidade
+                </a>
             </div>
         </div>
+    </nav>
 
-        {/* Header Sticky Glassmorphism */}
-        <header
-            class="sticky top-0 z-50 h-20 w-full backdrop-blur-md bg-white/70 border-b border-white/40 shadow-sm"
-        >
-            <div
-                class="max-w-[1200px] mx-auto h-full px-6 flex justify-between items-center"
-            >
-                <div class="flex items-center gap-3">
-                    <div
-                        class="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-primary flex items-center justify-center shadow-lg shadow-primary/30"
-                    >
-                        <span class="text-xl">⚡</span>
-                    </div>
-                    <span
-                        class="font-outfit font-extrabold text-lg text-slate-900 tracking-tight"
-                        >Assina Comigo</span
-                    >
-                </div>
-                <div
-                    class="hidden sm:flex items-center gap-2 bg-white/50 backdrop-blur-sm border border-slate-200/60 px-4 py-1.5 rounded-full text-sm font-medium text-slate-700 shadow-sm"
-                >
-                    <span>🤝</span>
-                    Indicação de <strong class="text-slate-900"
-                        >{partnerName}</strong
-                    >
-                </div>
-            </div>
-        </header>
-
-        {/* Mobile Badge Area */}
-        <div class="sm:hidden w-full flex justify-center mt-6 z-10 px-4">
-            <div
-                class="inline-flex items-center gap-2 bg-white/60 backdrop-blur-md border border-slate-200/50 px-5 py-2 rounded-full text-sm font-medium text-slate-700 shadow-sm"
-            >
-                <span>🤝</span>
-                Recomendado por <strong class="text-slate-900"
-                    >{partnerName}</strong
-                >
-            </div>
+    <!-- Mobile Partner Badge -->
+    <div class="md:hidden pt-24 px-6 flex justify-center w-full">
+        <div class="inline-flex items-center justify-center w-full max-w-sm gap-2 bg-surface-container border border-slate-900/10 px-5 py-3 rounded-full text-sm font-bold text-slate-900 shadow-lg">
+            <span class="material-symbols-outlined text-tertiary">handshake</span>
+            Convite especial de {partnerName}
         </div>
-
-        <main
-            class="flex-1 w-full max-w-2xl mx-auto px-5 py-8 md:py-16 flex flex-col gap-10 z-10 relative"
-        >
-            {/* Hero Section */}
-            <div class="text-center flex flex-col items-center">
-                <div class="mb-6 drop-shadow-2xl">
-                    <img
-                        src="/src/assets/illustrations/complete-design.svg"
-                        alt="Ilustração Exclusiva"
-                        class="w-full max-w-[280px] md:max-w-[320px] mx-auto hover:-translate-y-2 transition-transform duration-500 ease-out"
-                    />
-                </div>
-                <h1
-                    class="text-4xl md:text-5xl font-black tracking-tight leading-none text-slate-900 mb-4"
-                >
-                    Aproveite esta <br class="hidden md:block" />
-                    <span
-                        class="bg-gradient-to-r from-blue-600 to-indigo-600 text-transparent bg-clip-text"
-                        >oportunidade exclusiva</span
-                    >
-                </h1>
-                <p
-                    class="text-lg text-slate-600 max-w-lg mx-auto leading-relaxed"
-                >
-                    O <strong>{partnerName}</strong> indicou você para fazer parte
-                    do nosso programa de vantagens. Preencha os dados e entraremos
-                    em contato em tempo recorde.
-                </p>
-            </div>
-
-            {/* Glassmorphic Form Card */}
-            <div
-                class="bg-white/60 backdrop-blur-xl border border-white/60 rounded-[32px] p-6 md:p-10 shadow-xl shadow-slate-200/50 relative overflow-hidden group"
-            >
-                <div
-                    class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-yellow-400 via-primary to-orange-500"
-                >
-                </div>
-
-                <div
-                    class="flex items-center gap-3 mb-8 pb-6 border-b border-slate-200/50"
-                >
-                    <div class="p-2.5 bg-blue-50 rounded-2xl text-blue-600">
-                        <Sparkles size={24} stroke-width={2.5} />
-                    </div>
-                    <h3
-                        class="text-xl font-extrabold text-slate-900 tracking-tight"
-                    >
-                        Solicitar Contato
-                    </h3>
-                </div>
-
-                <form id="leadForm" class="flex flex-col gap-6" method="POST">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div class="flex flex-col gap-2">
-                            <label
-                                for="nome"
-                                class="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1"
-                                >Nome Completo</label
-                            >
-                            <div class="relative flex items-center">
-                                <User
-                                    class="absolute left-4 text-slate-400"
-                                    size={20}
-                                />
-                                <input
-                                    type="text"
-                                    id="nome"
-                                    name="nome"
-                                    placeholder="Seu nome"
-                                    class="w-full h-14 bg-white/70 border border-slate-200/80 rounded-2xl pl-12 pr-4 text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col gap-2">
-                            <label
-                                for="whatsapp"
-                                class="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1"
-                                >WhatsApp</label
-                            >
-                            <div class="relative flex items-center">
-                                <Smartphone
-                                    class="absolute left-4 text-slate-400"
-                                    size={20}
-                                />
-                                <input
-                                    type="tel"
-                                    id="whatsapp"
-                                    name="whatsapp"
-                                    placeholder="(11) 99999-9999"
-                                    class="w-full h-14 bg-white/70 border border-slate-200/80 rounded-2xl pl-12 pr-4 text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col gap-2">
-                            <label
-                                for="local"
-                                class="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1"
-                                >Bairro / Cidade</label
-                            >
-                            <div class="relative flex items-center">
-                                <MapPin
-                                    class="absolute left-4 text-slate-400"
-                                    size={20}
-                                />
-                                <input
-                                    type="text"
-                                    id="local"
-                                    name="local"
-                                    placeholder="Ex: Centro, São Paulo"
-                                    class="w-full h-14 bg-white/70 border border-slate-200/80 rounded-2xl pl-12 pr-4 text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col gap-2">
-                            <label
-                                for="cpf"
-                                class="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1"
-                                >CPF (Opcional)</label
-                            >
-                            <div class="relative flex items-center">
-                                <CreditCard
-                                    class="absolute left-4 text-slate-400"
-                                    size={20}
-                                />
-                                <input
-                                    type="text"
-                                    id="cpf"
-                                    name="cpf"
-                                    placeholder="000.000.000-00"
-                                    class="w-full h-14 bg-white/70 border border-slate-200/80 rounded-2xl pl-12 pr-4 text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="text-center mt-2">
-                        <p class="text-[13px] text-slate-500 leading-relaxed">
-                            Ao enviar, você concorda com nossos <a
-                                href="#"
-                                class="font-semibold text-blue-600 hover:text-blue-700 transition-colors"
-                                >Termos de Uso</a
-                            > e <a
-                                href="#"
-                                class="font-semibold text-blue-600 hover:text-blue-700 transition-colors"
-                                >Política de Privacidade (LGPD)</a
-                            >.
-                        </p>
-                    </div>
-
-                    <button
-                        type="submit"
-                        class="group relative w-full h-14 md:h-16 flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 to-[#FFB918] active:scale-[0.98] transition-transform text-slate-900 font-extrabold text-lg rounded-2xl shadow-[0_8px_25px_-5px_rgba(255,185,24,0.5)] hover:shadow-[0_12px_30px_-5px_rgba(255,185,24,0.6)] overflow-hidden"
-                    >
-                        {/* Glow effect */}
-                        <div
-                            class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"
-                        >
-                        </div>
-                        <span class="relative z-10">Quero saber mais!</span>
-                        <Send
-                            class="relative z-10 group-hover:translate-x-1 transition-transform"
-                            size={20}
-                        />
-                    </button>
-
-                    {
-                        errorMsg && (
-                            <div class="text-sm text-red-600 font-medium text-center p-4 bg-red-50/80 backdrop-blur-sm border border-red-100 rounded-2xl mt-2">
-                                {errorMsg}
-                            </div>
-                        )
-                    }
-                </form>
-
-                <div
-                    class="success-message"
-                    style={`display: ${success ? "flex" : "none"};`}
-                    id="successMsg"
-                >
-                    <div
-                        class="flex flex-col items-center justify-center py-8 text-center animate-[bounceIn_0.6s_ease-out]"
-                    >
-                        <div
-                            class="w-20 h-20 bg-gradient-to-br from-green-400 to-green-600 text-white rounded-full flex items-center justify-center text-4xl shadow-lg shadow-green-500/30 mb-6 font-black"
-                        >
-                            ✓
-                        </div>
-                        <h3
-                            class="text-2xl font-black text-slate-900 mb-3 tracking-tight"
-                        >
-                            Tudo pronto!
-                        </h3>
-                        <p
-                            class="text-slate-600 leading-relaxed max-w-md mx-auto mb-8 text-lg"
-                        >
-                            Recebemos seus dados. Um especialista entrará em
-                            contato com você nos próximos minutos pelo WhatsApp.
-                        </p>
-                        <button
-                            id="btnOk"
-                            class="w-full h-14 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-2xl transition-colors"
-                        >
-                            Entendido
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Simple FAQ */}
-            <div
-                class="bg-blue-50/50 backdrop-blur-sm border border-blue-100/50 rounded-[28px] p-8 text-center shadow-inner mt-4"
-            >
-                <h4 class="font-extrabold text-slate-800 mb-3 text-lg">
-                    Por que fui indicado?
-                </h4>
-                <p class="text-slate-600 leading-relaxed text-[15px]">
-                    Nosso parceiro <strong>{partnerName}</strong> acredita que nossas
-                    soluções podem ajudar você. Esta é uma rede de confiança onde
-                    indicamos apenas oportunidades validas e exclusivas.
-                </p>
-            </div>
-        </main>
-
-        <footer
-            class="mt-auto py-8 text-center border-t border-slate-200/50 z-10 relative bg-white/30 backdrop-blur-sm"
-        >
-            <p
-                class="text-[13px] font-medium text-slate-500 uppercase tracking-widest"
-            >
-                &copy; 2026 Assina Comigo • Todos os direitos reservados
-            </p>
-        </footer>
     </div>
-</Layout>
 
-<script is:inline>
-    const form = document.getElementById("leadForm");
-    const successMsg = document.getElementById("successMsg");
-    const btnOk = document.getElementById("btnOk");
+    <!-- Hero Section -->
+    <header class="relative pt-16 md:pt-40 pb-24 overflow-hidden border-b border-white/[0.02]" style="background: linear-gradient(135deg, #140030 0%, #1E0050 60%, #2D0080 100%);">
+        <div class="max-w-7xl mx-auto px-6 grid xl:grid-cols-2 gap-16 items-center">
+            
+            <div class="z-10 relative">
+                <div class="absolute -top-32 -left-32 w-96 h-96 bg-tertiary/20 rounded-full blur-[100px] pointer-events-none"></div>
 
-    if (successMsg && successMsg.style.display === "flex") {
-        if (form) form.style.display = "none";
-    }
+                <div class="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-tertiary text-on-tertiary border-none font-label font-bold text-[11px] uppercase tracking-[0.15em] mb-8 mt-4 md:mt-0">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    Oferta Exclusiva 
+                </div>
+                
+                <h1 class="text-5xl lg:text-[72px] font-headline font-black text-white leading-[1.05] tracking-tighter mb-8">
+                    Tenha a melhor internet. <br class="hidden md:block"/><span class="text-transparent bg-clip-text bg-gradient-to-r from-tertiary to-yellow-200">Sem travamentos.</span>
+                </h1>
+                
+                <p class="text-xl text-white/90 mb-12 max-w-xl leading-relaxed font-body">
+                    <strong>{partnerName}</strong> liberou um convite exclusivo para você ter a verdadeira fibra ótica em sua casa. Jogue online sem lag e assista filmes em 4K.
+                </p>
+                
+                <div class="flex flex-col sm:flex-row gap-5 items-start sm:items-center">
+                    <a class="w-full sm:w-auto text-center bg-tertiary text-on-tertiary px-10 py-4 rounded-full font-headline font-extrabold text-lg hover:scale-[1.03] active:scale-95 transition-all btn-glow" href="#signup">
+                        Quero verificar viabilidade
+                    </a>
+                </div>
+                
+                <div class="mt-12 flex items-center gap-4 text-sm text-white/80 font-label">
+                    <div class="flex -space-x-3">
+                        <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=1" alt="User">
+                        <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=2" alt="User">
+                        <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=3" alt="User">
+                        <div class="w-10 h-10 border-2 border-background rounded-full bg-surface-container flex items-center justify-center text-xs font-bold text-slate-900">+10k</div>
+                    </div>
+                    <p>Clientes conectados <br/>em nossa fibra ótica.</p>
+                </div>
+            </div>
 
-    btnOk?.addEventListener("click", () => {
-        window.location.href = "https://assina.com.br";
-    });
-</script>
+            <div class="relative z-10 w-full flex justify-center xl:justify-end mt-12 xl:mt-0">
+                <div class="relative w-full max-w-md">
+                    <div class="absolute inset-0 bg-white/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-<style>
-    @keyframes bounceIn {
-        0% {
-            opacity: 0;
-            transform: scale(0.8) translateY(20px);
-        }
-        60% {
-            opacity: 1;
-            transform: scale(1.05) translateY(-5px);
-        }
-        100% {
-            transform: scale(1) translateY(0);
-        }
-    }
-</style>
+                    <div class="relative bg-white/10 backdrop-blur-xl p-8 rounded-3xl ambient-shadow border border-white/20 transform xl:-rotate-3 hover:rotate-0 transition-all duration-500 z-20">
+                        <div class="flex justify-between items-start mb-10">
+                            <div>
+                                <p class="text-white/80 font-label font-bold text-xs uppercase tracking-widest mb-1">Velocidade Entregue</p>
+                                <h3 class="text-5xl font-headline font-black text-white">800<span class="text-xl text-white/80"> MEGA</span></h3>
+                            </div>
+                            <div class="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-green-400">
+                                <span class="material-symbols-outlined text-3xl">speed</span>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-4 bg-white/10 rounded-2xl">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white">
+                                        <span class="material-symbols-outlined text-sm font-bold">router</span>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-white text-sm">Wi-Fi 6 de Última Geração</p>
+                                        <p class="text-xs text-white/70">Roteador Grátis</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-green-400">Incluso</span>
+                            </div>
+
+                            <div class="flex items-center justify-between p-4 bg-white/10 rounded-2xl">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white">
+                                        <span class="material-symbols-outlined text-sm font-bold">build</span>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-white text-sm">Instalação Especializada</p>
+                                        <p class="text-xs text-white/70">Por equipe Ligeira</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-green-400">Grátis</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="absolute -bottom-8 -right-8 md:-right-16 bg-surface-container-high p-5 rounded-2xl ambient-shadow border border-white/[0.05] flex items-center gap-4 z-30 animate-bounce" style="animation-duration: 3.5s;">
+                        <div class="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-green-500 text-xl">thumb_up</span>
+                        </div>
+                        <div>
+                            <p class="font-headline font-bold text-slate-900 text-sm">Conectado!</p>
+                            <p class="text-xs text-slate-500">Vizinho ativou agora mesmo.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sign Up Form / Final CTA Section -->
+    <section class="py-24 relative overflow-hidden" id="signup">
+        <div class="absolute inset-0 bg-surface-container pointer-events-none border-t border-white/[0.02]"></div>
+        <div class="absolute -bottom-[500px] left-[10%] w-[1000px] h-[1000px] bg-primary-container/5 rounded-full blur-[150px] pointer-events-none"></div>
+        
+        <div class="max-w-4xl mx-auto px-6 relative z-10">
+            <div class="bg-surface-container-lowest p-8 md:p-14 lg:p-16 rounded-[3rem] shadow-2xl shadow-black/50 border border-slate-900/5 relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/[0.03] to-transparent pointer-events-none"></div>
+
+                {success ? (
+                    <div class="text-center py-10 relative z-10 flex flex-col items-center">
+                        <div class="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mb-8 mx-auto animate-bounce" style="animation-duration: 2s;">
+                            <span class="material-symbols-outlined text-green-400 text-5xl">check_circle</span>
+                        </div>
+                        <h2 class="text-4xl lg:text-5xl font-headline font-black text-slate-900 tracking-tight mb-4">Tudo Certo!</h2>
+                        <p class="text-on-surface-variant text-xl max-w-lg mx-auto">Sua pré-aprovação foi enviada via indicação oficial de <strong>{partnerName}</strong>. Em instantes, nosso time entrará em contato via WhatsApp para finalizar tudo.</p>
+                        <a href="/" class="mt-10 inline-block bg-surface-container-high text-slate-900 px-8 py-4 rounded-full font-headline font-bold hover:bg-surface-container-highest transition-colors">Voltar para o site inicial</a>
+                    </div>
+                ) : (
+                    <>
+                        <div class="text-center mb-12 relative z-10">
+                            <h2 class="text-3xl md:text-5xl font-headline font-black text-slate-900 tracking-tight mb-4">Vem ser Ligeira!</h2>
+                            <p class="text-on-surface-variant text-lg">Preencha o formulário rápido abaixo para solicitar sua instalação com a recomendação de {partnerName}.</p>
+                        </div>
+
+                        {errorMsg && (
+                            <div class="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3">
+                                <span class="material-symbols-outlined text-red-500">error</span>
+                                <p class="text-red-400 font-bold text-sm">{errorMsg}</p>
+                            </div>
+                        )}
+
+                        <form class="grid md:grid-cols-2 gap-6 relative z-10" id="leadForm" method="POST">
+                            <div class="md:col-span-2">
+                                <label for="nome" class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Nome Completo</label>
+                                <input id="nome" name="nome" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Qual o seu nome?" type="text" required/>
+                            </div>
+                            
+                            <div>
+                                <label for="whatsapp" class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">WhatsApp</label>
+                                <input id="whatsapp" name="whatsapp" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="(00) 00000-0000" type="tel" required/>
+                            </div>
+
+                            <div>
+                                <label for="cpf" class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">CPF (Opcional)</label>
+                                <input id="cpf" name="cpf" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Para agilizar o cadastro" type="text"/>
+                            </div>
+
+                            <div class="md:col-span-2">
+                                <label for="local" class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Endereço de Instalação</label>
+                                <input id="local" name="local" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Rua, Número, Bairro, Cidade" type="text" required/>
+                            </div>
+                            
+                            <div class="md:col-span-2 mt-8">
+                                <button class="w-full bg-tertiary text-on-tertiary py-5 rounded-[1.5rem] font-headline font-black text-xl hover:scale-[1.02] active:scale-98 transition-all btn-glow shadow-xl flex items-center justify-center gap-3" type="submit">
+                                    <span class="material-symbols-outlined">send</span>
+                                    Quero a Ligeira na minha casa
+                                </button>
+                                <p class="text-center text-sm text-on-surface-variant mt-6 flex flex-col items-center justify-center gap-2">
+                                    Nossos consultores não cobram NADA durante o contato.
+                                    <span class="flex items-center gap-1 text-green-500 font-bold bg-green-500/10 px-3 py-1 rounded-full">
+                                        <span class="material-symbols-outlined text-[16px]">verified</span> Instalação Segura
+                                    </span>
+                                </p>
+                            </div>
+                        </form>
+                    </>
+                )}
+            </div>
+        </div>
+    </section>
+
+    <!-- Become a Partner CTA Section -->
+    <section class="py-16 relative bg-primary border-t-0">
+        <div class="max-w-4xl mx-auto px-6 text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary-container/20 text-primary-fixed mb-6">
+                <span class="material-symbols-outlined text-3xl">monetization_on</span>
+            </div>
+            <h3 class="text-3xl font-headline font-black text-white mb-4">Quer faturar dinheiro vivo também?</h3>
+            <p class="text-lg text-white/90 mb-8 max-w-2xl mx-auto">
+                Assim como {partnerName}, você também pode fazer parte do nosso programa de vantagens. Indique a internet da Ligeira e receba comissões automáticas.
+            </p>
+            <a href="/" class="inline-flex items-center gap-2 bg-white text-on-primary-fixed px-8 py-4 rounded-full font-headline font-bold text-lg hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/10 btn-glow">
+                Quero me tornar parceiro
+                <span class="material-symbols-outlined">arrow_forward</span>
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="w-full pt-16 pb-8 bg-background border-t border-white/[0.05]">
+        <div class="flex flex-col md:flex-row justify-between items-center px-8 max-w-7xl mx-auto">
+            <div class="mb-8 md:mb-0 flex flex-col items-center md:text-left">
+                <div class="text-2xl font-black text-slate-900 italic font-headline mb-2 flex items-center justify-center md:justify-start gap-2">
+                    <span class="material-symbols-outlined text-tertiary">bolt</span>Ligeira Telecom
+                </div>
+                <p class="text-on-surface-variant font-body text-sm max-w-sm text-center md:text-left">A velocidade da luz em suas mãos. Conexão confiável para os momentos que importam.</p>
+            </div>
+            
+            <div class="flex space-x-8">
+                <a class="text-slate-700 hover:text-primary font-label font-bold transition-colors text-sm" href="#">Nossos Planos</a>
+                <a class="text-slate-700 hover:text-primary font-label font-bold transition-colors text-sm" href="#">Suporte</a>
+            </div>
+        </div>
+        <div class="text-center mt-12 text-xs text-on-surface-variant/50">
+            &copy; 2026 Ligeira Telecom. Todos os direitos reservados.
+        </div>
+    </footer>
+
+</body>
+</html>

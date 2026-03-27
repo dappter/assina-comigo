@@ -34,8 +34,9 @@ const formatDateFull = (d: string) =>
     });
 
 /** Ordem dos status para a timeline */
-const STATUS_ORDER = ["Recebido", "Em contato", "Aceito", "Instalado"];
-const currentStatusIndex = STATUS_ORDER.indexOf(lead.status || "Recebido");
+const STATUS_ORDER = ["Recebido", "Em contato", "Aceito", "Instalado", "Pago"];
+const normalizedStatus = lead.status === "PAGO" || lead.status === "pago" ? "Pago" : (lead.status || "Recebido");
+const currentStatusIndex = STATUS_ORDER.indexOf(normalizedStatus);
 const isCancelled = lead.status === "Cancelado";
 ---
 
@@ -125,6 +126,13 @@ const isCancelled = lead.status === "Cancelado";
                     lead.status === "Aceito" && (
                         <Badge variant="success">
                             <CircleCheck size={14} /> Aceito
+                        </Badge>
+                    )
+                }
+                {
+                    (lead.status === "Pago" || lead.status === "PAGO") && (
+                        <Badge variant="success">
+                            <CircleCheck size={14} /> Pago
                         </Badge>
                     )
                 }
@@ -222,9 +230,9 @@ const isCancelled = lead.status === "Cancelado";
             <div class="commission-info">
                 <div class="commission-status">
                     {
-                        lead.status === "Instalado" ? (
+                        (lead.status === "Instalado" || lead.status === "Pago" || lead.status === "PAGO") ? (
                             <span class="comm-badge success">
-                                Comissão gerada ✓
+                                {lead.status === "Pago" || lead.status === "PAGO" ? "Comissão Paga ✓" : "Comissão gerada ✓"}
                             </span>
                         ) : (
                             <span class="comm-badge pending">
@@ -235,9 +243,11 @@ const isCancelled = lead.status === "Cancelado";
                 </div>
                 <p class="commission-desc">
                     {
-                        lead.status === "Instalado"
-                            ? "Sua comissão foi ou será processada em breve. Acesse a aba Ganhos para mais detalhes."
-                            : 'A comissão é gerada automaticamente quando este lead atingir o status "Instalado".'
+                        (lead.status === "Pago" || lead.status === "PAGO")
+                            ? "Sua comissão já foi paga! Verifique seu extrato e o comprovante na aba de Ganhos."
+                            : lead.status === "Instalado"
+                                ? "Sua comissão foi ou será processada em breve. Acesse a aba Ganhos para mais detalhes."
+                                : 'A comissão é gerada automaticamente quando este lead atingir o status "Instalado".'
                     }
                 </p>
                 <a

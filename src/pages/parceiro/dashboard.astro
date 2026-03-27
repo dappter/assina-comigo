@@ -39,7 +39,10 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
 
 const allLeads = await indicationService.getIndications(tenantId, profileId);
 const recentLeads = allLeads.slice(0, 5);
-const referralLink = `${Astro.url.origin}/ref/${profileId}`;
+// Usa o slug amigável para o link de indicação; fallback para UUID caso o slug ainda não tenha sido gerado
+const referralSlug = partner?.slug || profileId;
+const referralLink = `${Astro.url.origin}/ref/${referralSlug}`;
+const recruitmentLink = `${Astro.url.origin}/ref/${referralSlug}`;
 
 const indicationStats = await indicationService.getIndicationStats(
   tenantId,
@@ -59,13 +62,6 @@ const stats = [
     icon: Wallet,
     color: "green",
     prefix: "A Pagar",
-  },
-  {
-    label: "Saldo de Pontos",
-    value: `${partner?.saldo_pontos || 0} pts`,
-    icon: TrendingUp,
-    color: "yellow",
-    prefix: "Acumulado",
   },
   {
     label: "Seu Grupo",
@@ -136,9 +132,9 @@ const formatDate = (dateString: string) => {
     <section class="referral-banner">
       <div class="banner-inner">
         <div class="banner-text">
-          <h2 class="banner-title">Seu Link de Indicação</h2>
+          <h2 class="banner-title">Link de Indicação (Clientes)</h2>
           <p class="banner-desc">
-            Compartilhe este link para gerar novas comissões e pontos.
+            Use este link para enviar para potenciais clientes.
           </p>
         </div>
         <div class="link-action-wrap">
@@ -185,6 +181,27 @@ const formatDate = (dateString: string) => {
       <div class="banner-glow"></div>
     </section>
 
+    <section class="recruitment-section">
+        <Card variant="white" class="recruitment-card">
+            <div class="recruitment-content">
+                <div class="recruitment-text">
+                    <div class="badge-new">NOVO</div>
+                    <h3>Recrute Novos Parceiros</h3>
+                    <p>Convide amigos para serem parceiros. Eles entrarão automaticamente no seu nível: <strong class="text-brand-secondary">{partner?.grupo?.nome || 'Padrão'}</strong>.</p>
+                </div>
+                <div class="recruitment-link-box">
+                    <div class="link-label">Seu link de recrutamento:</div>
+                    <div class="link-row">
+                        <code class="link-code">{recruitmentLink}</code>
+                        <Button size="sm" variant="outline" id="copyRecruitBtn" data-link={recruitmentLink}>
+                            Conteúdo <Copy size={14} class="ml-1" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </Card>
+    </section>
+
     <!-- Stats Grid -->
     <div class="stats-grid">
       {
@@ -203,6 +220,27 @@ const formatDate = (dateString: string) => {
           </Card>
         ))
       }
+      <Card variant="brand-accent" class="stat-card">
+        <div class="stat-header">
+          <div class="stat-icon-wrap icon-yellow">
+            <TrendingUp size={22} />
+          </div>
+          <span class="stat-prefix">Acumulado</span>
+        </div>
+        <div class="stat-body">
+          <span class="stat-label">Saldo de Pontos</span>
+          <div class="value-group">
+            <h3 class="stat-value">
+              {partner?.saldo_pontos || 0} <small style="font-size: 0.5em; font-weight: 600; color: var(--color-subtle); text-transform: uppercase;">pts</small>
+            </h3>
+            {rewardStats.pontosPendentes > 0 && (
+              <div class="pending-badge" title="Aguardando aprovação do admin">
+                +{rewardStats.pontosPendentes} em análise
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
     </div>
 
     <!-- Main Data Table area -->
@@ -340,6 +378,19 @@ const formatDate = (dateString: string) => {
     const shareModalBtn = document.getElementById("shareModalBtn");
     shareModalBtn?.addEventListener("click", () => {
       if (waBtn) waBtn.click();
+    });
+
+    // Copiar link de recrutamento
+    const recruitBtn = document.getElementById("copyRecruitBtn");
+    recruitBtn?.addEventListener("click", () => {
+        const url = recruitBtn.getAttribute("data-link");
+        if (url) {
+            navigator.clipboard.writeText(url).then(() => {
+                const originalText = recruitBtn.innerHTML;
+                recruitBtn.innerHTML = 'Copiado! ✓';
+                setTimeout(() => { recruitBtn.innerHTML = originalText; }, 2000);
+            });
+        }
     });
   </script>
 
@@ -678,6 +729,94 @@ const formatDate = (dateString: string) => {
         font-size: 1.75rem;
       }
     }
+
+    /* Recruitment Section */
+    .recruitment-section {
+        margin-top: -1rem;
+    }
+    .recruitment-card {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border: 2px dashed #cbd5e1;
+    }
+    .recruitment-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 2rem;
+        padding: 0.5rem;
+    }
+    .recruitment-text h3 {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--color-heading);
+        margin-bottom: 0.5rem;
+    }
+    .recruitment-text p {
+        color: var(--color-subtle);
+        font-size: 0.9rem;
+    }
+    .badge-new {
+        display: inline-block;
+        padding: 2px 8px;
+        background: var(--color-brand-secondary);
+        color: #fff;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 900;
+        margin-bottom: 0.5rem;
+    }
+    .recruitment-link-box {
+        background: #fff;
+        padding: 1rem;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border);
+        min-width: 320px;
+    }
+    .link-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--color-subtle);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+    }
+    .link-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .link-code {
+        font-family: monospace;
+        font-size: 0.85rem;
+        color: var(--color-brand-secondary);
+        background: #f1f5f9;
+        padding: 0.4rem 0.6rem;
+        border-radius: 4px;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .text-brand-secondary { color: var(--color-brand-secondary); }
+    .ml-1 { margin-left: 0.25rem; }
+
+    /* Meta Progress */
+    .meta-progress-section { margin-top: -1rem; }
+    .meta-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; }
+    .meta-label { font-size: 0.75rem; font-weight: 800; color: var(--color-subtle); text-transform: uppercase; letter-spacing: 0.05em; }
+    .meta-title { font-size: 1.15rem; font-weight: 700; color: var(--color-heading); margin-top: 0.25rem; }
+    .text-brand { color: var(--color-brand-primary-dark, #b45309); }
+    
+    .meta-counter { display: flex; align-items: baseline; gap: 4px; background: var(--color-bg-base); padding: 0.5rem 1rem; border-radius: var(--radius-lg); border: 1px solid var(--color-border); }
+    .meta-counter .current { font-size: 1.5rem; font-weight: 900; color: var(--color-brand-secondary); }
+    .meta-counter .divider { color: var(--color-border); font-weight: 300; }
+    .meta-counter .total { font-size: 1.1rem; font-weight: 700; color: var(--color-subtle); }
+
+    .progress-bar-bg { height: 12px; background: var(--color-bg-base); border-radius: var(--radius-full); overflow: hidden; border: 1px solid var(--color-border); margin-bottom: 0.75rem; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--color-brand-secondary) 0%, #3b82f6 100%); border-radius: var(--radius-full); transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .progress-hint { font-size: 0.85rem; color: var(--color-subtle); font-style: italic; }
+
+    .value-group { display: flex; align-items: baseline; gap: 0.75rem; }
+    .pending-badge { font-size: 0.7rem; font-weight: 700; background: #fff7ed; color: #c2410c; padding: 2px 8px; border-radius: 99px; border: 1px solid #ffedd5; }
 
     @media (max-width: 1024px) {
       .stats-grid {

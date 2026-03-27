@@ -44,6 +44,9 @@ const statsLocal = {
     instalados: allLeadsRaw.filter(
         (l) => l.status === "Instalado" || l.status === "instalado",
     ).length,
+    pagos: allLeadsRaw.filter(
+        (l) => l.status === "Pago" || l.status === "PAGO",
+    ).length,
     nao_viaveis: allLeadsRaw.filter(
         (l) => l.status === "Cancelado" || l.status === "cancelado",
     ).length,
@@ -161,6 +164,12 @@ const formatDate = (dateString: string) => {
                     data-filter="instalados"
                     aria-pressed="false"
                     >Instalados ({statsLocal.instalados})
+                </button>
+                <button
+                    class="pill"
+                    data-filter="pagos"
+                    aria-pressed="false"
+                    >Pagos ({statsLocal.pagos})
                 </button>
                 <button
                     class="pill"
@@ -324,6 +333,13 @@ const formatDate = (dateString: string) => {
                                                     Instalado
                                                 </Badge>
                                             )}
+                                            {(l.status === "Pago" ||
+                                                l.status === "PAGO") && (
+                                                <Badge variant="success">
+                                                    <CircleCheck size={12} />{" "}
+                                                    Pago
+                                                </Badge>
+                                            )}
                                             {(l.status === "Cancelado" ||
                                                 l.status === "cancelado") && (
                                                 <Badge variant="danger">
@@ -397,6 +413,7 @@ const formatDate = (dateString: string) => {
                         !status)) ||
                 (currentFilter === "aceitos" && status === "aceito") ||
                 (currentFilter === "instalados" && status === "instalado") ||
+                (currentFilter === "pagos" && (status === "pago" || status === "pago")) ||
                 (currentFilter === "nao_viaveis" && status === "cancelado");
 
             if (matchSearch && matchFilter) {

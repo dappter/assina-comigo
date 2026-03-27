@@ -1,15 +1,496 @@
 ---
-import '../styles/global.css';
-// Redirect to partner login by default
+// Standalone Landing Page (Ligeira Telecom)
+// Gerada via Google Stitch MCP e aprimorada para Conversão.
 ---
-<html>
-  <head>
-    <title>Assina Comigo</title>
-    <meta http-equiv="refresh" content="0;url=/parceiro/login" />
-  </head>
-  <body class="public-body">
-    <div style="display: flex; align-items: center; justify-content: center; height: 100vh; font-family: 'Inter', sans-serif;">
-      <p>Redirecionando para <a href="/parceiro/login" style="color: var(--color-brand-secondary); font-weight: 700;">Login do Parceiro</a>...</p>
-    </div>
-  </body>
+<!DOCTYPE html>
+<html class="scroll-smooth" lang="pt-BR">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Ligeira Telecom | Seja Parceiro</title>
+    
+    <!-- Optamos pelo CDN isolado para garantir fidelidade 100% ao Design original do Stitch sem conflitar com o App principal -->
+    <script is:inline src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <!-- Adicionando classe completa dos ícones do Google Material Symbols -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
+    
+    <script is:inline>
+                tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        background: "#F1F1F1",
+                        error: "#BA1A1A",
+                        "error-container": "#FFDAD6",
+                        "inverse-on-surface": "#F1F1F1",
+                        "inverse-primary": "#C8BFFF",
+                        "inverse-surface": "#313033",
+                        "on-background": "#1C1B1E",
+                        "on-error": "#FFFFFF",
+                        "on-error-container": "#410002",
+                        "on-primary": "#FFFFFF",
+                        "on-primary-container": "#1E0061",
+                        "on-primary-fixed": "#1E0061",
+                        "on-primary-fixed-variant": "#4300B7",
+                        "on-secondary": "#402D00",
+                        "on-secondary-container": "#251A00",
+                        "on-secondary-fixed": "#251A00",
+                        "on-secondary-fixed-variant": "#402D00",
+                        "on-surface": "#1C1B1E",
+                        "on-surface-variant": "#49454E",
+                        "on-tertiary": "#402D00",
+                        "on-tertiary-container": "#251A00",
+                        "on-tertiary-fixed": "#251A00",
+                        "on-tertiary-fixed-variant": "#402D00",
+                        outline: "#7A757F",
+                        "outline-variant": "#CABEFF",
+                        primary: "#6028FF",
+                        "primary-container": "#E6DEFF",
+                        "primary-fixed": "#E6DEFF",
+                        "primary-fixed-dim": "#C8BFFF",
+                        secondary: "#FFBF1A",
+                        "secondary-container": "#FFECAE",
+                        "secondary-fixed": "#FFECAE",
+                        "secondary-fixed-dim": "#FFBF1A",
+                        surface: "#F1F1F1",
+                        "surface-bright": "#F1F1F1",
+                        "surface-container": "#FFFFFF",
+                        "surface-container-high": "#E5E5E5",
+                        "surface-container-highest": "#DFDFDF",
+                        "surface-container-low": "#F1F1F1",
+                        "surface-container-lowest": "#FFFFFF",
+                        "surface-dim": "#D8D8D8",
+                        "surface-tint": "#6028FF",
+                        "surface-variant": "#E0E0E0",
+                        tertiary: "#FFBF1A",
+                        "tertiary-container": "#FFECAE",
+                        "tertiary-fixed": "#FFECAE",
+                        "tertiary-fixed-dim": "#FFBF1A"
+                    },
+                    fontFamily: {
+                        headline: ["Plus Jakarta Sans", "sans-serif"],
+                        body: ["Manrope", "sans-serif"],
+                        label: ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", "2xl": "1.5rem", "3xl": "2rem", full: "9999px"},
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-nav {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background-color: rgba(255, 255, 255, 0.8); /* surface color with alpha */
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1); /* outline-variant */
+        }
+        
+        /* Otimizações de Conversão - Animações sutis e Sombras Premium */
+        .btn-glow {
+            box-shadow: 0 0 25px rgba(96, 40, 255, 0.4);
+            animation: pulse-glow 3s infinite alternate;
+        }
+        
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 15px rgba(96, 40, 255, 0.2); }
+            100% { box-shadow: 0 0 35px rgba(96, 40, 255, 0.6); }
+        }
+
+        .cta-gradient {
+            background: linear-gradient(135deg, var(--color-primary-container) 0%, rgba(128, 70, 253, 0.8) 100%);
+        }
+
+        .ambient-shadow {
+            box-shadow: 0 20px 40px -12px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface antialiased selection:bg-primary-container selection:text-slate-900">
+
+    <!-- Navbar -->
+    <nav class="fixed top-0 w-full z-50 bg-primary/95 backdrop-blur-md transition-all duration-300 shadow-xl border-b border-white/10">
+        <div class="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto">
+            <div class="text-2xl font-black text-white italic font-headline tracking-tighter flex items-center gap-2">
+                <span class="material-symbols-outlined text-tertiary">bolt</span>
+                Ligeira <span class="text-tertiary">Telecom</span>
+            </div>
+            <div class="hidden md:flex items-center space-x-10 font-label font-bold text-sm tracking-wide text-white/90">
+                <a class="hover:text-primary transition-colors duration-200" href="#como-funciona">Como Funciona</a>
+                <a class="hover:text-primary transition-colors duration-200" href="#vantagens">Vantagens</a>
+                <a class="hover:text-primary transition-colors duration-200" href="#regras">Regras</a>
+            </div>
+            <div class="flex items-center space-x-4">
+                <a class="hidden md:flex text-white/80 hover:text-white font-label font-bold text-sm transition-colors" href="/parceiro/login">
+                    Já sou parceiro
+                </a>
+                <a class="bg-tertiary text-on-tertiary px-6 py-2.5 rounded-full font-headline font-extrabold text-sm hover:scale-105 active:scale-95 transition-all duration-200 btn-glow" href="#signup">
+                    Começar Agora
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="relative pt-40 pb-24 overflow-hidden border-b border-primary/10" style="background: linear-gradient(135deg, #140030 0%, #1E0050 60%, #2D0080 100%);">
+        <div class="max-w-7xl mx-auto px-6 grid xl:grid-cols-2 gap-16 items-center">
+            
+            <div class="z-10 relative">
+                <!-- Decorative Glow Behind Text -->
+                <div class="absolute -top-32 -left-32 w-96 h-96 bg-tertiary/20 rounded-full blur-[100px] pointer-events-none"></div>
+
+                <div class="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-tertiary text-on-tertiary border-none font-label font-bold text-[11px] uppercase tracking-[0.15em] mb-8">
+                    <span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+                    Programa de Indicações V2
+                </div>
+                
+                <h1 class="text-5xl lg:text-[72px] font-headline font-black text-white leading-[1.05] tracking-tighter mb-8">
+                    Sua rede de contatos <br class="hidden md:block"/>vale <span class="text-transparent bg-clip-text bg-gradient-to-r from-tertiary to-yellow-200">dinheiro vivo.</span>
+                </h1>
+                
+                <p class="text-xl text-white/90 mb-12 max-w-xl leading-relaxed font-body">
+                    Torne-se um parceiro oficial da Ligeira Telecom. Indique nossa internet 100% fibra ótica de baixa latência e <strong>ganhe comissões automáticas</strong> por cada instalação concluída. Sem limites, sem burocracia.
+                </p>
+                
+                <div class="flex flex-col sm:flex-row gap-5 items-start sm:items-center">
+                    <a class="w-full sm:w-auto text-center bg-tertiary text-on-tertiary px-10 py-4 rounded-full font-headline font-extrabold text-lg hover:scale-[1.03] active:scale-95 transition-all btn-glow" href="#signup">
+                        Quero me cadastrar
+                    </a>
+                    <a class="w-full sm:w-auto text-center flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-slate-900 font-headline font-bold text-lg" href="#como-funciona">
+                        <span class="material-symbols-outlined text-xl">play_circle</span>
+                        Ver como funciona
+                    </a>
+                </div>
+                
+                <div class="mt-12 flex items-center gap-4 text-sm text-white/80 font-label">
+                    <div class="flex -space-x-3">
+                        <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=11" alt="User">
+                        <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=12" alt="User">
+                        <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=33" alt="User">
+                        <div class="w-10 h-10 border-2 border-background rounded-full bg-surface-container flex items-center justify-center text-xs font-bold text-slate-900">+5k</div>
+                    </div>
+                    <p>Parceiros já estão ganhando <br/>comissões todos os dias.</p>
+                </div>
+            </div>
+
+            <div class="relative z-10 w-full flex justify-center xl:justify-end">
+                <!-- Floating Elements Container -->
+                <div class="relative w-full max-w-md">
+                    
+                    <!-- Ambient Light -->
+                    <div class="absolute inset-0 bg-white/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+                    <!-- Main Dashboard Card Illustration (Asymmetric) -->
+                    <div class="relative bg-white/10 backdrop-blur-xl p-8 rounded-3xl ambient-shadow border border-white/20 transform xl:rotate-3 hover:rotate-0 transition-all duration-500 z-20">
+                        <div class="flex justify-between items-start mb-10">
+                            <div>
+                                <p class="text-white/80 font-label font-bold text-xs uppercase tracking-widest mb-1">Recompensa Pendente</p>
+                                <h3 class="text-5xl font-headline font-black text-white">R$ 450<span class="text-xl text-white/80">,00</span></h3>
+                            </div>
+                            <div class="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-tertiary">
+                                <span class="material-symbols-outlined text-3xl">account_balance_wallet</span>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-4 bg-white/10 rounded-2xl">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center text-green-400">
+                                        <span class="material-symbols-outlined text-sm font-bold">arrow_downward</span>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-white text-sm">Indicação Instalada</p>
+                                        <p class="text-xs text-white/70">Cliente: João S.</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-green-400">+ R$ 50,00</span>
+                            </div>
+
+                            <div class="flex items-center justify-between p-4 bg-white/10 rounded-2xl">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center text-green-400">
+                                        <span class="material-symbols-outlined text-sm font-bold">arrow_downward</span>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-white text-sm">Indicação Instalada</p>
+                                        <p class="text-xs text-white/70">Cliente: Maria C.</p>
+                                    </div>
+                                </div>
+                                <span class="font-bold text-green-400">+ R$ 50,00</span>
+                            </div>
+                        </div>
+                        
+                        <button class="w-full mt-6 bg-primary-container text-slate-900 py-4 rounded-xl font-headline font-bold hover:bg-primary-container/80 transition-colors">
+                            Sacar para Conta Bancária
+                        </button>
+                    </div>
+
+                    <!-- Floating Notification (Conversion UX) -->
+                    <div class="absolute -bottom-8 -left-8 md:-left-16 bg-surface-container-lowest p-5 rounded-2xl ambient-shadow border border-slate-900/10 flex items-center gap-4 z-30 animate-bounce" style="animation-duration: 3s;">
+                        <div class="w-12 h-12 rounded-full bg-tertiary/20 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-tertiary text-xl">payments</span>
+                        </div>
+                        <div>
+                            <p class="font-headline font-bold text-slate-900 text-sm">Pix Recebido!</p>
+                            <p class="text-xs text-on-surface-variant">Carlos M. acabou de sacar R$ 200.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- How It Works Section (Glassy Cards) -->
+    <section class="py-32 relative" id="como-funciona">
+        <div class="max-w-7xl mx-auto px-6 relative z-10">
+            <div class="text-center mb-20">
+                <h2 class="text-4xl lg:text-5xl font-headline font-black text-slate-900 tracking-tighter mb-4">Apenas três passos para faturar</h2>
+                <p class="text-xl text-on-surface-variant max-w-2xl mx-auto">O processo mais simples e transparente do mercado de telecom. O sistema faz o trabalho duro por você.</p>
+            </div>
+            
+            <div class="grid md:grid-cols-3 gap-8 relative">
+                <!-- Connecting Line (Desktop) -->
+                <div class="hidden md:block absolute top-[80px] left-[15%] right-[15%] h-[2px] bg-gradient-to-r from-transparent via-primary-container to-transparent opacity-30"></div>
+
+                <!-- Step 1 -->
+                <div class="group relative bg-surface-container p-10 rounded-[2rem] border border-slate-900/5 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300">
+                    <div class="absolute -top-6 left-10 w-12 h-12 rounded-2xl bg-white border border-slate-900/10 flex items-center justify-center font-headline font-black text-xl text-slate-900 shadow-md">1</div>
+                    <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-8 mt-4 group-hover:scale-110 group-hover:bg-primary transition-all duration-300">
+                        <span class="material-symbols-outlined text-primary text-3xl group-hover:text-white transition-colors duration-300">how_to_reg</span>
+                    </div>
+                    <h4 class="text-2xl font-headline font-black mb-3 text-slate-900">Faça o Cadastro</h4>
+                    <p class="text-on-surface-variant leading-relaxed">Crie sua conta em 1 minuto. Você receberá um link 100% exclusivo rastreado no seu nome.</p>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="group relative bg-surface-container p-10 rounded-[2rem] border border-slate-900/5 hover:border-tertiary/50 hover:shadow-xl hover:shadow-tertiary/10 transition-all duration-300">
+                    <div class="absolute -top-6 left-10 w-12 h-12 rounded-2xl bg-white border border-slate-900/10 flex items-center justify-center font-headline font-black text-xl text-slate-900 shadow-md">2</div>
+                    <div class="w-16 h-16 rounded-2xl bg-tertiary shadow-lg shadow-tertiary/20 flex items-center justify-center mb-8 mt-4 group-hover:scale-110 group-hover:bg-yellow-400 transition-all duration-300">
+                        <span class="material-symbols-outlined text-slate-900 text-3xl">share</span>
+                    </div>
+                    <h4 class="text-2xl font-headline font-black mb-3 text-slate-900">Espalhe a Fibra</h4>
+                    <p class="text-on-surface-variant leading-relaxed">Mande seu link no WhatsApp, grupos do bairro ou redes sociais. Fale sobre a nossa internet ultra rápida.</p>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="group relative bg-[#140030] p-10 rounded-[2rem] border border-primary/30 hover:border-tertiary/60 transition-all duration-300">
+                    <div class="absolute -top-6 left-10 w-12 h-12 rounded-2xl bg-tertiary flex items-center justify-center font-headline font-black text-xl text-slate-900 shadow-lg shadow-tertiary/20">3</div>
+                    <div class="w-16 h-16 rounded-2xl bg-tertiary/20 flex items-center justify-center mb-8 mt-4 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-tertiary text-3xl">monetization_on</span>
+                    </div>
+                    <h4 class="text-2xl font-headline font-black mb-3 text-tertiary">Fechou, Ganhou</h4>
+                    <p class="text-white/90 leading-relaxed">Quando a equipe da Ligeira instalar a internet na casa do indicado, a comissão cai na sua conta na hora.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Transparency/Rules Section (Editorial Asymmetric Layout) -->
+    <section class="py-24 bg-surface-container-lowest" id="regras">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="grid lg:grid-cols-2 gap-20 items-center">
+                
+                <div class="order-2 lg:order-1 relative">
+                    <div class="absolute inset-0 bg-primary-container/10 blur-[80px] rounded-full pointer-events-none"></div>
+                    <!-- Mockup Dashboard Image -->
+                    <div class="relative rounded-[2.5rem] overflow-hidden border border-slate-900/5 ambient-shadow aspect-square lg:aspect-[4/5] bg-surface-container flex flex-col p-8">
+                        
+                        <div class="flex items-center gap-2 mb-8">
+                            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                        </div>
+
+                        <div class="flex-1 rounded-2xl bg-surface-container-lowest p-6 border border-slate-900/5 space-y-6">
+                            <!-- Skeleton UI representing platform inside -->
+                            <div class="flex justify-between items-center mb-6">
+                                <div class="w-32 h-6 rounded bg-surface-container-high"></div>
+                                <div class="w-10 h-10 rounded-full bg-primary-container"></div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="h-24 rounded-2xl bg-surface-container p-4">
+                                    <div class="w-16 h-4 bg-surface-container-highest rounded mb-4"></div>
+                                    <div class="w-24 h-8 bg-tertiary/20 rounded"></div>
+                                </div>
+                                <div class="h-24 rounded-2xl bg-surface-container p-4">
+                                    <div class="w-16 h-4 bg-surface-container-highest rounded mb-4"></div>
+                                    <div class="w-24 h-8 bg-green-500/20 rounded"></div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-3 mt-8">
+                                <div class="h-16 rounded-xl bg-surface-container flex items-center px-4 gap-4">
+                                    <div class="w-8 h-8 rounded-full bg-surface-container-highest"></div>
+                                    <div class="flex-1">
+                                        <div class="w-24 h-3 bg-surface-container-highest rounded mb-2"></div>
+                                        <div class="w-16 h-2 bg-surface-container-highest/50 rounded"></div>
+                                    </div>
+                                    <div class="w-16 h-4 bg-tertiary/40 rounded"></div>
+                                </div>
+                                <div class="h-16 rounded-xl bg-surface-container flex items-center px-4 gap-4">
+                                    <div class="w-8 h-8 rounded-full bg-surface-container-highest"></div>
+                                    <div class="flex-1">
+                                        <div class="w-32 h-3 bg-surface-container-highest rounded mb-2"></div>
+                                        <div class="w-16 h-2 bg-surface-container-highest/50 rounded"></div>
+                                    </div>
+                                    <div class="w-16 h-4 bg-tertiary/40 rounded"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Overlay Glass Box -->
+                        <div class="absolute bottom-10 -right-10 md:-right-16 bg-surface-bright/80 backdrop-blur-xl p-6 rounded-3xl border border-slate-900/10 shadow-2xl max-w-xs transform -rotate-2">
+                            <p class="font-headline font-bold text-slate-900 text-lg mb-2">Painel de Controle</p>
+                            <p class="text-on-surface-variant text-sm">Acompanhe quem clicou, quem assinou e veja seu dinheiro cair na hora.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="order-1 lg:order-2">
+                    <h2 class="text-4xl lg:text-5xl font-headline font-black text-slate-900 mb-8 tracking-tighter">Regras Claras. <br/><span class="text-primary">Ganhos Reais.</span></h2>
+                    <p class="text-xl text-on-surface-variant mb-12">Diferente de sistemas que criam várias metas inalcançáveis, a Ligeira simplificou tudo para você faturar mais rápido.</p>
+
+                    <div class="space-y-8">
+                        <div class="flex gap-6 group">
+                            <div class="flex-shrink-0 w-14 h-14 rounded-2xl bg-surface-container border border-slate-900/5 flex items-center justify-center group-hover:bg-primary-container transition-colors">
+                                <span class="material-symbols-outlined text-slate-900 text-2xl">bolt</span>
+                            </div>
+                            <div>
+                                <h5 class="text-xl font-headline font-bold text-slate-900 mb-2">Comissão Imediata</h5>
+                                <p class="text-on-surface-variant">O indicado assinou o contrato e o técnico instalou a fibra? O dinheiro entra no seu saldo como "A Pagar". Sem enrolação.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-6 group">
+                            <div class="flex-shrink-0 w-14 h-14 rounded-2xl bg-surface-container border border-slate-900/5 flex items-center justify-center group-hover:bg-tertiary transition-colors">
+                                <span class="material-symbols-outlined text-slate-900 text-2xl">all_inclusive</span>
+                            </div>
+                            <div>
+                                <h5 class="text-xl font-headline font-bold text-slate-900 mb-2">Sem Teto de Ganhos</h5>
+                                <p class="text-on-surface-variant">Você não tem metas mensais mínimas para receber e não existe limite máximo. Você recebe por 1 ou por 100 indicações.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-6 group">
+                            <div class="flex-shrink-0 w-14 h-14 rounded-2xl bg-surface-container border border-slate-900/5 flex items-center justify-center group-hover:bg-green-600 transition-colors">
+                                <span class="material-symbols-outlined text-slate-900 text-2xl">verified_user</span>
+                            </div>
+                            <div>
+                                <h5 class="text-xl font-headline font-bold text-slate-900 mb-2">Produto Fácil de Vender</h5>
+                                <p class="text-on-surface-variant">A Ligeira Telecom possui fibra ótica de alta velocidade e baixa latência garantida. O vizinho quer? Você indica.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Sign Up Form / Final CTA Section -->
+    <section class="py-32 relative overflow-hidden" id="signup">
+        <!-- Background Decorators -->
+        <div class="absolute inset-0 bg-surface-container pointer-events-none"></div>
+        <div class="absolute -top-[500px] right-[10%] w-[1000px] h-[1000px] bg-primary-container/10 rounded-full blur-[150px] pointer-events-none"></div>
+        
+        <div class="max-w-4xl mx-auto px-6 relative z-10">
+            <!-- Scarcity Tag UX Improvement -->
+            <div class="flex justify-center mb-6">
+                <div class="inline-flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-full text-xs font-bold uppercase tracking-widest font-label">
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    Últimas vagas para o Grupo Beta
+                </div>
+            </div>
+
+            <div class="bg-surface-container-lowest p-8 md:p-14 lg:p-16 rounded-[3rem] shadow-2xl shadow-black/50 border border-slate-900/5 relative overflow-hidden">
+                <!-- Glossy Overlay inside card -->
+                <div class="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/[0.03] to-transparent pointer-events-none"></div>
+
+                <div class="text-center mb-12 relative z-10">
+                    <h2 class="text-3xl md:text-5xl font-headline font-black text-slate-900 tracking-tight mb-4">Crie sua conta agora</h2>
+                    <p class="text-on-surface-variant text-lg">Inicie imediatamente, gere seu link e faça sua primeira indicação hoje mesmo.</p>
+                </div>
+
+                <!-- Modificado para enviar POST real para o Backend (Astro Action ou URL de destino) -->
+                <!-- Devido à complexidade do Auth Social, redirecionamos para o form construído na rota /parceiro/registro se for seguro, ou podemos usá-lo via GET params. -->
+                <form class="grid md:grid-cols-2 gap-6 relative z-10" action="/parceiro/registro" method="GET">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Nome Completo</label>
+                        <input name="nome" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Digite seu nome completo" type="text" required/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">E-mail Principal</label>
+                        <input name="email" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="exemplo@email.com" type="email" required/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">WhatsApp</label>
+                        <!-- Usando type text com pattern básico para focar num DDD + Número -->
+                        <input name="whatsapp" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="(11) 90000-0000" type="tel" required/>
+                    </div>
+                    
+                    <div class="md:col-span-2 mt-8">
+                        <button class="w-full bg-tertiary text-on-tertiary py-5 rounded-[1.5rem] font-headline font-black text-xl hover:scale-[1.02] active:scale-98 transition-all btn-glow shadow-xl" type="submit">
+                            Continuar e Criar Conta Segura
+                        </button>
+                        
+                        <div class="relative flex items-center justify-center mt-6 mb-2">
+                            <span class="absolute px-4 bg-surface-container-lowest text-on-surface-variant text-sm z-10 font-bold">OU</span>
+                            <div class="w-full h-px bg-slate-900/10"></div>
+                        </div>
+
+                        <!-- Botão Entrar com Google OAuth -->
+                        <button type="submit" name="action" value="oauth_google" formmethod="POST" formaction="/parceiro/registro" class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3">
+                            <svg class="w-6 h-6" viewBox="0 0 24 24">
+                              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                            </svg>
+                            Entrar com Google
+                        </button>
+
+                        <p class="text-center text-sm text-on-surface-variant mt-6 flex flex-col items-center justify-center gap-2">
+                            Ao prosseguir, você concorda com nossas políticas e termos.
+                            <span class="flex items-center gap-1 text-green-500 font-bold bg-green-500/10 px-3 py-1 rounded-full">
+                                <span class="material-symbols-outlined text-[16px]">lock</span> Ambiente 100% Seguro
+                            </span>
+                        </p>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="w-full pt-16 pb-8 bg-background border-t border-slate-900/10">
+        <div class="flex flex-col md:flex-row justify-between items-center px-8 max-w-7xl mx-auto">
+            <div class="mb-8 md:mb-0 flex flex-col items-center md:items-start text-center md:text-left">
+                <div class="text-2xl font-black text-slate-900 italic font-headline mb-2 flex items-center gap-2">
+                    <span class="material-symbols-fill text-tertiary">bolt</span>Ligeira Telecom
+                </div>
+                <p class="text-on-surface-variant font-body text-sm max-w-sm">A velocidade da luz em suas mãos. Programa de parceiros oficiais para indicações recompensadas.</p>
+            </div>
+            
+            <div class="flex space-x-8">
+                <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href="/parceiro/login">Entrar</a>
+                <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href="/admin/login">Área Restrita</a>
+                <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href="#">Suporte</a>
+            </div>
+        </div>
+        <div class="text-center mt-12 text-xs text-on-surface-variant/80">
+            &copy; 2026 Assina Comigo. Tecnologia operada por Ligeira Telecom. Todos os direitos reservados.
+        </div>
+    </footer>
+
+</body>
 </html>

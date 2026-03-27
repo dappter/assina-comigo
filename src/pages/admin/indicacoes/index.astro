@@ -19,7 +19,7 @@ if (Astro.request.method === "POST") {
         const newStatus = formData.get("status") as string;
         
         if (leadId && newStatus) {
-            await adminService.updateIndicacaoStatus(leadId, newStatus);
+            await adminService.updateIndicacaoStatus(leadId, newStatus, tenantId);
             notification = "success|Status da indicação atualizado com sucesso!";
         }
     } catch (err: any) {

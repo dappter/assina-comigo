@@ -8,42 +8,73 @@ import {
     sanitizeCPF,
     isValidCPF,
 } from "../../utils/validation";
-import { adminService } from "../../services/adminService";
 import { logError } from "../../utils/logger";
+import { captacaoService } from "../../services/captacaoService";
+import { partnerService } from "../../services/partnerService";
 
 let MAIN_TENANT_ID = import.meta.env.PUBLIC_MAIN_TENANT_ID;
-let grupos = [];
 let errorMessage = "";
 
+// Lê o grupo de captação vindo dos query params (/grupo/[slug] -> /parceiro/registro?grupo_id=...)
+const grupoIdParam = Astro.url.searchParams.get("grupo_id") || "";
+const grupoSlugParam = Astro.url.searchParams.get("grupo_slug") || "";
+const refSlug = Astro.url.searchParams.get("ref") || "";
+
+let effectiveGrupoId = grupoIdParam;
+let captacaoContexto = null;
+
+// 1. Prioridade: Link direto de Grupo (/grupo/[slug])
+if (grupoSlugParam) {
+    captacaoContexto = await captacaoService.getCaptacaoContext(grupoSlugParam);
+    if (captacaoContexto) {
+        effectiveGrupoId = captacaoContexto.grupoId;
+    }
+} 
+// 2. Segunda prioridade: Link de recrutamento de outro parceiro (/ref/[slug])
+else if (refSlug) {
+    const parentPartner = await partnerService.getPartnerBySlug(refSlug);
+    if (parentPartner?.grupo_id) {
+        effectiveGrupoId = parentPartner.grupo_id;
+        // Busca o contexto do grupo para exibir na UI bonita
+        const { data: groupData } = await supabaseAdmin
+            .from('grupos_parceiros')
+            .select('*')
+            .eq('id', effectiveGrupoId)
+            .single();
+        
+        if (groupData) {
+            captacaoContexto = {
+                grupoId: groupData.id,
+                grupoNome: groupData.nome,
+                grupoSlug: groupData.slug,
+                grupoDescricao: groupData.descricao,
+                tipoRemuneracao: groupData.tipo_remuneracao,
+                valorRecompensa: groupData.valor_recompensa,
+                tenantId: groupData.tenant_id
+            };
+        }
+    }
+}
+
+// Bloqueio de cadastro orgânico (sem link de convite)
+const hasValidInvite = !!effectiveGrupoId;
+if (!hasValidInvite && Astro.request.method !== "POST") {
+    errorMessage = "Acesso restrito: Você precisa de um link de convite válido (de um grupo ou parceiro) para se cadastrar no sistema.";
+}
+
 try {
-    // Se não houver no env, buscar o primeiro perfil administrativo para definir o tenant base
     if (!MAIN_TENANT_ID) {
-        const { data: firstAdmin, error: adminError } = await supabaseAdmin
+        const { data: firstAdmin } = await supabaseAdmin
             .from("profiles")
             .select("tenant_id")
             .eq("tipo_usuario", "admin")
             .limit(1)
             .maybeSingle();
-        
-        if (firstAdmin) {
-            MAIN_TENANT_ID = firstAdmin.tenant_id;
-        } else {
-            // Se o banco estiver vazio, usamos o ID padrão apenas para evitar crash na consulta de grupos
-            MAIN_TENANT_ID = "4a254f52-99bd-43dd-86e2-ec031206077a";
-        }
+        MAIN_TENANT_ID = firstAdmin?.tenant_id ?? "4a254f52-99bd-43dd-86e2-ec031206077a";
     }
-
-    // Busca grupos com tratamento de erro
-    try {
-        grupos = await adminService.getGrupos(MAIN_TENANT_ID);
-    } catch (e) {
-        console.error("[REGISTRO] Erro ao carregar grupos:", e);
-        grupos = [];
-    }
-
 } catch (globalError) {
     console.error("[REGISTRO_INIT_ERROR]", globalError);
-    errorMessage = "Erro de inicialização do sistema. Verifique as configurações do banco de dados.";
+    errorMessage = "Erro de inicialização do sistema.";
 }
 
 if (Astro.request.method === "POST") {
@@ -56,10 +87,40 @@ if (Astro.request.method === "POST") {
         const whatsapp = data.get("whatsapp")?.toString() || "";
         const password = data.get("password")?.toString() || "";
         const rawCpf = data.get("cpf")?.toString() || "";
+        // grupo_id vem do campo hidden do formulário (preenchido pelos query params via /grupo/[slug])
         const grupoId = data.get("grupo_id")?.toString() || null;
+        const formTenantId = data.get("tenant_id")?.toString() || MAIN_TENANT_ID;
+        const action = data.get("action")?.toString();
 
-        const cleanWhatsapp = sanitizePhone(whatsapp);
-        const cleanCpf = sanitizeCPF(rawCpf);
+        if (action === "oauth_google") {
+            const host = Astro.request.headers.get("host") || Astro.url.host;
+            const protocol = Astro.request.headers.get("x-forwarded-proto") || (Astro.url.protocol.replace(':', '') || 'https');
+            const origin = `${protocol}://${host}`;
+
+            const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+
+            let callbackUrl = `${origin}/api/auth/callback?next=/parceiro/dashboard`;
+            if (grupoId) callbackUrl += `&grupo_id=${grupoId}`;
+            if (formTenantId) callbackUrl += `&tenant_id=${formTenantId}`;
+
+            const { data: authData, error } = await supabaseSSR.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                    redirectTo: callbackUrl,
+                },
+            });
+
+            if (error) {
+                logError("[AUTH_OAUTH_ERROR]", error);
+                errorMessage = "Erro ao conectar com Google: " + error.message;
+            } else if (authData?.url) {
+                return Astro.redirect(authData.url);
+            } else {
+                errorMessage = "Não foi possível gerar o link de autenticação do Google.";
+            }
+        } else {
+            const cleanWhatsapp = sanitizePhone(whatsapp);
+            const cleanCpf = sanitizeCPF(rawCpf);
 
         if (!email || !password || !nome) {
             errorMessage = "Por favor, preencha todos os campos obrigatórios.";
@@ -76,7 +137,11 @@ if (Astro.request.method === "POST") {
                     email: emailAddress,
                     password,
                     options: {
-                        data: { full_name: nome, phone: cleanWhatsapp },
+                        data: { 
+                            full_name: nome, 
+                            phone: cleanWhatsapp,
+                            tenant_id: formTenantId // Injeta no JWT para o Trigger de Auth
+                        },
                     },
                 });
 
@@ -96,20 +161,19 @@ if (Astro.request.method === "POST") {
                     errorMessage = authError.message;
                 }
             } else if (authData.user) {
-                // O MAIN_TENANT_ID já foi resolvido no topo do arquivo
-
-                // Insere o profile manual usando admin para contornar bloqueio de RLS no insert inicial
+                // Insere o profile manual usando admin com o tenant correto do recrutador
                 const { error: profileError } = await supabaseAdmin
                     .from("profiles")
                     .insert({
                         id: authData.user.id,
-                        tenant_id: MAIN_TENANT_ID,
+                        tenant_id: formTenantId,
                         nome: nome,
                         email: emailAddress,
                         telefone: cleanWhatsapp,
                         cpf: cleanCpf,
                         tipo_usuario: "parceiro",
                         grupo_id: grupoId,
+                        status: 'ativo' // Cadastro via link direto/recrutamento já entra ativo
                     });
 
                 if (profileError) {
@@ -127,6 +191,7 @@ if (Astro.request.method === "POST") {
                         "Confirmação de e-mail está ativada no Supabase. Por favor, desative 'Confirm email' nas configurações ou verifique sua caixa de entrada.";
                 }
             }
+        }
         }
     } catch (error) {
         if (error instanceof Error) {
@@ -153,306 +218,159 @@ if (Astro.request.method === "POST") {
 ---
 
 <!doctype html>
-<html class="light" lang="pt-br">
-    <head>
-        <meta charset="utf-8" />
-        <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-        <title>Cadastro de Parceiro - Assina Comigo</title>
-        <script
-            is:inline
-            src="https://cdn.tailwindcss.com?plugins=forms,container-queries"
-        ></script>
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-            rel="stylesheet"
-        />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-            rel="stylesheet"
-        />
-        <script is:inline>
-            tailwind.config = {
-                darkMode: "class",
-                theme: {
-                    extend: {
-                        colors: {
-                            primary: "#FFB918",
-                            secondary: "#0062FF",
-                            "background-light": "#F8FAFC",
-                            "background-dark": "#0F172A",
-                        },
-                        fontFamily: {
-                            display: ["Inter", "sans-serif"],
-                        },
-                        borderRadius: {
-                            DEFAULT: "8px",
-                        },
-                    },
-                },
-            };
-
-            if (
-                typeof window !== "undefined" &&
-                window.matchMedia &&
-                window.matchMedia("(prefers-color-scheme: dark)").matches
-            ) {
-                document.documentElement.classList.add("dark");
-            }
-        </script>
-        <style>
-            body {
-                font-family: "Inter", sans-serif;
-                -webkit-tap-highlight-color: transparent;
-                min-height: max(884px, 100dvh);
-            }
-            .ios-shadow {
-                box-shadow:
-                    0 4px 6px -1px rgba(0, 0, 0, 0.05),
-                    0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            }
-        </style>
-    </head>
-    <body
-        class="bg-gradient-to-br from-[#e0f2fe] to-[#f8fafc] dark:from-slate-900 dark:to-slate-950 min-h-screen flex flex-col items-center justify-start p-6"
-    >
-        <div class="h-8 w-full"></div>
-
-        <div class="w-full max-w-sm flex flex-col items-center mb-8">
-            <div
-                class="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mb-4 ios-shadow shadow-[0_0_35px_rgba(0,98,255,0.4)]"
-            >
-                <span class="material-symbols-outlined text-white text-4xl"
-                    >person_add</span
-                >
-            </div>
-            <h1
-                class="text-2xl font-bold text-blue-950 dark:text-white text-center"
-            >
-                Assina Comigo
-            </h1>
-            <p
-                class="text-blue-800/70 dark:text-slate-400 text-sm mt-1 font-medium"
-            >
-                Cadastro de novo parceiro
-            </p>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cadastro Mágico - Parceiro | Assina Comigo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="stylesheet" href="/src/styles/global.css" />
+    <style>
+        body { margin: 0; min-height: 100vh; display: flex; font-family: 'Inter', sans-serif; background-color: var(--color-bg-base); }
+        .split-layout { display: flex; min-height: 100vh; width: 100%; }
+        .split-left { flex: 1; background: linear-gradient(135deg, var(--color-bg-dark) 0%, #1a0033 100%); display: flex; flex-direction: column; justify-content: center; padding: 4rem; color: #fff; position: relative; overflow: hidden; }
+        .split-right { width: 50%; max-width: 600px; background: var(--color-surface); display: flex; flex-direction: column; justify-content: center; padding: 4rem; position: relative; box-shadow: -20px 0 50px rgba(0,0,0,0.05); }
+        .auth-container { max-width: 420px; margin: 0 auto; width: 100%; }
+        h1 { font-family: 'Outfit', sans-serif; font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 1.5rem; letter-spacing: -0.03em; }
+        h1 span { color: var(--color-brand-secondary); }
+        .subtitle { font-size: 1.25rem; line-height: 1.6; color: rgba(255, 255, 255, 0.8); max-width: 80%; }
+        .brand-badge { display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.5rem 1rem; border-radius: 100px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.875rem; color: var(--color-brand-secondary); margin-bottom: 2rem; backdrop-filter: blur(8px); align-self: flex-start; }
+        .auth-header h2 { font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 800; color: var(--color-heading); margin: 0 0 0.5rem 0; letter-spacing: -0.02em; }
+        .auth-header p { color: var(--color-subtle); margin: 0 0 2rem 0; }
+        .btn-google { width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.875rem; background: white; border: 1px solid var(--color-border); border-radius: var(--radius-lg); font-weight: 600; cursor: pointer; transition: all 0.2s; margin-bottom: 1.5rem; color: var(--color-heading); font-family: 'Inter', sans-serif;}
+        .btn-google:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .btn-google img { width: 20px; height: 20px; }
+        .divider { display: flex; align-items: center; text-align: center; margin-bottom: 1.5rem; color: var(--color-subtle); }
+        .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--color-border); }
+        .divider span { padding: 0 1rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .form-group { margin-bottom: 1.25rem; }
+        .form-group label { display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-heading); margin-bottom: 0.5rem; }
+        .input-wrapper { position: relative; }
+        .input-wrapper .material-symbols-outlined { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--color-subtle); pointer-events: none; }
+        .form-control { box-sizing: border-box; width: 100%; padding: 0.875rem 1rem 0.875rem 2.75rem; font-family: 'Inter', sans-serif; font-size: 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); transition: all 0.2s; color: var(--color-heading); }
+        .form-control:focus { outline: none; border-color: var(--color-brand-primary); box-shadow: 0 0 0 4px rgba(96,40,255,0.1); }
+        .btn-submit { width: 100%; padding: 1rem; background: var(--color-brand-primary); color: white; border: none; border-radius: var(--radius-lg); font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.1rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 1rem; }
+        .btn-submit:hover { background: var(--color-brand-primary-dark); transform: translateY(-2px); }
+        .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 1rem; border-radius: var(--radius-lg); display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 1.5rem; font-size: 0.875rem; }
+        @media (max-width: 1024px) { 
+            .split-left { display: none; } 
+            .split-right { width: 100%; max-width: none; padding: 2rem; box-shadow: none; }
+            .auth-header h2 { font-size: 1.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="split-layout">
+        <div class="split-left">
+            <div class="brand-badge"><span class="material-symbols-outlined">bolt</span> Ligeira Premium</div>
+            <h1>Transforme contatos em <span>renda extra.</span></h1>
+            <p class="subtitle">Junte-se ao programa Assina Comigo e seja recompensado por cada nova assinatura gerada através da sua indicação.</p>
         </div>
-
-        <main
-            class="w-full max-w-sm bg-white/90 backdrop-blur-sm dark:bg-slate-800 rounded-3xl p-8 ios-shadow border border-white/50"
-        >
-            <div class="mb-8">
-                <h2 class="text-xl font-bold text-blue-950 dark:text-white">
-                    Criar conta de parceiro
-                </h2>
-                <p class="text-blue-800/70 dark:text-slate-400 text-sm mt-2">
-                    Preencha seus dados e comece a usar seu portal.
-                </p>
-            </div>
-
-            {
-                errorMessage && (
-                    <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm text-center font-medium">
-                        {errorMessage}
-                    </div>
-                )
-            }
-
-            <form
-                class="space-y-6"
-                method="POST"
-                enctype="application/x-www-form-urlencoded"
-            >
-                <div class="space-y-4">
-                    <div>
-                        <label
-                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
-                            for="nome"
-                        >
-                            Nome completo
-                        </label>
-                        <input
-                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
-                            id="nome"
-                            name="nome"
-                            placeholder="Como quer ser chamado?"
-                            type="text"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label
-                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
-                            for="email"
-                        >
-                            E-mail
-                        </label>
-                        <input
-                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
-                            id="email"
-                            name="email"
-                            placeholder="seu@email.com"
-                            type="email"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label
-                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
-                            for="whatsapp"
-                        >
-                            WhatsApp
-                        </label>
-                        <input
-                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
-                            id="whatsapp"
-                            name="whatsapp"
-                            placeholder="(00) 00000-0000"
-                            type="tel"
-                        />
-                    </div>
-
-                    <div>
-                        <label
-                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
-                            for="cpf"
-                        >
-                            CPF (opcional)
-                        </label>
-                        <input
-                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
-                            id="cpf"
-                            name="cpf"
-                            placeholder="000.000.000-00"
-                            type="text"
-                        />
-                    </div>
-
-                    <div>
-                        <label
-                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
-                            for="password"
-                        >
-                            Crie sua senha
-                        </label>
-                        <input
-                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:text-white placeholder-blue-900/30 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm"
-                            id="password"
-                            name="password"
-                            placeholder="Mínimo 6 caracteres"
-                            type="password"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label
-                            class="block text-xs font-bold uppercase tracking-wider text-blue-900/60 dark:text-slate-500 mb-2 ml-1"
-                            for="grupo_id"
-                        >
-                            Escolha seu Plano/Grupo
-                        </label>
-                        <select
-                            class="w-full px-4 py-4 bg-white dark:bg-slate-900 border border-blue-100 dark:border-slate-700 rounded-xl text-blue-950 dark:white focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary transition-all shadow-sm appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%222%22%3E%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22M19%209l-7%207-7-7%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem] bg-[right_1rem_center] bg-no-repeat"
-                            id="grupo_id"
-                            name="grupo_id"
-                            required
-                        >
-                            <option value="">Selecione um grupo...</option>
-                            {grupos.map(g => (
-                                <option value={g.id}>{g.nome} - {g.tipo_remuneracao === 'pontos' ? `${g.valor_recompensa} pts` : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(g.valor_recompensa)}</option>
-                            ))}
-                        </select>
-                    </div>
+        <div class="split-right">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <h2>Crie sua conta</h2>
+                    <p>Preencha os dados e libere seu painel mágico.</p>
                 </div>
 
-                <button
-                    class="w-full bg-gradient-to-r from-yellow-400 to-primary hover:from-yellow-300 hover:to-yellow-400 active:scale-[0.98] transition-all text-blue-950 font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2"
-                    type="submit"
-                >
-                    Criar conta
-                    <span class="material-symbols-outlined">arrow_forward</span>
-                </button>
+                {errorMessage && (
+                    <div class="alert-error">
+                        <span class="material-symbols-outlined">error</span>
+                        <span>{errorMessage}</span>
+                    </div>
+                )}
 
-                <p
-                    class="text-[11px] font-medium text-center text-slate-400 px-2 leading-relaxed"
-                >
-                    Ao se cadastrar, você concorda com nossos Termos de Uso e
-                    Política de Privacidade.
-                </p>
-            </form>
+                {!hasValidInvite ? (
+                    <div style="text-align: center; padding: 2.5rem 1.5rem; background: var(--color-bg-base); border: 2px dashed var(--color-border); border-radius: var(--radius-2xl);">
+                        <span class="material-symbols-outlined" style="font-size: 3rem; color: var(--color-subtle);">lock_person</span>
+                        <h3 style="margin: 1rem 0 0.5rem; font-family: 'Outfit'; color: var(--color-heading);">Acesso Restrito</h3>
+                        <p style="color: var(--color-subtle); font-size: 0.875rem; margin-bottom: 1.5rem;">Você precisa do link de convite de um parceiro para se cadastrar.</p>
+                        <a href="/" style="color: var(--color-brand-primary); font-weight: 600; text-decoration: none;">&larr; Voltar para a Home</a>
+                    </div>
+                ) : (
+                    <>
+                        {captacaoContexto && (
+                            <div style="background: linear-gradient(to right, rgba(96,40,255,0.05), rgba(96,40,255,0.02)); border: 1px solid rgba(96,40,255,0.1); border-radius: var(--radius-xl); padding: 1rem; display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+                                <div style="width:48px; height:48px; background:rgba(96,40,255,0.1); color:var(--color-brand-primary); border-radius:var(--radius-lg); display:flex; align-items:center; justify-content:center; font-size:1.5rem;">
+                                    {captacaoContexto.tipoRemuneracao === 'pontos' ? '🏆' : '💰'}
+                                </div>
+                                <div>
+                                    <p style="margin:0; font-size:0.7rem; font-weight:700; text-transform:uppercase; color:var(--color-subtle);">Convite Recebido</p>
+                                    <p style="margin:0; font-family:'Outfit'; font-size:1.1rem; font-weight:800; color:var(--color-heading);">{captacaoContexto.grupoNome}</p>
+                                </div>
+                            </div>
+                        )}
+                        <form method="POST">
+                            <input type="hidden" name="action" value="oauth_google" />
+                            <input type="hidden" name="grupo_id" value={effectiveGrupoId} />
+                            <input type="hidden" name="tenant_id" value={captacaoContexto?.tenantId || MAIN_TENANT_ID} />
+                            <button type="submit" class="btn-google">
+                                <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google Logo" />
+                                Cadastrar com Google
+                            </button>
+                        </form>
+                        
+                        <div class="divider"><span>ou crie com e-mail</span></div>
 
-            <div
-                class="mt-8 pt-8 border-t border-blue-100 dark:border-slate-700 text-center"
-            >
-                <p class="text-sm text-blue-800/70 dark:text-slate-400">
-                    Já tem conta?
-                    <a
-                        class="text-secondary font-bold hover:underline"
-                        href="/parceiro/login"
-                    >
-                        Entrar no painel
-                    </a>
-                </p>
+                        <form method="POST" enctype="application/x-www-form-urlencoded">
+                            <div class="form-group">
+                                <label for="nome">Nome completo</label>
+                                <div class="input-wrapper">
+                                    <span class="material-symbols-outlined">person</span>
+                                    <input class="form-control" id="nome" name="nome" placeholder="Seu nome" type="text" required />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="email">E-mail</label>
+                                <div class="input-wrapper">
+                                    <span class="material-symbols-outlined">mail</span>
+                                    <input class="form-control" id="email" name="email" placeholder="seu@email.com" type="email" required />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="whatsapp">WhatsApp</label>
+                                <div class="input-wrapper">
+                                    <span class="material-symbols-outlined">phone_iphone</span>
+                                    <input class="form-control" id="whatsapp" name="whatsapp" placeholder="(00) 00000-0000" type="tel" />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="cpf">CPF <span style="font-weight:400; color:var(--color-subtle);">(Opcional)</span></label>
+                                <div class="input-wrapper">
+                                    <span class="material-symbols-outlined">badge</span>
+                                    <input class="form-control" id="cpf" name="cpf" placeholder="000.000.000-00" type="text" />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="password">Crie sua senha</label>
+                                <div class="input-wrapper">
+                                    <span class="material-symbols-outlined">lock</span>
+                                    <input class="form-control" id="password" name="password" placeholder="Mínimo 6 caracteres" type="password" required />
+                                </div>
+                            </div>
+                            
+                            <input type="hidden" name="grupo_id" value={effectiveGrupoId} />
+                            <input type="hidden" name="tenant_id" value={captacaoContexto?.tenantId || MAIN_TENANT_ID} />
+                            
+                            <button class="btn-submit" type="submit">
+                                Concluir Cadastro 
+                                <span class="material-symbols-outlined">arrow_forward</span>
+                            </button>
+                            <p style="font-size: 0.75rem; color: var(--color-subtle); text-align: center; margin-top: 1rem;">
+                                Ao se cadastrar, você concorda com nossos Termos de Uso.
+                            </p>
+                        </form>
+                    </>
+                )}
+                
+                <div style="margin-top:2rem; text-align:center; font-size:0.875rem; color:var(--color-subtle);">
+                    Já é parceiro? <a href="/parceiro/login" style="color:var(--color-brand-primary); font-weight:600; text-decoration:none;">Entrar na conta</a>
+                </div>
             </div>
-        </main>
-
-        <footer class="mt-auto py-8 text-center">
-            <button
-                class="flex items-center justify-center gap-2 text-blue-800/60 dark:text-slate-500 text-sm font-semibold hover:text-secondary transition-colors"
-                onclick="window.location.href='/parceiro/login'"
-            >
-                <span class="material-symbols-outlined text-lg">arrow_back</span
-                >
-                Voltar para login
-            </button>
-        </footer>
-
-        <script is:inline>
-            // Máscara opcional para facilitar a digitação do usuário
-            const cpfInput = document.getElementById("cpf");
-            cpfInput?.addEventListener("input", function (e) {
-                let value = e.target.value.replace(/\D/g, "");
-                if (value.length > 11) value = value.slice(0, 11);
-
-                // Só aplica máscara se o usuário estiver digitando
-                if (value.length > 9) {
-                    value = value.replace(
-                        /(\d{3})(\d{3})(\d{3})(\d{2})/,
-                        "$1.$2.$3-$4",
-                    );
-                } else if (value.length > 6) {
-                    value = value.replace(
-                        /(\d{3})(\d{3})(\d{1,3})/,
-                        "$1.$2.$3",
-                    );
-                } else if (value.length > 3) {
-                    value = value.replace(/(\d{3})(\d{1,3})/, "$1.$2");
-                }
-                e.target.value = value;
-            });
-
-            const phoneInput = document.getElementById("whatsapp");
-            phoneInput?.addEventListener("input", function (e) {
-                let value = e.target.value.replace(/\D/g, "");
-                if (value.length > 11) value = value.slice(0, 11);
-
-                if (value.length > 10) {
-                    value = value.replace(
-                        /(\d{2})(\d{5})(\d{4})/,
-                        "($1) $2-$3",
-                    );
-                } else if (value.length > 6) {
-                    value = value.replace(
-                        /(\d{2})(\d{4})(\d{1,4})/,
-                        "($1) $2-$3",
-                    );
-                } else if (value.length > 2) {
-                    value = value.replace(/(\d{2})(\d{1,5})/, "($1) $2");
-                }
-                e.target.value = value;
-            });
-        </script>
-    </body>
+        </div>
+    </div>
+</body>
 </html>
