@@ -1,0 +1,232 @@
+---
+// Página pública — sem autenticação necessária
+// Exibida após cadastro quando a confirmação de e-mail está ativada no Supabase Auth
+const email = Astro.url.searchParams.get('email') || '';
+const maskedEmail = email
+    ? email.replace(/(.{2}).+(@.+)/, '$1***$2')
+    : 'seu e-mail';
+---
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verifique seu e-mail — Assina Comigo</title>
+    <meta name="description" content="Confirme seu e-mail para ativar sua conta no Assina Comigo." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --brand:      #6028FF;
+            --brand-dark: #4B1AC8;
+            --brand-glow: rgba(96, 40, 255, 0.25);
+            --yellow:     #FFBF1A;
+            --bg:         #F5F3FF;
+            --surface:    #FFFFFF;
+            --text:       #111827;
+            --subtle:     #6B7280;
+            --border:     #E5E7EB;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100dvh;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 2rem;
+            padding: 3rem 2.5rem;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(96, 40, 255, 0.1), 0 4px 16px rgba(0,0,0,0.06);
+            border: 1px solid rgba(96, 40, 255, 0.08);
+        }
+
+        .icon-wrap {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 2rem;
+            box-shadow: 0 8px 32px var(--brand-glow);
+            font-size: 2.5rem;
+            animation: pop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes pop {
+            from { transform: scale(0.6); opacity: 0; }
+            to   { transform: scale(1);   opacity: 1; }
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: -0.02em;
+            margin-bottom: 0.75rem;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: var(--subtle);
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .email-highlight {
+            display: inline-block;
+            background: rgba(96, 40, 255, 0.08);
+            border: 1px solid rgba(96, 40, 255, 0.2);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1.5rem;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            color: var(--brand);
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            word-break: break-all;
+        }
+
+        .steps {
+            background: var(--bg);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+            text-align: left;
+            margin-bottom: 2rem;
+        }
+
+        .steps p {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--subtle);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 1rem;
+        }
+
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.875rem;
+            margin-bottom: 0.875rem;
+        }
+
+        .step:last-child { margin-bottom: 0; }
+
+        .step-num {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--brand);
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .step span {
+            font-size: 0.9rem;
+            color: var(--text);
+            padding-top: 0.25rem;
+            line-height: 1.5;
+        }
+
+        .btn-login {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+            color: white;
+            padding: 0.9rem 2rem;
+            border-radius: 1rem;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: all 0.2s;
+            box-shadow: 0 4px 16px var(--brand-glow);
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px var(--brand-glow);
+        }
+
+        .hint {
+            margin-top: 1.5rem;
+            font-size: 0.8rem;
+            color: var(--subtle);
+            line-height: 1.6;
+        }
+
+        .hint a {
+            color: var(--brand);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        @media (max-width: 480px) {
+            .card { padding: 2rem 1.5rem; border-radius: 1.5rem; }
+            h1 { font-size: 1.6rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon-wrap">✉️</div>
+
+        <h1>Confirme seu e-mail</h1>
+        <p class="subtitle">
+            Enviamos um link de ativação para:
+        </p>
+        <div class="email-highlight">{maskedEmail}</div>
+
+        <div class="steps">
+            <p>Como ativar sua conta</p>
+            <div class="step">
+                <div class="step-num">1</div>
+                <span>Abra sua caixa de entrada (ou pasta de spam)</span>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <span>Encontre o e-mail da <strong>Assina Comigo</strong></span>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <span>Clique no botão <strong>"Confirmar meu e-mail"</strong></span>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <span>Você será redirecionado automaticamente para o painel</span>
+            </div>
+        </div>
+
+        <a href="/parceiro/login" class="btn-login">
+            Já confirmei, ir para o login →
+        </a>
+
+        <p class="hint">
+            Não recebeu o e-mail? Verifique a pasta de spam.<br />
+            Ainda com problemas? <a href="mailto:suporte@assinacomigo.com.br">Contate o suporte</a>
+        </p>
+    </div>
+</body>
+</html>

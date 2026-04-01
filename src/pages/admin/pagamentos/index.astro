@@ -2,7 +2,7 @@
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import Badge from "../../../components/ui/Badge.astro";
 import Button from "../../../components/ui/Button.astro";
-import { DollarSign, Clock, AlertCircle, CheckCircle2 } from "@lucide/astro";
+import { DollarSign, Clock, AlertCircle, CheckCircle2, Trash2 } from "@lucide/astro";
 import { adminService } from "../../../services/adminService";
 
 const tenantId = Astro.locals.tenantId;
@@ -20,12 +20,25 @@ if (Astro.request.method === "POST") {
         const action = formData.get("action");
         const comissaoId = formData.get("comissao_id") as string;
         const valorEditado = formData.get("valor") ? Number(formData.get("valor")) : undefined;
+        const paymentConfirmed = formData.get("confirm_payment")?.toString() === "yes";
         
-        if (action === "pay" && comissaoId) {
-            await adminService.updatePagamento(comissaoId, "pago", tenantId, valorEditado);
+        if (action === "approve" && comissaoId) {
+            await adminService.approvePagamento(comissaoId, tenantId);
+            notification = "success|Comissão aprovada e movida para A Pagar.";
+        } else if (action === "delete" && comissaoId) {
+            await adminService.deletePagamento(comissaoId, tenantId);
+            notification = "success|Comissão excluída com sucesso.";
+        } else if (action === "pay" && comissaoId) {
+            if (!paymentConfirmed) {
+                throw new Error("Confirme que o pagamento real foi efetuado antes de marcar como pago.");
+            }
+            await adminService.updatePagamento(comissaoId, "pago", tenantId, valorEditado, true);
             notification = "success|Pagamento marcado como pago com sucesso!";
         } else if (action === "pay_points" && comissaoId) {
-            await adminService.updatePagamento(comissaoId, "pago_pontos", tenantId, valorEditado);
+            if (!paymentConfirmed) {
+                throw new Error("Confirme a conversão real antes de concluir em pontos.");
+            }
+            await adminService.updatePagamento(comissaoId, "pago_pontos", tenantId, valorEditado, true);
             notification = "success|Pontos creditados com sucesso ao parceiro!";
         }
     } catch (err: any) {
@@ -42,8 +55,9 @@ const formatMoney = (v: number) =>
         currency: "BRL",
     }).format(v || 0);
 
-const aPagar = pagamentos.filter((p) => p.status === "a_pagar");
-const pagos = pagamentos.filter((p) => p.status === "pago");
+const pendentesAprovacao = pagamentos.filter((p) => (p.status || "").toLowerCase() === "pendente");
+const aPagar = pagamentos.filter((p) => (p.status || "").toLowerCase() === "a_pagar");
+const pagos = pagamentos.filter((p) => (p.status || "").toLowerCase() === "pago");
 
 const totalAPagarDinheiro = aPagar.filter(p => p.tipo !== 'pontos').reduce((acc, curr) => acc + (curr.valor || 0), 0);
 const totalAPagarPontos = aPagar.filter(p => p.tipo === 'pontos').reduce((acc, curr) => acc + (curr.valor || 0), 0);
@@ -102,7 +116,10 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
         <div class="table-container">
             <div class="tabs-header">
                 <div class="tabs-list">
-                    <button class="tab active" onclick="showTab('apagar')"
+                    <button class="tab active" onclick="showTab('pendentes')"
+                        >Aprovação ({pendentesAprovacao.length})</button
+                    >
+                    <button class="tab" onclick="showTab('apagar')"
                         >A Pagar ({aPagar.length})</button
                     >
                     <button class="tab" onclick="showTab('pagos')"
@@ -120,7 +137,70 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
                 </div>
             </div>
 
-            <div id="tab-apagar" class="tab-content active">
+            <div id="tab-pendentes" class="tab-content active">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Parceiro</th>
+                            <th>Referência</th>
+                            <th>Tipo</th>
+                            <th>Valor/Qtd</th>
+                            <th class="text-right">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {
+                            pendentesAprovacao.length === 0 ? (
+                                <tr>
+                                    <td colspan="5" class="text-center empty-state">
+                                        Nenhuma comissão aguardando aprovação.
+                                    </td>
+                                </tr>
+                            ) : (
+                                pendentesAprovacao.map((p) => (
+                                    <tr
+                                        class="payment-row"
+                                        data-partner={p.parceiro?.nome?.toLowerCase() || ""}
+                                        data-value={p.valor || 0}
+                                        data-tipo={p.tipo || 'dinheiro'}
+                                    >
+                                        <td><strong>{p.parceiro?.nome || "Desconhecido"}</strong></td>
+                                        <td>{p.lead?.nome || "N/A"}</td>
+                                        <td>
+                                            <Badge variant={p.tipo === 'pontos' ? 'neutral' : 'warning'}>
+                                                {p.tipo === 'pontos' ? '🏆 Pontos' : '💰 Dinheiro'}
+                                            </Badge>
+                                        </td>
+                                        <td class="money-text">
+                                            {p.tipo === 'pontos' ? `${p.valor} pts` : formatMoney(p.valor)}
+                                        </td>
+                                        <td class="text-right">
+                                            <div class="row-actions">
+                                                <form method="POST" style="display: inline;">
+                                                    <input type="hidden" name="action" value="approve" />
+                                                    <input type="hidden" name="comissao_id" value={p.id} />
+                                                    <button type="submit" class="btn-pay-modal" style="background: #0f766e; border-color: #0f766e;">
+                                                        <CheckCircle2 size={16} /> Aprovar
+                                                    </button>
+                                                </form>
+                                                <form method="POST" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja excluir esta comissão?');">
+                                                    <input type="hidden" name="action" value="delete" />
+                                                    <input type="hidden" name="comissao_id" value={p.id} />
+                                                    <button type="submit" class="btn-delete" title="Excluir comissão">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="tab-apagar" class="tab-content" style="display: none;">
                 <table class="admin-table">
                     <thead>
                         <tr>
@@ -170,14 +250,23 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
                                                  {p.tipo === 'pontos' ? `${p.valor} pts` : formatMoney(p.valor)}
                                              </td>
                                              <td class="text-right">
-                                                 <button
-                                                     type="button"
-                                                     class="btn-pay-modal"
-                                                     onclick={`openPixModal('${p.id}', '${p.parceiro?.nome?.replace(/'/g, "\\'")}', '${p.parceiro?.chave_pix || ""}', '${p.parceiro?.tipo_pix || ""}', ${p.valor}, '${p.tipo}')`}
-                                                 >
-                                                     <DollarSign size={16} />{" "}
-                                                     Analisar
-                                                 </button>
+                                                 <div class="row-actions">
+                                                    <button
+                                                        type="button"
+                                                        class="btn-pay-modal"
+                                                        onclick={`openPixModal('${p.id}', '${p.parceiro?.nome?.replace(/'/g, "\\'")}', '${p.parceiro?.chave_pix || ""}', '${p.parceiro?.tipo_pix || ""}', ${p.valor}, '${p.tipo}')`}
+                                                    >
+                                                        <DollarSign size={16} />{" "}
+                                                        Analisar
+                                                    </button>
+                                                    <form method="POST" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja excluir esta comissão?');">
+                                                        <input type="hidden" name="action" value="delete" />
+                                                        <input type="hidden" name="comissao_id" value={p.id} />
+                                                        <button type="submit" class="btn-delete" title="Excluir comissão">
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </form>
+                                                 </div>
                                              </td>
                                         </tr>
                                     );
@@ -355,6 +444,12 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
                         value=""
                     />
                     <input type="hidden" name="valor" id="pixValorFinal" value="" />
+                    <input type="hidden" name="confirm_payment" id="confirmPaymentHidden" value="no" />
+
+                    <label class="confirm-payment-check">
+                        <input type="checkbox" id="confirmPaymentCheck" />
+                        <span>Confirmo que o pagamento foi realmente efetuado (ou pontos realmente creditados).</span>
+                    </label>
 
                     <Button
                         type="submit"
@@ -440,6 +535,8 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
         function openPixModal(id, name, pixKey, pixType, valor, tipo) {
              document.getElementById("pixComissaoId").value = id;
              document.getElementById("pixPartnerName").textContent = name;
+               document.getElementById("confirmPaymentCheck").checked = false;
+               document.getElementById("confirmPaymentHidden").value = "no";
 
              const inputValor = document.getElementById('pixValueInput');
              inputValor.value = valor;
@@ -616,6 +713,12 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
         }
 
         function payPoints() {
+            const confirmationCheckbox = document.getElementById("confirmPaymentCheck");
+            if (!confirmationCheckbox?.checked) {
+                alert("Confirme que a operação foi realmente concluída antes de finalizar.");
+                return;
+            }
+            document.getElementById("confirmPaymentHidden").value = "yes";
             if (
                 confirm(
                     "Deseja converter este valor em pontos e creditar ao parceiro?",
@@ -627,8 +730,24 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
         }
 
         const pixModal = document.getElementById("pixModal");
+        const confirmPaymentCheck = document.getElementById("confirmPaymentCheck");
+        const confirmPaymentHidden = document.getElementById("confirmPaymentHidden");
         pixModal.addEventListener("click", (e) => {
             if (e.target === pixModal) pixModal.close();
+        });
+
+        confirmPaymentCheck?.addEventListener("change", () => {
+            if (confirmPaymentHidden) {
+                confirmPaymentHidden.value = confirmPaymentCheck.checked ? "yes" : "no";
+            }
+        });
+
+        document.getElementById("formPayNow")?.addEventListener("submit", (e) => {
+            const checkbox = document.getElementById("confirmPaymentCheck");
+            if (!checkbox?.checked) {
+                e.preventDefault();
+                alert("Confirme que o pagamento foi realmente efetuado antes de concluir.");
+            }
         });
     </script>
 
@@ -852,6 +971,34 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
             filter: brightness(1.1);
         }
 
+        .row-actions {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+
+        .btn-delete {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            color: #be123c;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-delete:hover {
+            background: #ffe4e6;
+            border-color: #fda4af;
+            color: #9f1239;
+            transform: translateY(-1px);
+        }
+
         /* Dialog PIX */
         .pix-dialog {
             border: none;
@@ -916,6 +1063,25 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
             padding: 1rem;
             border-radius: var(--radius-md);
             text-align: left;
+        }
+
+        .confirm-payment-check {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.55rem;
+            font-size: 0.82rem;
+            color: var(--color-body);
+            padding: 0.7rem 0.8rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+        }
+
+        .confirm-payment-check input {
+            margin-top: 0.2rem;
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
         }
         .pix-key-info {
             display: flex;

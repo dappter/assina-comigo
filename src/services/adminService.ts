@@ -8,6 +8,18 @@ export interface DashboardStats {
 }
 
 export const adminService = {
+    async getComissaoById(comissaoId: string, tenantId: string) {
+        const { data, error } = await supabase
+            .from('comissoes')
+            .select('id, status, tenant_id')
+            .eq('id', comissaoId)
+            .eq('tenant_id', tenantId)
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
     async getDashboardStats(tenantId: string): Promise<DashboardStats> {
         // Leads totais e instaladas
         const { data: leads, error: leadsError } = await supabase
@@ -124,43 +136,63 @@ export const adminService = {
 
         if (error) throw error;
 
-        // Regra de negócio: "Implementar sistema onde o usuário ganha sempre, sem metas"
-        // E "Remover qualquer referência ao card quarentena" (Entra direto como 'a_pagar')
+        // Regra de segurança: ao instalar, cria no máximo uma comissão por lead
+        // e sempre inicia em pendente para aprovação humana antes de virar a_pagar.
         if (status === 'Instalado' || status === 'instalado') {
-            // Verificar se já existe comissão processada/pendente para este lead
-            const { data: existingComissao } = await supabase
+            const { data: existingComissao, error: existingError } = await supabase
                 .from('comissoes')
-                .select('id')
+                .select('id, status')
+                .eq('tenant_id', tenantId)
                 .eq('lead_id', leadId)
-                .single();
+                .maybeSingle();
+
+            if (existingError) {
+                throw existingError;
+            }
 
             if (!existingComissao) {
                 // Busca o lead para pegar o parceiro_id
-                const { data: leadData } = await supabase
+                const { data: leadData, error: leadError } = await supabase
                     .from('leads')
                     .select('parceiro_id')
                     .eq('id', leadId)
+                    .eq('tenant_id', tenantId)
                     .single();
+
+                if (leadError) {
+                    throw leadError;
+                }
 
                 if (leadData?.parceiro_id) {
                     // Busca o grupo do parceiro para obter o valor da recompensa e o tipo (dinheiro/pontos)
-                    const { data: profile } = await supabase
+                    const { data: profile, error: profileError } = await supabase
                         .from('profiles')
                         .select('grupo_id')
                         .eq('id', leadData.parceiro_id)
+                        .eq('tenant_id', tenantId)
                         .single();
+
+                    if (profileError) {
+                        throw profileError;
+                    }
 
                     let recompensa = 0;
                     if (profile?.grupo_id) {
-                        const { data: grupo } = await supabase
+                        const { data: grupo, error: groupError } = await supabase
                             .from('grupos_parceiros')
                             .select('valor_recompensa')
                             .eq('id', profile.grupo_id)
+                            .eq('tenant_id', tenantId)
                             .single();
+
+                        if (groupError) {
+                            throw groupError;
+                        }
+
                         recompensa = grupo?.valor_recompensa || 0;
                     }
 
-                    // Insere direto em 'a_pagar'
+                    // Segurança: comissão nasce em pendente e depende de aprovação financeira.
                     const { error: comissaoError } = await supabase
                         .from('comissoes')
                         .insert({
@@ -168,13 +200,13 @@ export const adminService = {
                             lead_id: leadId,
                             parceiro_id: leadData.parceiro_id,
                             valor: recompensa,
-                            status: 'a_pagar'
+                            status: 'pendente'
                         });
 
                     if (comissaoError) {
-                        console.error('[adminService] Erro ao criar comissão a pagar:', comissaoError);
+                        console.error('[adminService] Erro ao criar comissão pendente:', comissaoError);
                     } else {
-                        console.log(`[adminService] Comissão de R$${recompensa} criada para lead ${leadId} e atribuída ao parceiro ${leadData.parceiro_id}`);
+                        console.log(`[adminService] Comissão pendente de R$${recompensa} criada para lead ${leadId} e atribuída ao parceiro ${leadData.parceiro_id}`);
                     }
                 }
             }
@@ -194,7 +226,69 @@ export const adminService = {
         return data || [];
     },
 
-    async updatePagamento(comissaoId: string, status: string, tenantId: string, valor?: number) {
+    async approvePagamento(comissaoId: string, tenantId: string) {
+        const comissao = await this.getComissaoById(comissaoId, tenantId);
+        if (!comissao) {
+            throw new Error('Comissão não encontrada para aprovação.');
+        }
+
+        if (comissao.status !== 'pendente') {
+            throw new Error('Apenas comissões pendentes podem ser aprovadas.');
+        }
+
+        const { error } = await supabase
+            .from('comissoes')
+            .update({ status: 'a_pagar' })
+            .eq('id', comissaoId)
+            .eq('tenant_id', tenantId)
+            .eq('status', 'pendente');
+
+        if (error) throw error;
+
+        return true;
+    },
+
+    async deletePagamento(comissaoId: string, tenantId: string) {
+        const comissao = await this.getComissaoById(comissaoId, tenantId);
+        if (!comissao) {
+            throw new Error('Comissão não encontrada para exclusão.');
+        }
+
+        // Segurança: só permite exclusão antes da conclusão financeira.
+        if (comissao.status !== 'pendente' && comissao.status !== 'a_pagar') {
+            throw new Error('Apenas comissões em aprovação ou a pagar podem ser excluídas.');
+        }
+
+        const { error } = await supabase
+            .from('comissoes')
+            .delete()
+            .eq('id', comissaoId)
+            .eq('tenant_id', tenantId)
+            .in('status', ['pendente', 'a_pagar']);
+
+        if (error) throw error;
+
+        return true;
+    },
+
+    async updatePagamento(comissaoId: string, status: string, tenantId: string, valor?: number, paymentConfirmed: boolean = false) {
+        const comissaoAtual = await this.getComissaoById(comissaoId, tenantId);
+        if (!comissaoAtual) {
+            throw new Error('Comissão não encontrada.');
+        }
+
+        if (comissaoAtual.status !== 'a_pagar') {
+            throw new Error('A comissão precisa estar aprovada (a_pagar) para ser concluída.');
+        }
+
+        if (status !== 'pago' && status !== 'pago_pontos') {
+            throw new Error('Status de conclusão inválido para pagamento.');
+        }
+
+        if (!paymentConfirmed) {
+            throw new Error('Confirme o pagamento real antes de concluir como pago.');
+        }
+
         let finalStatus = status;
         let finalTipo: string | undefined = undefined;
 
@@ -257,7 +351,7 @@ export const adminService = {
             if (comissaoVinculo?.lead_id) {
                 await supabase
                     .from('leads')
-                    .update({ status: 'PAGO' })
+                    .update({ status: 'Pago' })
                     .eq('id', comissaoVinculo.lead_id)
                     .eq('tenant_id', tenantId);
 

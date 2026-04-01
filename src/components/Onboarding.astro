@@ -1,0 +1,752 @@
+﻿---
+import { ArrowRight, ArrowLeft, X, Zap } from "@lucide/astro";
+
+interface Props {
+  userId: string;
+}
+
+const { userId } = Astro.props;
+---
+
+<div id="onboarding-root" class="onboarding-root hidden" data-user-id={userId}>
+  <div id="onboarding-backdrop" class="onboarding-backdrop"></div>
+  <div id="onboarding-spotlight" class="onboarding-spotlight hidden"></div>
+  <div id="onboarding-callout" class="onboarding-callout hidden"></div>
+  <button id="onboarding-resume" class="onboarding-resume hidden" type="button">
+    Continuar onboarding
+  </button>
+
+  <div id="onboarding-card" class="onboarding-card animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <div id="header-gradient" class="card-header from-purple-600 to-purple-500 bg-gradient-to-r">
+      <div class="header-deco" aria-hidden="true">
+        <Zap class="w-16 h-16" />
+      </div>
+
+      <button id="onboarding-close" class="close-btn" aria-label="Fechar onboarding">
+        <X class="w-5 h-5" />
+      </button>
+
+      <div class="progress-rail">
+        <div id="progress-bar" class="progress-fill" style="width: 16.66%"></div>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <span id="step-counter" class="step-counter">Etapa 1 de 6</span>
+      <h2 id="onboarding-title" class="step-title">Bem-vindo ao AssinaComigo</h2>
+      <p id="step-subtitle" class="step-subtitle">Vamos ativar sua conta em poucos passos.</p>
+
+      <div id="step-description-box" class="step-description-box from-purple-600 to-purple-500 bg-gradient-to-br">
+        <p id="step-description" class="step-description"></p>
+      </div>
+
+      <p id="route-helper" class="route-helper"></p>
+    </div>
+
+    <div class="card-footer">
+      <button id="onboarding-prev" class="btn btn-secondary hidden">
+        <ArrowLeft class="w-4 h-4" />
+        Voltar
+      </button>
+
+      <button id="onboarding-skip" class="btn btn-ghost">Pular tour</button>
+
+      <button id="onboarding-next" class="btn btn-primary">
+        <span id="cta-text">Começar</span>
+        <ArrowRight class="w-4 h-4" />
+      </button>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ userId }}>
+  const STEPS = [
+    {
+      id: 1,
+      title: "Bem-vindo ao AssinaComigo",
+      subtitle: "Tour rápido para você começar a ganhar hoje.",
+      description: "Você vai concluir as ações principais em poucos cliques: conta bancária, link, notificações, ganhos e indicados.",
+      cta: "Começar",
+      color: "from-purple-600 to-purple-500",
+      route: "/parceiro/dashboard",
+      target: "[data-onboarding-target='dashboard-hero']",
+      callout: "Este é seu painel principal."
+    },
+    {
+      id: 2,
+      title: "Adicionar Conta Bancária",
+      subtitle: "Cadastre sua chave PIX para receber comissões.",
+      description: "Seus dados ficam protegidos e são usados apenas para repasse de pagamentos.",
+      cta: "Próximo",
+      color: "from-blue-600 to-blue-500",
+      route: "/parceiro/configuracoes",
+      target: "[data-onboarding-target='bank-settings']",
+      callout: "Preencha tipo e chave PIX aqui."
+    },
+    {
+      id: 3,
+      title: "Seu Link de Indicação",
+      subtitle: "Compartilhe seu link para captar clientes.",
+      description: "Cada cliente convertido pelo seu link gera comissão para você.",
+      cta: "Próximo",
+      color: "from-green-600 to-green-500",
+      route: "/parceiro/dashboard",
+      target: "[data-onboarding-target='referral-link']",
+      callout: "Copie e compartilhe seu link nessa área."
+    },
+    {
+      id: 4,
+      title: "Status e Notificações",
+      subtitle: "Acompanhe tudo em tempo real.",
+      description: "Veja atualizações sobre indicações, aprovações e pagamentos no fluxo diário.",
+      cta: "Próximo",
+      color: "from-yellow-600 to-yellow-500",
+      route: "/parceiro/notificacoes",
+      target: "[data-onboarding-target='notifications-list']",
+      callout: "Aqui ficam suas atualizações importantes."
+    },
+    {
+      id: 5,
+      title: "Sistema de Pontos e Ganhos",
+      subtitle: "Visualize saldo, histórico e valores liberados.",
+      description: "Você acompanha ganhos em dinheiro e a evolução dos seus resultados em um só lugar.",
+      cta: "Próximo",
+      color: "from-pink-600 to-pink-500",
+      route: "/parceiro/ganhos",
+      target: "[data-onboarding-target='earnings-summary']",
+      callout: "Este resumo mostra seus números principais."
+    },
+    {
+      id: 6,
+      title: "Meus Indicados",
+      subtitle: "Monitore sua rede e performance por lead.",
+      description: "Use filtros para entender o funil e otimizar suas indicações.",
+      cta: "Finalizar",
+      color: "from-indigo-600 to-indigo-500",
+      route: "/parceiro/indicados",
+      target: "[data-onboarding-target='indications-table']",
+      callout: "Acompanhe aqui cada indicação e status."
+    }
+  ];
+
+  const KEYS = {
+    completed: `assina_comigo_onboarding_completed_${userId}`,
+    active: `assina_comigo_onboarding_active_${userId}`,
+    step: `assina_comigo_onboarding_step_${userId}`,
+  };
+
+  let currentStep = 1;
+  const totalSteps = STEPS.length;
+
+  const root = document.getElementById("onboarding-root");
+  const onboardingCard = document.getElementById("onboarding-card");
+  const spotlight = document.getElementById("onboarding-spotlight");
+  const callout = document.getElementById("onboarding-callout");
+  const backdrop = document.getElementById("onboarding-backdrop");
+  const resumeBtn = document.getElementById("onboarding-resume");
+  const closeBtn = document.getElementById("onboarding-close");
+  const prevBtn = document.getElementById("onboarding-prev");
+  const nextBtn = document.getElementById("onboarding-next");
+  const skipBtn = document.getElementById("onboarding-skip");
+  const progressBar = document.getElementById("progress-bar");
+  const ctaText = document.getElementById("cta-text");
+  const headerGradient = document.getElementById("header-gradient");
+  const stepCounter = document.getElementById("step-counter");
+  const stepTitle = document.getElementById("onboarding-title");
+  const stepSubtitle = document.getElementById("step-subtitle");
+  const stepDescription = document.getElementById("step-description");
+  const stepDescriptionBox = document.getElementById("step-description-box");
+  const routeHelper = document.getElementById("route-helper");
+  let lockedScrollY = 0;
+  let isMinimized = false;
+
+  function normalizePath(path) {
+    if (!path) return "/";
+    return path.endsWith("/") && path.length > 1 ? path.slice(0, -1) : path;
+  }
+
+  function getStoredStep() {
+    const raw = parseInt(localStorage.getItem(KEYS.step) || "1", 10);
+    if (Number.isNaN(raw)) return 1;
+    return Math.min(Math.max(raw, 1), totalSteps);
+  }
+
+  function setStoredStep(step) {
+    localStorage.setItem(KEYS.step, String(step));
+  }
+
+  function setActive(active) {
+    localStorage.setItem(KEYS.active, active ? "true" : "false");
+  }
+
+  function isActive() {
+    return localStorage.getItem(KEYS.active) === "true";
+  }
+
+  function isCompleted() {
+    return localStorage.getItem(KEYS.completed) === "true";
+  }
+
+  function completeTour() {
+    localStorage.setItem(KEYS.completed, "true");
+    setActive(false);
+    isMinimized = false;
+    onboardingCard?.classList.remove("minimized");
+    resumeBtn?.classList.add("hidden");
+    root?.classList.add("hidden");
+    hideSpotlight();
+    unlockPageScroll();
+  }
+
+  function isMobileViewport() {
+    return window.innerWidth < 768;
+  }
+
+  function lockPageScroll() {
+    if (isMobileViewport()) return;
+    if (document.body.dataset.onboardingScrollLocked === "true") return;
+    lockedScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.dataset.onboardingScrollLocked = "true";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${lockedScrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+  }
+
+  function unlockPageScroll() {
+    if (isMobileViewport()) return;
+    if (document.body.dataset.onboardingScrollLocked !== "true") return;
+    delete document.body.dataset.onboardingScrollLocked;
+    document.body.style.position = "";
+    document.body.style.top = "";
+    document.body.style.left = "";
+    document.body.style.right = "";
+    document.body.style.width = "";
+    document.body.style.overflow = "";
+    document.documentElement.style.overflow = "";
+    window.scrollTo(0, lockedScrollY);
+  }
+
+  function hideSpotlight() {
+    spotlight?.classList.add("hidden");
+    callout?.classList.add("hidden");
+  }
+
+  function minimizeTour() {
+    if (!isMobileViewport() || isMinimized) return;
+    isMinimized = true;
+    onboardingCard?.classList.add("minimized");
+    resumeBtn?.classList.remove("hidden");
+    hideSpotlight();
+  }
+
+  function resumeTour() {
+    if (!isMinimized) return;
+    isMinimized = false;
+    onboardingCard?.classList.remove("minimized");
+    resumeBtn?.classList.add("hidden");
+    renderStep();
+  }
+
+  function smartScrollTarget(el) {
+    if (!el) return;
+
+    if (!isMobileViewport()) {
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+      return;
+    }
+
+    const rect = el.getBoundingClientRect();
+    const desiredTop = Math.max(84, window.innerHeight * 0.18);
+    const delta = rect.top - desiredTop;
+
+    if (Math.abs(delta) > 20) {
+      window.scrollBy({ top: delta, behavior: "smooth" });
+    }
+  }
+
+  function overlapsCard(targetRect) {
+    if (!onboardingCard) return false;
+    const cardRect = onboardingCard.getBoundingClientRect();
+    const horizontalOverlap = targetRect.left < cardRect.right && targetRect.right > cardRect.left;
+    const verticalOverlap = targetRect.top < cardRect.bottom && targetRect.bottom > cardRect.top;
+    return horizontalOverlap && verticalOverlap;
+  }
+
+  function showSpotlightForStep(step) {
+    const currentPath = normalizePath(window.location.pathname);
+    if (normalizePath(step.route) !== currentPath || !step.target) {
+      hideSpotlight();
+      return;
+    }
+
+    const el = document.querySelector(step.target);
+    if (!el) {
+      hideSpotlight();
+      return;
+    }
+
+    smartScrollTarget(el);
+
+    window.setTimeout(() => {
+      const rect = el.getBoundingClientRect();
+      const pad = window.innerWidth < 768 ? 6 : 10;
+
+      if (spotlight) {
+        spotlight.style.left = `${Math.max(8, rect.left - pad)}px`;
+        spotlight.style.top = `${Math.max(8, rect.top - pad)}px`;
+        spotlight.style.width = `${Math.min(window.innerWidth - 16, rect.width + pad * 2)}px`;
+        spotlight.style.height = `${Math.min(window.innerHeight - 16, rect.height + pad * 2)}px`;
+        spotlight.classList.remove("hidden");
+      }
+
+      if (callout) {
+        const prefersBottom = rect.top < 160;
+        const top = prefersBottom ? rect.bottom + 10 : rect.top - 56;
+        const left = Math.min(Math.max(12, rect.left), window.innerWidth - 280);
+
+        callout.textContent = step.callout || "";
+        if (isMobileViewport() && overlapsCard(rect)) {
+          callout.style.top = `${Math.max(12, rect.top - 48)}px`;
+          callout.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - 240))}px`;
+        } else {
+          callout.style.top = `${Math.max(12, top)}px`;
+          callout.style.left = `${left}px`;
+        }
+        callout.classList.remove("hidden");
+      }
+    }, isMobileViewport() ? 220 : 80);
+  }
+
+  function renderStep() {
+    if (isMinimized) return;
+    const step = STEPS[currentStep - 1];
+    const currentPath = normalizePath(window.location.pathname);
+    const isOnExpectedPage = normalizePath(step.route) === currentPath;
+
+    stepCounter.textContent = `Etapa ${step.id} de ${totalSteps}`;
+    stepTitle.textContent = step.title;
+    stepSubtitle.textContent = step.subtitle;
+    stepDescription.textContent = step.description;
+    ctaText.textContent = step.cta;
+
+    headerGradient.className = `card-header ${step.color} bg-gradient-to-r`;
+    stepDescriptionBox.className = `step-description-box ${step.color} bg-gradient-to-br`;
+
+    if (currentStep > 1) {
+      prevBtn?.classList.remove("hidden");
+    } else {
+      prevBtn?.classList.add("hidden");
+    }
+
+    progressBar.style.width = `${(currentStep / totalSteps) * 100}%`;
+
+    if (!isOnExpectedPage) {
+      routeHelper.textContent = `Vamos abrir: ${step.route}`;
+      routeHelper.classList.remove("hidden");
+      hideSpotlight();
+    } else {
+      routeHelper.classList.add("hidden");
+      showSpotlightForStep(step);
+    }
+
+    setStoredStep(currentStep);
+  }
+
+  function goToStep(stepNumber) {
+    currentStep = Math.min(Math.max(stepNumber, 1), totalSteps);
+    renderStep();
+  }
+
+  function navigateIfNeededForStep(step) {
+    const currentPath = normalizePath(window.location.pathname);
+    const expected = normalizePath(step.route);
+    if (currentPath !== expected) {
+      window.location.href = step.route;
+      return true;
+    }
+    return false;
+  }
+
+  function nextStep() {
+    const step = STEPS[currentStep - 1];
+
+    if (navigateIfNeededForStep(step)) return;
+
+    if (currentStep === totalSteps) {
+      completeTour();
+      return;
+    }
+
+    const upcomingStep = STEPS[currentStep];
+    setStoredStep(currentStep + 1);
+
+    if (normalizePath(window.location.pathname) !== normalizePath(upcomingStep.route)) {
+      window.location.href = upcomingStep.route;
+      return;
+    }
+
+    goToStep(currentStep + 1);
+  }
+
+  function prevStep() {
+    if (currentStep <= 1) return;
+
+    const previousStep = STEPS[currentStep - 2];
+    setStoredStep(currentStep - 1);
+
+    if (normalizePath(window.location.pathname) !== normalizePath(previousStep.route)) {
+      window.location.href = previousStep.route;
+      return;
+    }
+
+    goToStep(currentStep - 1);
+  }
+
+  function startIfNeeded() {
+    if (isCompleted()) {
+      root?.classList.add("hidden");
+      unlockPageScroll();
+      return;
+    }
+
+    if (!localStorage.getItem(KEYS.active)) {
+      setActive(true);
+      setStoredStep(1);
+    }
+
+    if (!isActive()) {
+      unlockPageScroll();
+      return;
+    }
+
+    currentStep = getStoredStep();
+    root?.classList.remove("hidden");
+    isMinimized = false;
+    onboardingCard?.classList.remove("minimized");
+    resumeBtn?.classList.add("hidden");
+    lockPageScroll();
+    renderStep();
+  }
+
+  closeBtn?.addEventListener("click", completeTour);
+  skipBtn?.addEventListener("click", completeTour);
+  nextBtn?.addEventListener("click", nextStep);
+  prevBtn?.addEventListener("click", prevStep);
+  backdrop?.addEventListener("click", () => {
+    if (isMobileViewport()) {
+      minimizeTour();
+    }
+  });
+  resumeBtn?.addEventListener("click", resumeTour);
+
+  window.addEventListener("resize", () => {
+    if (isActive()) {
+      lockPageScroll();
+    }
+    const step = STEPS[currentStep - 1];
+    showSpotlightForStep(step);
+  });
+
+  setTimeout(startIfNeeded, 250);
+</script>
+
+<style>
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .onboarding-root {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    pointer-events: none;
+  }
+
+  .onboarding-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(4, 8, 20, 0.34);
+    backdrop-filter: blur(2px);
+  }
+
+  .onboarding-spotlight {
+    position: fixed;
+    border: 2px solid rgba(255, 191, 26, 0.95);
+    border-radius: 14px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45), 0 0 0 4px rgba(255, 191, 26, 0.2);
+    transition: all 180ms ease;
+    pointer-events: none;
+  }
+
+  .onboarding-callout {
+    position: fixed;
+    max-width: 260px;
+    background: #111827;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.45rem 0.65rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+  }
+
+  .onboarding-card {
+    pointer-events: auto;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(540px, calc(100vw - 2rem));
+    max-height: min(72vh, 620px);
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-header {
+    height: 86px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .header-deco {
+    position: absolute;
+    right: 1rem;
+    top: 0.5rem;
+    opacity: 0.14;
+    color: #fff;
+  }
+
+  .close-btn {
+    position: absolute;
+    right: 0.75rem;
+    top: 0.75rem;
+    color: #fff;
+    border-radius: 999px;
+    padding: 0.35rem;
+    transition: background 140ms ease;
+  }
+
+  .close-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  .progress-rail {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #fff;
+    transition: width 220ms ease;
+  }
+
+  .card-body {
+    padding: 1rem 1.1rem 0.8rem;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .step-counter {
+    font-size: 0.74rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6d28d9;
+  }
+
+  .step-title {
+    margin-top: 0.5rem;
+    font-size: 1.28rem;
+    line-height: 1.25;
+    color: #111827;
+    font-weight: 800;
+  }
+
+  .step-subtitle {
+    margin-top: 0.3rem;
+    font-size: 0.96rem;
+    color: #4b5563;
+    line-height: 1.4;
+  }
+
+  .step-description-box {
+    margin-top: 0.9rem;
+    border-radius: 12px;
+    padding: 0.85rem 0.9rem;
+    color: #fff;
+  }
+
+  .step-description {
+    font-size: 0.88rem;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  .route-helper {
+    margin-top: 0.6rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-weight: 600;
+  }
+
+  .card-footer {
+    padding: 0.9rem 1.1rem 1rem;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 0.6rem;
+    flex: 0 0 auto;
+  }
+
+  .onboarding-resume {
+    position: fixed;
+    left: 50%;
+    bottom: max(0.9rem, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    pointer-events: auto;
+    border-radius: 999px;
+    padding: 0.7rem 1rem;
+    background: linear-gradient(90deg, #6028ff, #7f4bff);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 24px rgba(96, 40, 255, 0.35);
+  }
+
+  .onboarding-card.minimized {
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+
+  .btn {
+    min-height: 42px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.87rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    transition: all 160ms ease;
+    padding: 0.65rem 1rem;
+  }
+
+  .btn-secondary {
+    border: 1px solid #d1d5db;
+    color: #374151;
+    background: #fff;
+  }
+
+  .btn-secondary:hover {
+    background: #f3f4f6;
+  }
+
+  .btn-ghost {
+    color: #4b5563;
+    background: transparent;
+  }
+
+  .btn-ghost:hover {
+    color: #111827;
+  }
+
+  .btn-primary {
+    margin-left: auto;
+    background: linear-gradient(90deg, #6028ff, #7f4bff);
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(96, 40, 255, 0.35);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.24s ease-out;
+  }
+
+  @media (max-width: 768px) {
+    .onboarding-card {
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(94vw, 480px);
+      max-height: min(82vh, 640px);
+      border-radius: 16px;
+    }
+
+    .card-body {
+      padding: 0.9rem;
+      max-height: none;
+    }
+
+    .step-title {
+      font-size: 1.1rem;
+    }
+
+    .step-subtitle {
+      font-size: 0.9rem;
+    }
+
+    .card-footer {
+      padding: 0.8rem 0.9rem;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      flex: 1 1 calc(50% - 0.25rem);
+      min-width: 110px;
+    }
+
+    .btn-primary {
+      flex-basis: 100%;
+      margin-left: 0;
+    }
+
+    .onboarding-callout {
+      max-width: 220px;
+      font-size: 0.75rem;
+    }
+
+    .onboarding-backdrop {
+      background: rgba(4, 8, 20, 0.26);
+      backdrop-filter: blur(1px);
+    }
+
+    .onboarding-resume {
+      bottom: calc(0.75rem + env(safe-area-inset-bottom));
+      max-width: calc(100vw - 1.5rem);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+</style>

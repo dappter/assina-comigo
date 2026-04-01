@@ -3,6 +3,7 @@ import DashboardLayout from "../../layouts/DashboardLayout.astro";
 import { partnerService } from "../../services/partnerService";
 import { indicationService } from "../../services/indicationService";
 import { rewardService } from "../../services/rewardService";
+import { normalizeLeadStatus } from "../../utils/leadStatus";
 
 const tenantId = Astro.locals.tenantId;
 const profileId = Astro.locals.profileId;
@@ -34,15 +35,15 @@ try {
     recentes.forEach((l) => {
         notificacoes.push({
             id: `lead-${l.id}`,
-            tipo: l.status === "Instalado" ? "sucesso" : "info",
+            tipo: normalizeLeadStatus(l.status) === "Instalado" ? "sucesso" : "info",
             titulo:
-                l.status === "Instalado"
-                    ? `🎉 ${l.nome} foi instalado!`
-                    : `Nova indicação: ${l.nome}`,
+                normalizeLeadStatus(l.status) === "Instalado"
+                    ? `🎉 Uma indicação foi instalada!`
+                    : `Nova indicação recebida`,
             descricao:
-                l.status === "Instalado"
+                normalizeLeadStatus(l.status) === "Instalado"
                     ? "Parabéns! Você gerou uma comissão com essa indicação."
-                    : `Status atual: ${l.status || "Recebido"}`,
+                    : `Status atual: ${normalizeLeadStatus(l.status)}`,
             data: l.created_at,
             link: `/parceiro/indicados/${l.id}`,
         });
@@ -114,7 +115,7 @@ const formatRelative = (dateString: string) => {
     userName={userName}
     userAvatar={userAvatar}
 >
-    <div class="notif-page">
+    <div class="notif-page" data-onboarding-target="notifications-list">
         <header class="page-header">
             <div>
                 <h1 class="page-title">Notificações</h1>

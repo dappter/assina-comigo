@@ -1,13 +1,249 @@
 ---
 // Standalone Landing Page (Ligeira Telecom)
 // Gerada via Google Stitch MCP e aprimorada para Conversão.
+import raioLogo from "../assets/icons/RAIO.png";
+import logoVerticalSemAdesivo from "../assets/branding/LOGO LIGEIRA VERTICAL SEM ADESIVO 2026.png";
+import { getSupabaseServerClient } from "../lib/supabaseSSR";
+import { supabaseAdmin } from "../lib/supabaseAdmin";
+import { captacaoService } from "../services/captacaoService";
+import { logger } from "../utils/logger";
+import { mapSupabaseAuthErrorMessage } from "../utils/authErrors";
+import { formatCPFDisplay, formatPhoneDisplay, sanitizePhone, isValidWhatsApp } from "../utils/validation";
+
+let errorMessage = "";
+let successMessage = "";
+const requestedMode = Astro.url.searchParams.get("mode");
+let activeMode: "login" | "register" = requestedMode === "login" ? "login" : "register";
+
+let formNome = "";
+let formEmail = "";
+let formWhatsapp = "";
+let formCpf = "";
+
+const grupoSlugParam = (Astro.url.searchParams.get("grupo_slug") || "").trim();
+const grupoIdParam = (Astro.url.searchParams.get("grupo_id") || "").trim();
+
+let effectiveGrupoId = grupoIdParam;
+let effectiveTenantId = import.meta.env.PUBLIC_MAIN_TENANT_ID || "4a254f52-99bd-43dd-86e2-ec031206077a";
+let captacaoContexto: Awaited<ReturnType<typeof captacaoService.getCaptacaoContext>> = null;
+
+if (grupoSlugParam) {
+    captacaoContexto = await captacaoService.getCaptacaoContext(grupoSlugParam);
+    if (captacaoContexto) {
+        effectiveGrupoId = captacaoContexto.grupoId;
+        effectiveTenantId = captacaoContexto.tenantId;
+    } else {
+        errorMessage = "Link de grupo inválido ou expirado. Solicite um novo link para cadastro.";
+    }
+} else if (effectiveGrupoId) {
+    const { data: groupData } = await supabaseAdmin
+        .from("grupos_parceiros")
+        .select("id, nome, slug, descricao, tipo_remuneracao, valor_recompensa, tenant_id")
+        .eq("id", effectiveGrupoId)
+        .maybeSingle();
+
+    if (groupData) {
+        captacaoContexto = {
+            grupoId: groupData.id,
+            grupoNome: groupData.nome,
+            grupoSlug: groupData.slug,
+            grupoDescricao: groupData.descricao,
+            tipoRemuneracao: groupData.tipo_remuneracao,
+            valorRecompensa: groupData.valor_recompensa,
+            tenantId: groupData.tenant_id,
+        };
+        effectiveTenantId = groupData.tenant_id;
+    }
+}
+
+if (!requestedMode && !effectiveGrupoId) {
+    activeMode = "login";
+}
+
+if (Astro.request.method === "POST") {
+    const data = await Astro.request.formData();
+    const action = data.get("action")?.toString() || "";
+    const modeField = data.get("mode")?.toString() === "login" ? "login" : "register";
+    activeMode = modeField;
+
+    const formGrupoId = data.get("grupo_id")?.toString() || effectiveGrupoId;
+    const formTenantId = data.get("tenant_id")?.toString() || effectiveTenantId;
+
+    if (action === "login_password") {
+        const email = (data.get("email")?.toString() || "").trim().toLowerCase();
+        const password = data.get("password")?.toString() || "";
+
+        if (!email || !email.includes("@") || !password || password.length < 6) {
+            errorMessage = "Informe um e-mail válido e uma senha com no mínimo 6 caracteres.";
+        } else {
+            const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+            const { data: sessionData, error } = await supabaseSSR.auth.signInWithPassword({ email, password });
+
+            if (error || !sessionData.session) {
+                logger.error("[AUTH_ERROR] Login parceiro falhou (landing)", {
+                    email,
+                    authErrorCode: error?.code,
+                    authErrorStatus: error?.status,
+                    authErrorName: error?.name,
+                    authErrorMessage: error?.message,
+                });
+                errorMessage = mapSupabaseAuthErrorMessage(error?.message, "partner", error?.code, error?.status);
+            } else {
+                return Astro.redirect("/parceiro/dashboard");
+            }
+        }
+    }
+
+    if (action === "register_password") {
+        formNome = (data.get("nome")?.toString() || "").trim();
+        formEmail = (data.get("email")?.toString() || "").trim().toLowerCase();
+        formWhatsapp = (data.get("whatsapp")?.toString() || "").trim();
+        formCpf = (data.get("cpf")?.toString() || "").trim();
+        const password = data.get("password")?.toString() || "";
+        const passwordConfirm = data.get("password_confirm")?.toString() || "";
+
+        if (!formGrupoId) {
+            errorMessage = "Cadastro disponível apenas por link de grupo. Solicite seu convite ao time de marketing.";
+        } else if (!formNome || !formEmail || !formWhatsapp) {
+            errorMessage = "Preencha nome, e-mail e WhatsApp para concluir seu cadastro.";
+        } else if (!password || password.length < 8) {
+            errorMessage = "Sua senha deve ter no mínimo 8 caracteres.";
+        } else if (password !== passwordConfirm) {
+            errorMessage = "As senhas não conferem.";
+        } else {
+            const cleanWhatsapp = sanitizePhone(formWhatsapp);
+            const cleanCpf = formCpf.replace(/\D/g, "");
+
+            if (!isValidWhatsApp(cleanWhatsapp)) {
+                errorMessage = "Informe um WhatsApp brasileiro válido com DDD e 11 dígitos.";
+            } else {
+                const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+
+                const { data: createdData, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+                    email: formEmail,
+                    password,
+                    email_confirm: true,
+                    user_metadata: {
+                        full_name: formNome,
+                    },
+                });
+
+                if (createUserError) {
+                    logger.error("[AUTH_CREATE_USER_ERROR] Falha ao criar usuário parceiro na landing", {
+                        email: formEmail,
+                        createUserError,
+                    });
+                    if (createUserError.message?.toLowerCase().includes("already") || createUserError.message?.toLowerCase().includes("registered")) {
+                        errorMessage = "Este e-mail já está cadastrado. Faça login para continuar.";
+                        activeMode = "login";
+                    } else {
+                        errorMessage = "Não foi possível concluir o cadastro agora. Tente novamente em instantes.";
+                    }
+                } else if (createdData.user) {
+                    const createdUserId = createdData.user.id;
+
+                    const { error: profileError } = await supabaseAdmin
+                        .from("profiles")
+                        .upsert(
+                            {
+                                id: createdUserId,
+                                tenant_id: formTenantId,
+                                nome: formNome,
+                                email: formEmail,
+                                telefone: cleanWhatsapp,
+                                cpf: cleanCpf || null,
+                                tipo_usuario: "parceiro",
+                                grupo_id: formGrupoId,
+                                status: "ativo",
+                            },
+                            {
+                                onConflict: "id",
+                            },
+                        );
+
+                    if (profileError) {
+                        logger.error("[DB_ERROR] Erro ao criar/atualizar perfil na landing", {
+                            userId: createdUserId,
+                            profileError,
+                        });
+                        errorMessage = "Conta criada, mas houve falha ao concluir o perfil. Tente fazer login.";
+                    } else {
+                        const { data: loginData, error: loginError } = await supabaseSSR.auth.signInWithPassword({
+                            email: formEmail,
+                            password,
+                        });
+
+                        if (loginError || !loginData.session) {
+                            logger.error("[AUTH_LOGIN_AFTER_CREATE_ERROR] Login automático falhou na landing", {
+                                email: formEmail,
+                                loginError,
+                            });
+                            successMessage = "Conta criada com sucesso. Agora faça login para continuar.";
+                            activeMode = "login";
+                        } else {
+                            return Astro.redirect("/parceiro/dashboard");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (action === "oauth_google") {
+        if (modeField === "register" && !formGrupoId) {
+            errorMessage = "Cadastro com Google disponível apenas por link de grupo.";
+        } else {
+            const host = Astro.request.headers.get("host") || Astro.url.host;
+            const proto = Astro.request.headers.get("x-forwarded-proto") || (Astro.url.protocol?.replace(":", "") || "http");
+            const finalProto = host.includes("localhost") || host.includes("127.0.0.1") ? proto : "https";
+            const origin = `${finalProto}://${host}`;
+
+            const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+
+            let callbackUrl = `${origin}/api/auth/callback?next=/parceiro/dashboard`;
+            if (modeField === "register" && formGrupoId) {
+                callbackUrl += `&grupo_id=${formGrupoId}`;
+                callbackUrl += `&tenant_id=${formTenantId}`;
+            }
+
+            const { data: authData, error } = await supabaseSSR.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                    redirectTo: callbackUrl,
+                },
+            });
+
+            if (error) {
+                logger.error("[AUTH_OAUTH_ERROR] Falha ao iniciar OAuth na landing", { host, origin }, error);
+                errorMessage = "Erro ao conectar com Google. Tente novamente.";
+            } else if (authData?.url) {
+                return Astro.redirect(authData.url);
+            } else {
+                errorMessage = "Não foi possível gerar o link de autenticação do Google.";
+            }
+        }
+    }
+}
+
+const modeBaseQuery = new URLSearchParams();
+if (captacaoContexto?.grupoSlug) modeBaseQuery.set("grupo_slug", captacaoContexto.grupoSlug);
+else if (grupoSlugParam) modeBaseQuery.set("grupo_slug", grupoSlugParam);
+if (effectiveGrupoId) modeBaseQuery.set("grupo_id", effectiveGrupoId);
+
+const loginQuery = new URLSearchParams(modeBaseQuery);
+loginQuery.set("mode", "login");
+const loginUrl = `/?${loginQuery.toString()}#signup`;
+
+const registerQuery = new URLSearchParams(modeBaseQuery);
+registerQuery.set("mode", "register");
+const registerUrl = `/?${registerQuery.toString()}#signup`;
 ---
 <!DOCTYPE html>
 <html class="scroll-smooth" lang="pt-BR">
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>Ligeira Telecom | Seja Parceiro</title>
+    <title>Assina Comigo | Seja Parceiro</title>
     
     <!-- Optamos pelo CDN isolado para garantir fidelidade 100% ao Design original do Stitch sem conflitar com o App principal -->
     <script is:inline src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
@@ -119,17 +355,22 @@
     <!-- Navbar -->
     <nav class="fixed top-0 w-full z-50 bg-primary/95 backdrop-blur-md transition-all duration-300 shadow-xl border-b border-white/10">
         <div class="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto">
-            <div class="text-2xl font-black text-white italic font-headline tracking-tighter flex items-center gap-2">
-                <span class="material-symbols-outlined text-tertiary">bolt</span>
-                Ligeira <span class="text-tertiary">Telecom</span>
+            <div class="flex items-center gap-3">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 shadow-lg shadow-black/20">
+                    <img alt="Ligeira" class="h-8 w-8 object-contain" src={raioLogo.src} />
+                </div>
+                <div class="leading-none">
+                    <div class="text-[10px] font-bold uppercase tracking-[0.28em] text-white/55">Assina Comigo</div>
+                    <div class="text-2xl font-black italic text-white tracking-tighter">Ligeira <span class="text-tertiary">Telecom</span></div>
+                </div>
             </div>
-            <div class="hidden md:flex items-center space-x-10 font-label font-bold text-sm tracking-wide text-white/90">
-                <a class="hover:text-primary transition-colors duration-200" href="#como-funciona">Como Funciona</a>
-                <a class="hover:text-primary transition-colors duration-200" href="#vantagens">Vantagens</a>
-                <a class="hover:text-primary transition-colors duration-200" href="#regras">Regras</a>
+            <div class="hidden md:flex items-center gap-3 font-label font-bold text-sm tracking-wide text-white/90">
+                <a class="rounded-full border border-white/10 bg-white/5 px-4 py-2 transition-all duration-200 hover:border-white/25 hover:bg-white/15 hover:text-white" href="#como-funciona">Como Funciona</a>
+                <a class="rounded-full border border-white/10 bg-white/5 px-4 py-2 transition-all duration-200 hover:border-white/25 hover:bg-white/15 hover:text-white" href="#vantagens">Vantagens</a>
+                <a class="rounded-full border border-white/10 bg-white/5 px-4 py-2 transition-all duration-200 hover:border-white/25 hover:bg-white/15 hover:text-white" href="#regras">Regras</a>
             </div>
             <div class="flex items-center space-x-4">
-                <a class="hidden md:flex text-white/80 hover:text-white font-label font-bold text-sm transition-colors" href="/parceiro/login">
+                <a class="hidden md:flex text-white/80 hover:text-white font-label font-bold text-sm transition-colors" href={loginUrl}>
                     Já sou parceiro
                 </a>
                 <a class="bg-tertiary text-on-tertiary px-6 py-2.5 rounded-full font-headline font-extrabold text-sm hover:scale-105 active:scale-95 transition-all duration-200 btn-glow" href="#signup">
@@ -149,7 +390,7 @@
 
                 <div class="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-tertiary text-on-tertiary border-none font-label font-bold text-[11px] uppercase tracking-[0.15em] mb-8">
                     <span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
-                    Programa de Indicações V2
+                    Programa de Indicações
                 </div>
                 
                 <h1 class="text-5xl lg:text-[72px] font-headline font-black text-white leading-[1.05] tracking-tighter mb-8">
@@ -249,6 +490,86 @@
         </div>
     </header>
 
+    <!-- Advantages Section -->
+    <section class="py-24 relative overflow-hidden bg-surface-container-lowest border-b border-slate-900/5" id="vantagens">
+        <div class="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
+        <div class="max-w-7xl mx-auto px-6 relative z-10">
+            <div class="grid xl:grid-cols-[1.1fr_.9fr] gap-10 items-start">
+                <div>
+                    <div class="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-primary mb-5">
+                        Vantagens
+                    </div>
+                    <h2 class="text-4xl lg:text-5xl font-headline font-black text-slate-900 tracking-tighter mb-4">Mais claro para o parceiro. Mais leve para o time.</h2>
+                    <p class="text-xl text-on-surface-variant max-w-2xl">
+                        A landing foi desenhada para mostrar o valor do programa sem poluir a leitura. O parceiro entende o fluxo, vê a vantagem e entra pelo grupo correto.
+                    </p>
+
+                    <div class="grid sm:grid-cols-2 gap-5 mt-10">
+                        <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4">
+                                <img alt="Ligeira" class="h-7 w-7 object-contain" src={raioLogo.src} />
+                            </div>
+                            <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Entrada por grupo</h3>
+                            <p class="text-on-surface-variant">Todo parceiro entra associado a um grupo desde o primeiro acesso. Sem links soltos, sem retrabalho.</p>
+                        </div>
+                        <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary/20 text-slate-900 mb-4">
+                                <span class="material-symbols-outlined">payments</span>
+                            </div>
+                            <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Pagamento simples</h3>
+                            <p class="text-on-surface-variant">O ganho já nasce configurado pelo grupo, com preço ou pontos padrão para todas as indicações.</p>
+                        </div>
+                        <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#140030] text-tertiary mb-4">
+                                <span class="material-symbols-outlined">link</span>
+                            </div>
+                            <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Link próprio por parceiro</h3>
+                            <p class="text-on-surface-variant">Cada parceiro recebe o seu link individual para captar clientes com rastreamento total.</p>
+                        </div>
+                        <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 mb-4">
+                                <span class="material-symbols-outlined">notifications</span>
+                            </div>
+                            <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Status visíveis</h3>
+                            <p class="text-on-surface-variant">Status, notificações e pontos ficam centralizados para o parceiro acompanhar sem dúvida.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative">
+                    <div class="absolute inset-0 bg-primary/10 blur-[110px] rounded-full pointer-events-none"></div>
+                    <div class="relative rounded-[2.5rem] border border-slate-900/5 bg-[#140030] p-8 shadow-2xl shadow-black/30 overflow-hidden">
+                        <div class="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.04] to-transparent pointer-events-none"></div>
+                        <div class="flex items-center justify-between mb-8">
+                            <div>
+                                <p class="text-xs uppercase tracking-[0.2em] text-white/50 font-bold">Marca oficial</p>
+                                <h3 class="text-2xl font-headline font-black text-white mt-2">Ligeira Telecom</h3>
+                            </div>
+                            <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
+                                <img alt="Logo Ligeira" class="h-10 w-10 object-contain" src={raioLogo.src} />
+                            </div>
+                        </div>
+
+                        <div class="rounded-[2rem] bg-white/5 border border-white/10 p-6">
+                            <img alt="Ligeira Vertical" class="mx-auto max-h-[320px] w-full object-contain" src={logoVerticalSemAdesivo.src} />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 mt-6 text-white/90">
+                            <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45 font-bold mb-2">Grupo definido</p>
+                                <p class="font-bold">Preço ou pontos já prontos.</p>
+                            </div>
+                            <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45 font-bold mb-2">Captação segura</p>
+                                <p class="font-bold">Entrada por convite sempre associada.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- How It Works Section (Glassy Cards) -->
     <section class="py-32 relative" id="como-funciona">
         <div class="max-w-7xl mx-auto px-6 relative z-10">
@@ -301,57 +622,30 @@
                 
                 <div class="order-2 lg:order-1 relative">
                     <div class="absolute inset-0 bg-primary-container/10 blur-[80px] rounded-full pointer-events-none"></div>
-                    <!-- Mockup Dashboard Image -->
-                    <div class="relative rounded-[2.5rem] overflow-hidden border border-slate-900/5 ambient-shadow aspect-square lg:aspect-[4/5] bg-surface-container flex flex-col p-8">
-                        
-                        <div class="flex items-center gap-2 mb-8">
-                            <div class="w-3 h-3 rounded-full bg-red-500"></div>
-                            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
-                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
-                        </div>
-
-                        <div class="flex-1 rounded-2xl bg-surface-container-lowest p-6 border border-slate-900/5 space-y-6">
-                            <!-- Skeleton UI representing platform inside -->
-                            <div class="flex justify-between items-center mb-6">
-                                <div class="w-32 h-6 rounded bg-surface-container-high"></div>
-                                <div class="w-10 h-10 rounded-full bg-primary-container"></div>
+                    <div class="relative rounded-[2.5rem] overflow-hidden border border-slate-900/5 ambient-shadow aspect-square lg:aspect-[4/5] bg-[#140030] p-8 flex flex-col justify-between">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs uppercase tracking-[0.2em] text-white/50 font-bold">Identidade oficial</p>
+                                <h3 class="text-2xl font-headline font-black text-white mt-2">Ligeira Telecom</h3>
                             </div>
-                            
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="h-24 rounded-2xl bg-surface-container p-4">
-                                    <div class="w-16 h-4 bg-surface-container-highest rounded mb-4"></div>
-                                    <div class="w-24 h-8 bg-tertiary/20 rounded"></div>
-                                </div>
-                                <div class="h-24 rounded-2xl bg-surface-container p-4">
-                                    <div class="w-16 h-4 bg-surface-container-highest rounded mb-4"></div>
-                                    <div class="w-24 h-8 bg-green-500/20 rounded"></div>
-                                </div>
-                            </div>
-
-                            <div class="space-y-3 mt-8">
-                                <div class="h-16 rounded-xl bg-surface-container flex items-center px-4 gap-4">
-                                    <div class="w-8 h-8 rounded-full bg-surface-container-highest"></div>
-                                    <div class="flex-1">
-                                        <div class="w-24 h-3 bg-surface-container-highest rounded mb-2"></div>
-                                        <div class="w-16 h-2 bg-surface-container-highest/50 rounded"></div>
-                                    </div>
-                                    <div class="w-16 h-4 bg-tertiary/40 rounded"></div>
-                                </div>
-                                <div class="h-16 rounded-xl bg-surface-container flex items-center px-4 gap-4">
-                                    <div class="w-8 h-8 rounded-full bg-surface-container-highest"></div>
-                                    <div class="flex-1">
-                                        <div class="w-32 h-3 bg-surface-container-highest rounded mb-2"></div>
-                                        <div class="w-16 h-2 bg-surface-container-highest/50 rounded"></div>
-                                    </div>
-                                    <div class="w-16 h-4 bg-tertiary/40 rounded"></div>
-                                </div>
+                            <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
+                                <img alt="Logo Ligeira" class="h-10 w-10 object-contain" src={raioLogo.src} />
                             </div>
                         </div>
 
-                        <!-- Overlay Glass Box -->
-                        <div class="absolute bottom-10 -right-10 md:-right-16 bg-surface-bright/80 backdrop-blur-xl p-6 rounded-3xl border border-slate-900/10 shadow-2xl max-w-xs transform -rotate-2">
-                            <p class="font-headline font-bold text-slate-900 text-lg mb-2">Painel de Controle</p>
-                            <p class="text-on-surface-variant text-sm">Acompanhe quem clicou, quem assinou e veja seu dinheiro cair na hora.</p>
+                        <div class="rounded-[2rem] bg-white/5 border border-white/10 p-6">
+                            <img alt="Ligeira Vertical" class="mx-auto max-h-[390px] w-full object-contain" src={logoVerticalSemAdesivo.src} />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45 font-bold mb-2">Transparência</p>
+                                <p class="font-bold text-white">Status e saldo visíveis.</p>
+                            </div>
+                            <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
+                                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45 font-bold mb-2">Grupo</p>
+                                <p class="font-bold text-white">Preço padrão por operação.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -363,7 +657,7 @@
                     <div class="space-y-8">
                         <div class="flex gap-6 group">
                             <div class="flex-shrink-0 w-14 h-14 rounded-2xl bg-surface-container border border-slate-900/5 flex items-center justify-center group-hover:bg-primary-container transition-colors">
-                                <span class="material-symbols-outlined text-slate-900 text-2xl">bolt</span>
+                                <img alt="Ligeira" class="h-7 w-7 object-contain" src={raioLogo.src} />
                             </div>
                             <div>
                                 <h5 class="text-xl font-headline font-bold text-slate-900 mb-2">Comissão Imediata</h5>
@@ -397,6 +691,43 @@
         </div>
     </section>
 
+    <!-- Onboarding Section -->
+    <section class="py-24 relative overflow-hidden bg-background border-y border-slate-900/5" id="onboarding">
+        <div class="absolute -top-40 left-1/2 w-[900px] h-[900px] -translate-x-1/2 rounded-full bg-primary/5 blur-[120px] pointer-events-none"></div>
+        <div class="max-w-7xl mx-auto px-6 relative z-10">
+            <div class="text-center mb-14">
+                <div class="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-primary mb-5 shadow-sm">
+                    Onboarding
+                </div>
+                <h2 class="text-4xl lg:text-5xl font-headline font-black text-slate-900 tracking-tighter mb-4">Tudo o que o parceiro precisa entender, em telas curtas.</h2>
+                <p class="text-xl text-on-surface-variant max-w-3xl mx-auto">Antes de começar, mostramos o passo a passo para evitar dúvidas e acelerar a primeira conversão.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
+                <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
+                    <div class="text-xs font-black uppercase tracking-[0.2em] text-primary mb-3">01</div>
+                    <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Conta bancária</h3>
+                    <p class="text-on-surface-variant">Mostramos onde cadastrar a conta para receber os ganhos em dinheiro sem confusão.</p>
+                </div>
+                <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
+                    <div class="text-xs font-black uppercase tracking-[0.2em] text-tertiary mb-3">02</div>
+                    <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Link de indicação</h3>
+                    <p class="text-on-surface-variant">Explicamos como compartilhar o link individual e como ele identifica o parceiro corretamente.</p>
+                </div>
+                <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
+                    <div class="text-xs font-black uppercase tracking-[0.2em] text-emerald-600 mb-3">03</div>
+                    <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Status e notificações</h3>
+                    <p class="text-on-surface-variant">Mostramos onde acompanhar recebido, em análise, instalado e demais alertas do sistema.</p>
+                </div>
+                <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
+                    <div class="text-xs font-black uppercase tracking-[0.2em] text-slate-900 mb-3">04</div>
+                    <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Pontos e ganhos</h3>
+                    <p class="text-on-surface-variant">A pessoa entende saldo, pontos, ganhos e a área de meus indicados antes mesmo de começar.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Sign Up Form / Final CTA Section -->
     <section class="py-32 relative overflow-hidden" id="signup">
         <!-- Background Decorators -->
@@ -408,7 +739,7 @@
             <div class="flex justify-center mb-6">
                 <div class="inline-flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-full text-xs font-bold uppercase tracking-widest font-label">
                     <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                    Últimas vagas para o Grupo Beta
+                    {captacaoContexto ? `Convite ativo para o grupo ${captacaoContexto.grupoNome}` : "Acesso por convite de grupo"}
                 </div>
             </div>
 
@@ -418,71 +749,234 @@
 
                 <div class="text-center mb-12 relative z-10">
                     <h2 class="text-3xl md:text-5xl font-headline font-black text-slate-900 tracking-tight mb-4">Crie sua conta agora</h2>
-                    <p class="text-on-surface-variant text-lg">Inicie imediatamente, gere seu link e faça sua primeira indicação hoje mesmo.</p>
+                    <p class="text-on-surface-variant text-lg">
+                        {captacaoContexto
+                            ? `Você será cadastrado automaticamente no grupo ${captacaoContexto.grupoNome}.`
+                            : "Entre na sua conta ou solicite um link de convite para criar seu cadastro."}
+                    </p>
                 </div>
 
-                <!-- Modificado para enviar POST real para o Backend (Astro Action ou URL de destino) -->
-                <!-- Devido à complexidade do Auth Social, redirecionamos para o form construído na rota /parceiro/registro se for seguro, ou podemos usá-lo via GET params. -->
-                <form class="grid md:grid-cols-2 gap-6 relative z-10" action="/parceiro/registro" method="GET">
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Nome Completo</label>
-                        <input name="nome" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Digite seu nome completo" type="text" required/>
+                {(errorMessage || successMessage) && (
+                    <div class={`mb-8 rounded-2xl px-5 py-4 text-sm font-semibold ${errorMessage ? "bg-red-100 text-red-800 border border-red-200" : "bg-green-100 text-green-800 border border-green-200"}`}>
+                        {errorMessage || successMessage}
                     </div>
-                    <div>
-                        <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">E-mail Principal</label>
-                        <input name="email" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="exemplo@email.com" type="email" required/>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">WhatsApp</label>
-                        <!-- Usando type text com pattern básico para focar num DDD + Número -->
-                        <input name="whatsapp" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="(11) 90000-0000" type="tel" required/>
-                    </div>
-                    
-                    <div class="md:col-span-2 mt-8">
-                        <button class="w-full bg-tertiary text-on-tertiary py-5 rounded-[1.5rem] font-headline font-black text-xl hover:scale-[1.02] active:scale-98 transition-all btn-glow shadow-xl" type="submit">
-                            Continuar e Criar Conta Segura
-                        </button>
-                        
-                        <div class="relative flex items-center justify-center mt-6 mb-2">
-                            <span class="absolute px-4 bg-surface-container-lowest text-on-surface-variant text-sm z-10 font-bold">OU</span>
-                            <div class="w-full h-px bg-slate-900/10"></div>
+                )}
+
+                <div class="mb-8 grid grid-cols-2 gap-3 rounded-2xl bg-surface-container-high p-2">
+                    <a href={registerUrl} class={`text-center rounded-xl px-4 py-3 font-headline font-extrabold text-sm transition-all ${activeMode === "register" ? "bg-white text-slate-900 shadow" : "text-on-surface-variant hover:text-slate-900"}`}>
+                        Quero me cadastrar
+                    </a>
+                    <a href={loginUrl} class={`text-center rounded-xl px-4 py-3 font-headline font-extrabold text-sm transition-all ${activeMode === "login" ? "bg-white text-slate-900 shadow" : "text-on-surface-variant hover:text-slate-900"}`}>
+                        Já sou parceiro
+                    </a>
+                </div>
+
+                {activeMode === "register" ? (
+                    <form class="grid md:grid-cols-2 gap-6 relative z-10" method="POST">
+                        <input type="hidden" name="action" value="register_password" />
+                        <input type="hidden" name="mode" value="register" />
+                        <input type="hidden" name="grupo_id" value={effectiveGrupoId} />
+                        <input type="hidden" name="tenant_id" value={effectiveTenantId} />
+
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Nome Completo</label>
+                            <input name="nome" value={formNome} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Digite seu nome completo" type="text" required/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">E-mail Principal</label>
+                            <input name="email" value={formEmail} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="exemplo@email.com" type="email" required/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">WhatsApp</label>
+                            <input id="whatsapp" name="whatsapp" value={formWhatsapp} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="(11) 90000-0000" inputmode="numeric" autocomplete="tel" type="tel" required/>
+                            <p class="mt-2 text-xs text-on-surface-variant">Use um número brasileiro com DDD e WhatsApp ativo.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">CPF (Opcional)</label>
+                            <input id="cpf" name="cpf" value={formatCPFDisplay(formCpf)} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="000.000.000-00" inputmode="numeric" type="text"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Senha</label>
+                            <input name="password" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Mínimo 8 caracteres" type="password" minlength="8" required/>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Confirmar Senha</label>
+                            <input name="password_confirm" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Repita sua senha" type="password" minlength="8" required/>
                         </div>
 
-                        <!-- Botão Entrar com Google OAuth -->
-                        <button type="submit" name="action" value="oauth_google" formmethod="POST" formaction="/parceiro/registro" class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3">
-                            <svg class="w-6 h-6" viewBox="0 0 24 24">
-                              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                            </svg>
-                            Entrar com Google
-                        </button>
+                        <div class="md:col-span-2 mt-2">
+                            <button class="w-full bg-tertiary text-on-tertiary py-5 rounded-[1.5rem] font-headline font-black text-xl hover:scale-[1.02] active:scale-98 transition-all btn-glow shadow-xl" type="submit">
+                                Criar conta e entrar
+                            </button>
 
-                        <p class="text-center text-sm text-on-surface-variant mt-6 flex flex-col items-center justify-center gap-2">
-                            Ao prosseguir, você concorda com nossas políticas e termos.
-                            <span class="flex items-center gap-1 text-green-500 font-bold bg-green-500/10 px-3 py-1 rounded-full">
-                                <span class="material-symbols-outlined text-[16px]">lock</span> Ambiente 100% Seguro
-                            </span>
-                        </p>
-                    </div>
-                </form>
+                            <div class="relative flex items-center justify-center mt-6 mb-2">
+                                <span class="absolute px-4 bg-surface-container-lowest text-on-surface-variant text-sm z-10 font-bold">OU</span>
+                                <div class="w-full h-px bg-slate-900/10"></div>
+                            </div>
+
+                                                        <input type="hidden" name="mode" value="register" />
+                                                        <input type="hidden" name="grupo_id" value={effectiveGrupoId} />
+                                                        <input type="hidden" name="tenant_id" value={effectiveTenantId} />
+                                                        <button type="submit" name="action" value="oauth_google" class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3">
+                                <svg class="w-6 h-6" viewBox="0 0 24 24">
+                                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                </svg>
+                                Cadastrar com Google
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <form class="grid gap-6 relative z-10" method="POST">
+                        <input type="hidden" name="action" value="login_password" />
+                        <input type="hidden" name="mode" value="login" />
+
+                        <div>
+                            <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">E-mail</label>
+                            <input name="email" value={formEmail} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="seu@email.com" type="email" required/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Senha</label>
+                            <input name="password" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Sua senha" type="password" minlength="6" required/>
+                        </div>
+
+                        <div class="mt-2">
+                            <button class="w-full bg-tertiary text-on-tertiary py-5 rounded-[1.5rem] font-headline font-black text-xl hover:scale-[1.02] active:scale-98 transition-all btn-glow shadow-xl" type="submit">
+                                Entrar no painel
+                            </button>
+
+                            <div class="relative flex items-center justify-center mt-6 mb-2">
+                                <span class="absolute px-4 bg-surface-container-lowest text-on-surface-variant text-sm z-10 font-bold">OU</span>
+                                <div class="w-full h-px bg-slate-900/10"></div>
+                            </div>
+
+                            <input type="hidden" name="mode" value="login" />
+                            <button type="submit" name="action" value="oauth_google" class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3">
+                                <svg class="w-6 h-6" viewBox="0 0 24 24">
+                                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                </svg>
+                                Entrar com Google
+                            </button>
+                        </div>
+                    </form>
+                )}
+
+                {!captacaoContexto && activeMode === "register" && (
+                    <p class="mt-6 text-center text-sm font-bold text-red-600">
+                        O cadastro de parceiro é feito apenas por convite de grupo. Solicite seu link ao time de marketing.
+                    </p>
+                )}
             </div>
         </div>
     </section>
+
+    <script is:inline>
+        // Máscaras de input para WhatsApp e CPF
+        function sanitizePhone(phone) {
+            if (!phone) return '';
+            const digitsOnly = phone.replace(/\D/g, '');
+            if (digitsOnly.length === 13 && digitsOnly.startsWith('55')) {
+                return digitsOnly.slice(2);
+            }
+            return digitsOnly;
+        }
+
+        function formatPhoneDisplay(phone) {
+            const digits = sanitizePhone(phone).slice(0, 11);
+            if (!digits) return '';
+            if (digits.length <= 2) return `(${digits}`;
+            if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+            if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+            return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+        }
+
+        function sanitizeCPF(cpf) {
+            if (!cpf) return '';
+            return cpf.replace(/\D/g, '');
+        }
+
+        function formatCPFDisplay(cpf) {
+            const digits = sanitizeCPF(cpf).slice(0, 11);
+            if (!digits) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+            if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+            return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+        }
+
+        function applyPhoneMask(input) {
+            if (!input) return;
+
+            input.addEventListener('input', function() {
+                const formatted = formatPhoneDisplay(this.value);
+                const raw = sanitizePhone(this.value);
+                this.value = formatted;
+                this.dataset.rawValue = raw;
+            });
+
+            input.addEventListener('blur', function() {
+                this.dataset.rawValue = sanitizePhone(this.value);
+            });
+
+            const form = input.closest('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const rawValue = input.dataset.rawValue || sanitizePhone(input.value);
+                    input.value = rawValue;
+                });
+            }
+        }
+
+        function applyCPFMask(input) {
+            if (!input) return;
+
+            input.addEventListener('input', function() {
+                const formatted = formatCPFDisplay(this.value);
+                const raw = sanitizeCPF(this.value);
+                this.value = formatted;
+                this.dataset.rawValue = raw;
+            });
+
+            input.addEventListener('blur', function() {
+                this.dataset.rawValue = sanitizeCPF(this.value);
+            });
+
+            const form = input.closest('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const rawValue = input.dataset.rawValue || sanitizeCPF(input.value);
+                    input.value = rawValue;
+                });
+            }
+        }
+
+        // Aplica máscaras quando o DOM estiver pronto
+        document.addEventListener('DOMContentLoaded', function() {
+            const whatsappInput = document.getElementById("whatsapp");
+            const cpfInput = document.getElementById("cpf");
+            applyPhoneMask(whatsappInput);
+            applyCPFMask(cpfInput);
+        });
+    </script>
 
     <!-- Footer -->
     <footer class="w-full pt-16 pb-8 bg-background border-t border-slate-900/10">
         <div class="flex flex-col md:flex-row justify-between items-center px-8 max-w-7xl mx-auto">
             <div class="mb-8 md:mb-0 flex flex-col items-center md:items-start text-center md:text-left">
-                <div class="text-2xl font-black text-slate-900 italic font-headline mb-2 flex items-center gap-2">
-                    <span class="material-symbols-fill text-tertiary">bolt</span>Ligeira Telecom
+                <div class="text-2xl font-black text-slate-900 italic font-headline mb-2 flex items-center gap-3">
+                    <img alt="Ligeira" class="h-10 w-10 object-contain" src={raioLogo.src} />
+                    <span>Ligeira Telecom</span>
                 </div>
                 <p class="text-on-surface-variant font-body text-sm max-w-sm">A velocidade da luz em suas mãos. Programa de parceiros oficiais para indicações recompensadas.</p>
             </div>
             
             <div class="flex space-x-8">
-                <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href="/parceiro/login">Entrar</a>
+                <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href={loginUrl}>Entrar</a>
                 <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href="/admin/login">Área Restrita</a>
                 <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href="#">Suporte</a>
             </div>

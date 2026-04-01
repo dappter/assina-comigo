@@ -17,38 +17,36 @@ import {
 import { indicationService } from "../../services/indicationService";
 import { rewardService } from "../../services/rewardService";
 import { partnerService } from "../../services/partnerService";
+import { normalizeLeadStatus } from "../../utils/leadStatus";
 
 import { getSupabaseServerClient } from "../../lib/supabaseSSR";
 
 const tenantId = Astro.locals.tenantId;
 const profileId = Astro.locals.profileId;
 
-const supabase = getSupabaseServerClient(Astro.cookies);
-const {
-  data: { user },
-  error: authError,
-} = await supabase.auth.getUser();
+const user = Astro.locals.user;
 
-if (!tenantId || !profileId || !user || authError) {
+if (!tenantId || !profileId || !user) {
   return Astro.redirect("/parceiro/login");
 }
 
-const partner = await partnerService.getPartnerById(tenantId, profileId);
+const [partner, recentLeads, indicationStats, rewardStats] = await Promise.all([
+  partnerService.getPartnerById(tenantId, profileId),
+  indicationService.getRecentIndications(tenantId, profileId, 5),
+  indicationService.getIndicationStats(tenantId, profileId),
+  rewardService.getRewardStats(tenantId, profileId)
+]);
+
 const userName = partner?.nome || "Parceiro";
 const userAvatar = userName.substring(0, 2).toUpperCase();
 
-const allLeads = await indicationService.getIndications(tenantId, profileId);
-const recentLeads = allLeads.slice(0, 5);
 // Usa o slug amigável para o link de indicação; fallback para UUID caso o slug ainda não tenha sido gerado
 const referralSlug = partner?.slug || profileId;
 const referralLink = `${Astro.url.origin}/ref/${referralSlug}`;
-const recruitmentLink = `${Astro.url.origin}/ref/${referralSlug}`;
-
-const indicationStats = await indicationService.getIndicationStats(
-  tenantId,
-  profileId,
-);
-const rewardStats = await rewardService.getRewardStats(tenantId, profileId);
+const groupSlug = partner?.grupo?.slug;
+const recruitmentLink = groupSlug
+  ? `${Astro.url.origin}/grupo/${groupSlug}`
+  : `${Astro.url.origin}/?mode=register`;
 
 const formatBR = (val: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
@@ -116,7 +114,7 @@ const formatDate = (dateString: string) => {
 >
   <div class="dashboard-content">
     <!-- Hero/Welcome area -->
-    <header class="page-header">
+    <header class="page-header" data-onboarding-target="dashboard-hero">
       <div class="header-main">
         <h1 class="greeting">Olá, {userName.split(" ")[0]}! 👋</h1>
         <p class="subtitle">Confira como estão suas indicações hoje.</p>
@@ -129,7 +127,7 @@ const formatDate = (dateString: string) => {
     </header>
 
     <!-- Referral Link Box -->
-    <section class="referral-banner">
+    <section class="referral-banner" data-onboarding-target="referral-link">
       <div class="banner-inner">
         <div class="banner-text">
           <h2 class="banner-title">Link de Indicação (Clientes)</h2>
@@ -167,13 +165,11 @@ const formatDate = (dateString: string) => {
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              ><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"
-              ></path><polyline points="16 6 12 2 8 6"></polyline><line
-                x1="12"
-                y1="2"
-                x2="12"
-                y2="15"></line></svg
             >
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+              <polyline points="16 6 12 2 8 6"></polyline>
+              <line x1="12" y1="2" x2="12" y2="15"></line>
+            </svg>
             WhatsApp
           </a>
         </div>
@@ -192,11 +188,14 @@ const formatDate = (dateString: string) => {
                 <div class="recruitment-link-box">
                     <div class="link-label">Seu link de recrutamento:</div>
                     <div class="link-row">
-                        <code class="link-code">{recruitmentLink}</code>
-                        <Button size="sm" variant="outline" id="copyRecruitBtn" data-link={recruitmentLink}>
+                      <code class="link-code">{groupSlug ? recruitmentLink : "Grupo não configurado para recrutamento"}</code>
+                      <Button size="sm" variant="outline" id="copyRecruitBtn" data-link={groupSlug ? recruitmentLink : ""} disabled={!groupSlug}>
                             Conteúdo <Copy size={14} class="ml-1" />
                         </Button>
                     </div>
+                    {!groupSlug && (
+                      <p class="recruitment-warning">Defina um grupo para habilitar recrutamento com associação automática.</p>
+                    )}
                 </div>
             </div>
         </Card>
@@ -275,7 +274,9 @@ const formatDate = (dateString: string) => {
                   </td>
                 </tr>
               ) : (
-                recentLeads.map((l) => (
+                recentLeads.map((l) => {
+                  const status = normalizeLeadStatus(l.status);
+                  return (
                   <tr>
                     <td>
                       <div class="lead-info">
@@ -284,37 +285,37 @@ const formatDate = (dateString: string) => {
                         </div>
                         <div class="lead-meta">
                           <strong>{l.nome || "Lead sem nome"}</strong>
-                          <span>{l.telefone || "Sem telefone"}</span>
+                          <span>Contato protegido</span>
                         </div>
                       </div>
                     </td>
                     <td>
-                      {(l.status === "Recebido" ||
-                        !l.status ||
-                        l.status === "pendente" ||
-                        l.status === "PENDENTE") && (
+                      {status === "Recebido" && (
                         <Badge variant="warning">
                           <Clock size={12} /> Recebido
                         </Badge>
                       )}
-                      {l.status === "Em contato" && (
+                      {status === "Em contato" && (
                         <Badge variant="warning">
                           <Clock size={12} /> Em Contato
                         </Badge>
                       )}
-                      {l.status === "Aceito" && (
+                      {status === "Aceito" && (
                         <Badge variant="success">
                           <CircleCheck size={12} /> Aceito
                         </Badge>
                       )}
-                      {(l.status === "Instalado" ||
-                        l.status === "instalado") && (
+                      {status === "Instalado" && (
                         <Badge variant="success">
                           <CircleCheck size={12} /> Instalado
                         </Badge>
                       )}
-                      {(l.status === "Cancelado" ||
-                        l.status === "cancelado") && (
+                      {status === "Pago" && (
+                        <Badge variant="success">
+                          <CircleCheck size={12} /> Pago
+                        </Badge>
+                      )}
+                      {status === "Cancelado" && (
                         <Badge variant="danger">
                           <CircleX size={12} /> Cancelado
                         </Badge>
@@ -337,7 +338,8 @@ const formatDate = (dateString: string) => {
                       </a>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )
             }
           </tbody>
@@ -346,6 +348,7 @@ const formatDate = (dateString: string) => {
     </section>
   </div>
 
+  <!-- Componente de Onboarding -->
   <script>
     // Copiar link
     const copyBtn = document.getElementById("copyBtn");
@@ -384,12 +387,14 @@ const formatDate = (dateString: string) => {
     const recruitBtn = document.getElementById("copyRecruitBtn");
     recruitBtn?.addEventListener("click", () => {
         const url = recruitBtn.getAttribute("data-link");
-        if (url) {
+      if (url) {
             navigator.clipboard.writeText(url).then(() => {
                 const originalText = recruitBtn.innerHTML;
                 recruitBtn.innerHTML = 'Copiado! ✓';
                 setTimeout(() => { recruitBtn.innerHTML = originalText; }, 2000);
             });
+      } else {
+        alert("Link indisponível: este parceiro ainda não está associado a um grupo.");
         }
     });
   </script>
@@ -754,6 +759,12 @@ const formatDate = (dateString: string) => {
     .recruitment-text p {
         color: var(--color-subtle);
         font-size: 0.9rem;
+    }
+    .recruitment-warning {
+      margin-top: 0.45rem;
+      color: #b45309;
+      font-size: 0.78rem;
+      font-weight: 700;
     }
     .badge-new {
         display: inline-block;

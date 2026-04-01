@@ -2,9 +2,20 @@
 import DashboardLayout from "../../layouts/DashboardLayout.astro";
 import { partnerService } from "../../services/partnerService";
 import { getSupabaseServerClient } from "../../lib/supabaseSSR";
+import { formatCPFDisplay, isValidWhatsApp, isValidPixKey, isStrongEnough, sanitizePhone } from "../../utils/validation";
 
 const tenantId = Astro.locals.tenantId;
 const profileId = Astro.locals.profileId;
+
+// Função auxiliar para formatar telefone no servidor
+function formatPhoneDisplay(phone: string): string {
+    const digits = sanitizePhone(phone).slice(0, 11);
+    if (!digits) return '';
+    if (digits.length <= 2) return `(${digits}`;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
 
 if (!tenantId || !profileId) {
     return Astro.redirect("/parceiro/login");
@@ -19,8 +30,11 @@ if (Astro.request.method === "POST") {
 
         if (action === "update_password") {
             const novaSenha = formData.get("nova_senha") as string;
-            if (!novaSenha || novaSenha.length < 6) {
-                throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
+            if (!novaSenha || novaSenha.length < 8) {
+                throw new Error("A nova senha deve ter pelo menos 8 caracteres.");
+            }
+            if (!isStrongEnough(novaSenha)) {
+                throw new Error("Senha fraca. Use letra maiúscula, minúscula e número.");
             }
             
             const supabase = getSupabaseServerClient(Astro.cookies);
@@ -36,9 +50,23 @@ if (Astro.request.method === "POST") {
 
             if (!nome) throw new Error("O nome é obrigatório.");
 
+            // Valida chave PIX se fornecida
+            if (tipo_pix && chave_pix) {
+                if (!isValidPixKey(chave_pix, tipo_pix)) {
+                    throw new Error(`Chave PIX inválida para o tipo '${tipo_pix}'. Verifique o valor informado.`);
+                }
+            }
+
+            const cleanPhone = sanitizePhone(phone);
+
+            // Valida telefone se fornecido
+            if (phone && !isValidWhatsApp(cleanPhone)) {
+                throw new Error("Número de WhatsApp inválido. Use um número brasileiro com DDD e 11 dígitos.");
+            }
+
             await partnerService.updatePartner(tenantId, profileId, {
                 nome,
-                telefone: phone,
+                telefone: cleanPhone || undefined,
                 tipo_pix: tipo_pix || null,
                 chave_pix: chave_pix || null
             });
@@ -126,7 +154,7 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
                         id="phoneInput"
                         name="phone"
                         class="field-input"
-                        value={(partner as any)?.telefone || ""}
+                        value={formatPhoneDisplay((partner as any)?.telefone || "")}
                         placeholder="(00) 90000-0000"
                         autocomplete="tel"
                     />
@@ -135,7 +163,7 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
                     >
                 </div>
 
-                <div class="form-field" style="margin-top: 0.5rem;">
+                <div class="form-field" id="bank" data-onboarding-target="bank-settings" style="margin-top: 0.5rem;">
                     <label class="field-label">Dados Bancários (Para Receber Comissões)</label>
                     <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
                         <select name="tipo_pix" class="field-input">
@@ -198,18 +226,24 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
                         <input type="hidden" name="action" value="update_password" />
                         <div>
                             <strong style="font-size: 1rem; color: var(--color-heading); display: block; margin-bottom: 0.25rem;">Alterar Senha</strong>
-                            <p style="font-size: 0.825rem; color: var(--color-subtle); margin-bottom: 1rem;">Crie uma nova senha segura. Mínimo de 6 caracteres.</p>
+                            <p style="font-size: 0.825rem; color: var(--color-subtle); margin-bottom: 1rem;">Crie uma senha segura: mínimo 8 caracteres, com maiúscula, minúscula e número.</p>
                         </div>
                         <div class="form-field">
                             <input
                                 type="password"
                                 name="nova_senha"
+                                id="novaSenhaInput"
                                 class="field-input"
-                                placeholder="Nova senha"
+                                placeholder="Nova senha (mínimo 8 caracteres)"
                                 required
-                                minlength="6"
+                                minlength="8"
+                                autocomplete="new-password"
                                 style="max-width: 300px;"
                             />
+                            <div style="max-width:300px; height:4px; background:#e5e7eb; border-radius:4px; margin-top:6px; overflow:hidden;">
+                                <div id="cfgStrengthFill" style="height:100%;width:0;transition:width .3s,background .3s;border-radius:4px;"></div>
+                            </div>
+                            <span id="cfgStrengthLabel" style="font-size:0.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:3px;display:block;"></span>
                         </div>
                         <div>
                             <button type="submit" class="btn-save" style="padding: 0.6rem 1.25rem;">
@@ -292,7 +326,49 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
         </div>
     </div>
 
-    <script>
+    <script is:inline>
+        // Máscaras de input para WhatsApp (apenas lógica de eventos)
+        function sanitizePhone(phone) {
+            if (!phone) return '';
+            const digitsOnly = phone.replace(/\D/g, '');
+            if (digitsOnly.length === 13 && digitsOnly.startsWith('55')) {
+                return digitsOnly.slice(2);
+            }
+            return digitsOnly;
+        }
+
+        function formatPhoneDisplay(phone) {
+            const digits = sanitizePhone(phone).slice(0, 11);
+            if (!digits) return '';
+            if (digits.length <= 2) return `(${digits}`;
+            if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+            if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+            return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+        }
+
+        function applyPhoneMask(input) {
+            if (!input) return;
+
+            input.addEventListener('input', function() {
+                const formatted = formatPhoneDisplay(this.value);
+                const raw = sanitizePhone(this.value);
+                this.value = formatted;
+                this.dataset.rawValue = raw;
+            });
+
+            input.addEventListener('blur', function() {
+                this.dataset.rawValue = sanitizePhone(this.value);
+            });
+
+            const form = input.closest('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const rawValue = input.dataset.rawValue || sanitizePhone(input.value);
+                    input.value = rawValue;
+                });
+            }
+        }
+
         // Tabs
         const tabConta = document.getElementById("tabConta");
         const tabSeg = document.getElementById("tabSeguranca");
@@ -327,14 +403,9 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
             panelConta?.classList.add("hidden");
         });
 
-        // O formConta agora faz POST real para o backend, então removemos o e.preventDefault()
-        // O toast de sucesso nativo é renderizado no topo pelo Astro.
-
         // Logout dialog
         const logoutConfirmBtn = document.getElementById("logoutConfirmBtn");
-        const logoutDialog = document.getElementById(
-            "logoutDialog",
-        ) as HTMLDialogElement | null;
+        const logoutDialog = document.getElementById("logoutDialog");
         const cancelLogout = document.getElementById("cancelLogout");
         const confirmLogout = document.getElementById("confirmLogout");
 
@@ -344,12 +415,60 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
         cancelLogout?.addEventListener("click", () => logoutDialog?.close());
         confirmLogout?.addEventListener("click", async () => {
             confirmLogout.textContent = "Saindo...";
-            (confirmLogout as HTMLButtonElement).disabled = true;
+            confirmLogout.disabled = true;
             await fetch("/api/auth/logout", { method: "POST" });
             window.location.href = "/parceiro/login";
         });
         logoutDialog?.addEventListener("click", (e) => {
             if (e.target === logoutDialog) logoutDialog.close();
+        });
+
+        // ── Indicador de força de senha ────────────────────────────────────────
+        const COMMON_PWD = new Set(['12345678','123456789','password','password1',
+            'qwerty123','senha','senha123','brasil','123123','admin','admin123',
+            '00000000','11111111','letmein','welcome','pass1234','master']);
+
+        function pwdStrength(p) {
+            if (!p) return { label: '', color: '' };
+            if (COMMON_PWD.has(p.toLowerCase())) return { label: 'Fraca (comum)', color: '#ef4444' };
+            let s = 0;
+            if (p.length >= 8) s++;
+            if (p.length >= 12) s++;
+            if (/[a-z]/.test(p) && /[A-Z]/.test(p)) s++;
+            if (/[0-9]/.test(p)) s++;
+            if (/[^a-zA-Z0-9]/.test(p)) s++;
+            s = Math.min(4, s);
+            const map = {
+                1: ['Fraca', '#ef4444'], 2: ['Razoável', '#f59e0b'],
+                3: ['Boa', '#3b82f6'],   4: ['Forte', '#10b981'],
+            };
+            return { label: map[s]?.[0] ?? '', color: map[s]?.[1] ?? '' };
+        }
+
+        const novaSenhaEl = document.getElementById('novaSenhaInput');
+        const cfgFill     = document.getElementById('cfgStrengthFill');
+        const cfgLabel    = document.getElementById('cfgStrengthLabel');
+
+        novaSenhaEl?.addEventListener('input', function () {
+            const { label, color } = pwdStrength(this.value);
+            if (cfgFill)  { cfgFill.style.width = label ? ({'Fraca':'25%','Fraca (comum)':'25%','Razoável':'50%','Boa':'75%','Forte':'100%'}[label] ?? '0') : '0'; cfgFill.style.background = color; }
+            if (cfgLabel) { cfgLabel.textContent = label ? `Senha ${label}` : ''; cfgLabel.style.color = color; }
+        });
+
+        // ── Máscara de telefone ─────────────────────────────────────────────────
+        const phoneInputEl = document.getElementById('phoneInput');
+        applyPhoneMask(phoneInputEl);
+
+        // ── PIX placeholder dinâmico ───────────────────────────────────────────
+        const pixTipoEl  = document.querySelector('select[name="tipo_pix"]');
+        const pixChaveEl = document.querySelector('input[name="chave_pix"]');
+        const PIX_PLACEHOLDERS = {
+            cpf: '000.000.000-00', cnpj: '00.000.000/0001-00',
+            telefone: '(00) 90000-0000', email: 'seu@email.com',
+            aleatoria: 'Chave aleatória (UUID)',
+        };
+        pixTipoEl?.addEventListener('change', function () {
+            if (pixChaveEl) pixChaveEl.placeholder = PIX_PLACEHOLDERS[this.value] ?? 'Sua chave PIX';
         });
     </script>
 </DashboardLayout>

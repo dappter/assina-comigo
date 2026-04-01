@@ -13,6 +13,7 @@ export const getSupabaseServerClient = (cookies: AstroCookies) => {
                 set(key: string, value: string, options: any) {
                     cookies.set(key, value, {
                         ...options,
+                        path: "/",
                         secure: import.meta.env.PROD,
                         sameSite: "Lax",
                     });
@@ -20,6 +21,7 @@ export const getSupabaseServerClient = (cookies: AstroCookies) => {
                 remove(key: string, options: any) {
                     cookies.delete(key, {
                         ...options,
+                        path: "/",
                         secure: import.meta.env.PROD,
                         sameSite: "Lax",
                     });

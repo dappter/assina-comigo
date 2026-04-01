@@ -1,4 +1,5 @@
 ---
+import raioLogo from "../../assets/icons/RAIO.png";
 import { partnerService } from "../../services/partnerService";
 import { indicationService } from "../../services/indicationService";
 
@@ -37,7 +38,7 @@ if (Astro.request.method === "POST") {
                     nome: leadNome,
                     telefone,
                     cpf: cpf || "",
-                    status: "PENDENTE",
+                    status: "Recebido",
                 },
             );
 
@@ -155,8 +156,10 @@ if (Astro.request.method === "POST") {
     <!-- Navbar -->
     <nav class="fixed top-0 w-full z-50 bg-primary/95 backdrop-blur-md transition-all duration-300 shadow-xl border-b border-white/10">
         <div class="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto">
-            <div class="text-2xl font-black text-white italic font-headline tracking-tighter flex items-center gap-2">
-                <span class="material-symbols-outlined text-tertiary">bolt</span>
+            <div class="flex items-center gap-3 text-2xl font-black text-white italic font-headline tracking-tighter">
+                <span class="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 shadow-lg shadow-black/20 overflow-hidden">
+                    <img alt="Ligeira" class="h-8 w-8 object-contain" src={raioLogo.src} />
+                </span>
                 Ligeira <span class="text-tertiary">Telecom</span>
             </div>
             <div class="hidden md:flex items-center space-x-10 font-label font-bold text-sm tracking-wide text-white/90">
@@ -317,12 +320,12 @@ if (Astro.request.method === "POST") {
                             
                             <div>
                                 <label for="whatsapp" class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">WhatsApp</label>
-                                <input id="whatsapp" name="whatsapp" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="(00) 00000-0000" type="tel" required/>
+                                <input id="whatsapp" name="whatsapp" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="(00) 00000-0000" inputmode="numeric" type="tel" required/>
                             </div>
 
                             <div>
                                 <label for="cpf" class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">CPF (Opcional)</label>
-                                <input id="cpf" name="cpf" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Para agilizar o cadastro" type="text"/>
+                                <input id="cpf" name="cpf" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Para agilizar o cadastro" inputmode="numeric" type="text"/>
                             </div>
 
                             <div class="md:col-span-2">
@@ -349,6 +352,95 @@ if (Astro.request.method === "POST") {
         </div>
     </section>
 
+    <script is:inline>
+        // Máscaras de input para WhatsApp e CPF
+        function sanitizePhone(phone) {
+            if (!phone) return '';
+            const digitsOnly = phone.replace(/\D/g, '');
+            if (digitsOnly.length === 13 && digitsOnly.startsWith('55')) {
+                return digitsOnly.slice(2);
+            }
+            return digitsOnly;
+        }
+
+        function formatPhoneDisplay(phone) {
+            const digits = sanitizePhone(phone).slice(0, 11);
+            if (!digits) return '';
+            if (digits.length <= 2) return `(${digits}`;
+            if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+            if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+            return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+        }
+
+        function sanitizeCPF(cpf) {
+            if (!cpf) return '';
+            return cpf.replace(/\D/g, '');
+        }
+
+        function formatCPFDisplay(cpf) {
+            const digits = sanitizeCPF(cpf).slice(0, 11);
+            if (!digits) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+            if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+            return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+        }
+
+        function applyPhoneMask(input) {
+            if (!input) return;
+
+            input.addEventListener('input', function() {
+                const formatted = formatPhoneDisplay(this.value);
+                const raw = sanitizePhone(this.value);
+                this.value = formatted;
+                this.dataset.rawValue = raw;
+            });
+
+            input.addEventListener('blur', function() {
+                this.dataset.rawValue = sanitizePhone(this.value);
+            });
+
+            const form = input.closest('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const rawValue = input.dataset.rawValue || sanitizePhone(input.value);
+                    input.value = rawValue;
+                });
+            }
+        }
+
+        function applyCPFMask(input) {
+            if (!input) return;
+
+            input.addEventListener('input', function() {
+                const formatted = formatCPFDisplay(this.value);
+                const raw = sanitizeCPF(this.value);
+                this.value = formatted;
+                this.dataset.rawValue = raw;
+            });
+
+            input.addEventListener('blur', function() {
+                this.dataset.rawValue = sanitizeCPF(this.value);
+            });
+
+            const form = input.closest('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    const rawValue = input.dataset.rawValue || sanitizeCPF(input.value);
+                    input.value = rawValue;
+                });
+            }
+        }
+
+        // Aplica máscaras quando o DOM estiver pronto
+        document.addEventListener('DOMContentLoaded', function() {
+            const whatsappInput = document.getElementById("whatsapp");
+            const cpfInput = document.getElementById("cpf");
+            applyPhoneMask(whatsappInput);
+            applyCPFMask(cpfInput);
+        });
+    </script>
+
     <!-- Become a Partner CTA Section -->
     <section class="py-16 relative bg-primary border-t-0">
         <div class="max-w-4xl mx-auto px-6 text-center">
@@ -371,7 +463,7 @@ if (Astro.request.method === "POST") {
         <div class="flex flex-col md:flex-row justify-between items-center px-8 max-w-7xl mx-auto">
             <div class="mb-8 md:mb-0 flex flex-col items-center md:text-left">
                 <div class="text-2xl font-black text-slate-900 italic font-headline mb-2 flex items-center justify-center md:justify-start gap-2">
-                    <span class="material-symbols-outlined text-tertiary">bolt</span>Ligeira Telecom
+                    <img alt="Ligeira" class="h-8 w-8 object-contain" src={raioLogo.src} /> Ligeira Telecom
                 </div>
                 <p class="text-on-surface-variant font-body text-sm max-w-sm text-center md:text-left">A velocidade da luz em suas mãos. Conexão confiável para os momentos que importam.</p>
             </div>

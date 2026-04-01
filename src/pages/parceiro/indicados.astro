@@ -4,6 +4,7 @@ import Badge from "../../components/ui/Badge.astro";
 import { ChevronRight, CircleCheck, Clock, CircleX } from "@lucide/astro";
 import { indicationService } from "../../services/indicationService";
 import { partnerService } from "../../services/partnerService";
+import { normalizeLeadStatus } from "../../utils/leadStatus";
 
 const tenantId = Astro.locals.tenantId;
 const profileId = Astro.locals.profileId;
@@ -12,44 +13,32 @@ if (!tenantId || !profileId) {
     return Astro.redirect("/parceiro/login");
 }
 
-const partner = await partnerService.getPartnerById(tenantId, profileId);
-const userName = partner?.nome || "Parceiro";
-const userAvatar = userName.substring(0, 2).toUpperCase();
-
 const url = new URL(Astro.request.url);
 const searchQ = url.searchParams.get("q") || "";
-// Opcional: filtro de status
 
-const allLeadsRaw = await indicationService.getIndications(tenantId, profileId);
+const [partner, allLeadsRaw] = await Promise.all([
+    partnerService.getPartnerById(tenantId, profileId),
+    indicationService.getIndications(tenantId, profileId)
+]);
+
+const userName = partner?.nome || "Parceiro";
+const userAvatar = userName.substring(0, 2).toUpperCase();
 // Simple in-memory search
 const allLeads = searchQ
     ? allLeadsRaw.filter(
           (l) =>
-              l.nome.toLowerCase().includes(searchQ.toLowerCase()) ||
-              (l.telefone && l.telefone.includes(searchQ)),
+                            l.nome.toLowerCase().includes(searchQ.toLowerCase()),
       )
     : allLeadsRaw;
 
 const statsLocal = {
     todos: allLeadsRaw.length,
-    pendentes: allLeadsRaw.filter(
-        (l) =>
-            l.status === "Recebido" ||
-            l.status === "Em contato" ||
-            !l.status ||
-            l.status === "pendente" ||
-            l.status === "PENDENTE",
-    ).length,
-    aceitos: allLeadsRaw.filter((l) => l.status === "Aceito").length,
-    instalados: allLeadsRaw.filter(
-        (l) => l.status === "Instalado" || l.status === "instalado",
-    ).length,
-    pagos: allLeadsRaw.filter(
-        (l) => l.status === "Pago" || l.status === "PAGO",
-    ).length,
-    nao_viaveis: allLeadsRaw.filter(
-        (l) => l.status === "Cancelado" || l.status === "cancelado",
-    ).length,
+    recebidos: allLeadsRaw.filter((l) => normalizeLeadStatus(l.status) === "Recebido").length,
+    emContato: allLeadsRaw.filter((l) => normalizeLeadStatus(l.status) === "Em contato").length,
+    aceitos: allLeadsRaw.filter((l) => normalizeLeadStatus(l.status) === "Aceito").length,
+    instalados: allLeadsRaw.filter((l) => normalizeLeadStatus(l.status) === "Instalado").length,
+    pagos: allLeadsRaw.filter((l) => normalizeLeadStatus(l.status) === "Pago").length,
+    nao_viaveis: allLeadsRaw.filter((l) => normalizeLeadStatus(l.status) === "Cancelado").length,
 };
 
 const formatDate = (dateString: string) => {
@@ -130,7 +119,7 @@ const formatDate = (dateString: string) => {
                 >
                 <input
                     type="text"
-                    placeholder="Buscar por nome ou WhatsApp..."
+                    placeholder="Buscar por nome..."
                     class="search-input"
                     id="searchInput"
                     value={searchQ}
@@ -154,7 +143,7 @@ const formatDate = (dateString: string) => {
                     class="pill"
                     data-filter="pendentes"
                     aria-pressed="false"
-                    >Pendentes ({statsLocal.pendentes})</button
+                    >Recebidos ({statsLocal.recebidos})</button
                 >
                 <button class="pill" data-filter="aceitos" aria-pressed="false"
                     >Aceitos ({statsLocal.aceitos})</button
@@ -181,7 +170,7 @@ const formatDate = (dateString: string) => {
         </section>
 
         <!-- Leads Table / Grid -->
-        <div class="table-container">
+        <div class="table-container" data-onboarding-target="indications-table">
             <table class="leads-table" id="leadsTable">
                 <thead>
                     <tr>
@@ -230,12 +219,11 @@ const formatDate = (dateString: string) => {
                         ) : (
                             allLeads.map((l) => {
                                 const dateInfo = formatDate(l.created_at);
-                                const statusVal = l.status || "Recebido";
+                                const statusVal = normalizeLeadStatus(l.status);
                                 return (
                                     <tr
                                         data-status={statusVal}
                                         data-nome={l.nome.toLowerCase()}
-                                        data-telefone={l.telefone || ""}
                                     >
                                         <td>
                                             <div class="lead-info">
@@ -247,8 +235,7 @@ const formatDate = (dateString: string) => {
                                                         {l.nome}
                                                     </span>
                                                     <span class="lead-whatsapp">
-                                                        {l.telefone ||
-                                                            "Sem telefone"}
+                                                        Contato protegido
                                                     </span>
                                                 </div>
                                             </div>
@@ -306,42 +293,36 @@ const formatDate = (dateString: string) => {
                                             </div>
                                         </td>
                                         <td>
-                                            {(l.status === "Recebido" ||
-                                                !l.status ||
-                                                l.status === "pendente" ||
-                                                l.status === "PENDENTE") && (
+                                            {statusVal === "Recebido" && (
                                                 <Badge variant="warning">
                                                     <Clock size={12} /> Recebido
                                                 </Badge>
                                             )}
-                                            {l.status === "Em contato" && (
+                                            {statusVal === "Em contato" && (
                                                 <Badge variant="warning">
                                                     <Clock size={12} /> Em
                                                     Contato
                                                 </Badge>
                                             )}
-                                            {l.status === "Aceito" && (
+                                            {statusVal === "Aceito" && (
                                                 <Badge variant="success">
                                                     <CircleCheck size={12} />{" "}
                                                     Aceito
                                                 </Badge>
                                             )}
-                                            {(l.status === "Instalado" ||
-                                                l.status === "instalado") && (
+                                            {statusVal === "Instalado" && (
                                                 <Badge variant="success">
                                                     <CircleCheck size={12} />{" "}
                                                     Instalado
                                                 </Badge>
                                             )}
-                                            {(l.status === "Pago" ||
-                                                l.status === "PAGO") && (
+                                            {statusVal === "Pago" && (
                                                 <Badge variant="success">
                                                     <CircleCheck size={12} />{" "}
                                                     Pago
                                                 </Badge>
                                             )}
-                                            {(l.status === "Cancelado" ||
-                                                l.status === "cancelado") && (
+                                            {statusVal === "Cancelado" && (
                                                 <Badge variant="danger">
                                                     <CircleX size={12} />{" "}
                                                     Cancelado
@@ -398,12 +379,10 @@ const formatDate = (dateString: string) => {
         rows?.forEach((row) => {
             const status = row.dataset.status?.toLowerCase() || "";
             const nome = row.dataset.nome || "";
-            const tel = row.dataset.telefone || "";
 
             const matchSearch =
                 !currentSearch ||
-                nome.includes(currentSearch) ||
-                tel.includes(currentSearch);
+                nome.includes(currentSearch);
             const matchFilter =
                 currentFilter === "todos" ||
                 (currentFilter === "pendentes" &&

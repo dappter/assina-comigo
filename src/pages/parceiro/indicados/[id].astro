@@ -3,7 +3,8 @@ import DashboardLayout from "../../../layouts/DashboardLayout.astro";
 import Badge from "../../../components/ui/Badge.astro";
 import { indicationService } from "../../../services/indicationService";
 import { partnerService } from "../../../services/partnerService";
-import { CircleCheck, Clock, CircleX, ArrowLeft, Phone } from "@lucide/astro";
+import { normalizeLeadStatus } from "../../../utils/leadStatus";
+import { CircleCheck, Clock, CircleX, ArrowLeft } from "@lucide/astro";
 
 const tenantId = Astro.locals.tenantId;
 const profileId = Astro.locals.profileId;
@@ -15,14 +16,15 @@ if (!tenantId || !profileId) {
 const { id } = Astro.params;
 if (!id) return Astro.redirect("/parceiro/indicados");
 
-const partner = await partnerService.getPartnerById(tenantId, profileId);
-const userName = partner?.nome || "Parceiro";
-const userAvatar = userName.substring(0, 2).toUpperCase();
-
-const leads = await indicationService.getIndications(tenantId, profileId);
-const lead = leads.find((l) => l.id === id);
+const [partner, lead] = await Promise.all([
+    partnerService.getPartnerById(tenantId, profileId),
+    indicationService.getIndicationById(tenantId, profileId, id)
+]);
 
 if (!lead) return Astro.redirect("/parceiro/indicados");
+
+const userName = partner?.nome || "Parceiro";
+const userAvatar = userName.substring(0, 2).toUpperCase();
 
 const formatDateFull = (d: string) =>
     new Date(d).toLocaleDateString("pt-BR", {
@@ -35,9 +37,11 @@ const formatDateFull = (d: string) =>
 
 /** Ordem dos status para a timeline */
 const STATUS_ORDER = ["Recebido", "Em contato", "Aceito", "Instalado", "Pago"];
-const normalizedStatus = lead.status === "PAGO" || lead.status === "pago" ? "Pago" : (lead.status || "Recebido");
+const normalizedStatus = normalizeLeadStatus(lead.status);
 const currentStatusIndex = STATUS_ORDER.indexOf(normalizedStatus);
-const isCancelled = lead.status === "Cancelado";
+const isCancelled = normalizedStatus === "Cancelado";
+const safeStatusIndex = currentStatusIndex >= 0 ? currentStatusIndex : 0;
+const nextStatusLabel = STATUS_ORDER[safeStatusIndex + 1] || "Finalizado";
 ---
 
 <DashboardLayout
@@ -66,18 +70,6 @@ const isCancelled = lead.status === "Cancelado";
             <div class="lead-header-info">
                 <h1 class="lead-name">{lead.nome}</h1>
                 <div class="lead-meta-row">
-                    {
-                        lead.telefone && (
-                            <a
-                                href={`tel:${lead.telefone}`}
-                                class="meta-chip phone-chip"
-                                aria-label="Ligar para indicado"
-                            >
-                                <Phone size={14} />
-                                {lead.telefone}
-                            </a>
-                        )
-                    }
                     <span class="meta-chip date-chip">
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -107,37 +99,42 @@ const isCancelled = lead.status === "Cancelado";
             </div>
             <div class="lead-header-status">
                 {
-                    lead.status === "Instalado" && (
+                    normalizedStatus === "Instalado" && (
                         <Badge variant="success">
                             <CircleCheck size={14} /> Instalado
                         </Badge>
                     )
                 }
                 {
-                    (lead.status === "Recebido" ||
-                        lead.status === "Em contato" ||
-                        !lead.status) && (
+                    normalizedStatus === "Recebido" && (
                         <Badge variant="warning">
-                            <Clock size={14} /> Em Análise
+                            <Clock size={14} /> Recebido
                         </Badge>
                     )
                 }
                 {
-                    lead.status === "Aceito" && (
+                    normalizedStatus === "Em contato" && (
+                        <Badge variant="warning">
+                            <Clock size={14} /> Em Contato
+                        </Badge>
+                    )
+                }
+                {
+                    normalizedStatus === "Aceito" && (
                         <Badge variant="success">
                             <CircleCheck size={14} /> Aceito
                         </Badge>
                     )
                 }
                 {
-                    (lead.status === "Pago" || lead.status === "PAGO") && (
+                    normalizedStatus === "Pago" && (
                         <Badge variant="success">
                             <CircleCheck size={14} /> Pago
                         </Badge>
                     )
                 }
                 {
-                    isCancelled && (
+                    normalizedStatus === "Cancelado" && (
                         <Badge variant="danger">
                             <CircleX size={14} /> Não Viável
                         </Badge>
@@ -199,27 +196,25 @@ const isCancelled = lead.status === "Cancelado";
 
         <!-- Resumo dos dados -->
         <section class="data-card">
-            <h2 class="card-section-title">Dados do Indicado</h2>
+            <h2 class="card-section-title">Resumo da Jornada</h2>
             <div class="data-grid">
                 <div class="data-item">
-                    <span class="data-label">Nome</span>
-                    <span class="data-value">{lead.nome}</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">WhatsApp</span>
-                    <span class="data-value">{lead.telefone || "—"}</span>
-                </div>
-                <div class="data-item">
-                    <span class="data-label">CPF</span>
-                    <span class="data-value"
-                        >{
-                            lead.cpf ? `***.***.***-${lead.cpf.slice(-2)}` : "—"
-                        }</span
-                    >
-                </div>
-                <div class="data-item">
                     <span class="data-label">Status atual</span>
-                    <span class="data-value">{lead.status || "Recebido"}</span>
+                    <span class={`data-value status-pill status-${normalizedStatus.toLowerCase().replace(/\s+/g, "-")}`}>
+                        {normalizedStatus}
+                    </span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Próxima etapa</span>
+                    <span class="data-value">{nextStatusLabel}</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Origem</span>
+                    <span class="data-value">Link do parceiro</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Visibilidade</span>
+                    <span class="data-value">Dados pessoais protegidos</span>
                 </div>
             </div>
         </section>
@@ -229,23 +224,21 @@ const isCancelled = lead.status === "Cancelado";
             <h2 class="card-section-title">Comissão</h2>
             <div class="commission-info">
                 <div class="commission-status">
-                    {
-                        (lead.status === "Instalado" || lead.status === "Pago" || lead.status === "PAGO") ? (
-                            <span class="comm-badge success">
-                                {lead.status === "Pago" || lead.status === "PAGO" ? "Comissão Paga ✓" : "Comissão gerada ✓"}
-                            </span>
-                        ) : (
-                            <span class="comm-badge pending">
-                                Pendente de instalação
-                            </span>
-                        )
-                    }
+                    {normalizedStatus === "Pago" ? (
+                        <span class="comm-badge success">Comissão Paga ✓</span>
+                    ) : normalizedStatus === "Instalado" ? (
+                        <span class="comm-badge success">Comissão gerada ✓</span>
+                    ) : (
+                        <span class="comm-badge pending">
+                            Pendente de instalação
+                        </span>
+                    )}
                 </div>
                 <p class="commission-desc">
                     {
-                        (lead.status === "Pago" || lead.status === "PAGO")
+                        normalizedStatus === "Pago"
                             ? "Sua comissão já foi paga! Verifique seu extrato e o comprovante na aba de Ganhos."
-                            : lead.status === "Instalado"
+                            : normalizedStatus === "Instalado"
                                 ? "Sua comissão foi ou será processada em breve. Acesse a aba Ganhos para mais detalhes."
                                 : 'A comissão é gerada automaticamente quando este lead atingir o status "Instalado".'
                     }

@@ -1,6 +1,7 @@
 import { supabaseAdmin as supabase } from '../lib/supabaseAdmin';
 import { sanitizePhone, sanitizeCPF } from '../utils/validation';
 import { logError } from '../utils/logger';
+import { normalizeLeadStatus } from '../utils/leadStatus';
 
 export interface Lead {
     id: string;
@@ -34,6 +35,38 @@ export const indicationService = {
         return data || [];
     },
 
+    async getRecentIndications(tenantId: string, parceiroId: string, limitVal: number = 5): Promise<Lead[]> {
+        const { data, error } = await supabase
+            .from('leads')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .eq('parceiro_id', parceiroId)
+            .order('created_at', { ascending: false })
+            .limit(limitVal);
+
+        if (error) {
+            console.error('Error fetching recent indications:', error);
+            throw error;
+        }
+        return data || [];
+    },
+
+    async getIndicationById(tenantId: string, parceiroId: string, leadId: string): Promise<Lead | null> {
+        const { data, error } = await supabase
+            .from('leads')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .eq('parceiro_id', parceiroId)
+            .eq('id', leadId)
+            .single();
+
+        if (error && error.code !== 'PGRST116') {
+            console.error('Error fetching indication by ID:', error);
+            throw error;
+        }
+        return data || null;
+    },
+
     async createIndication(
         tenantId: string,
         leadData: Omit<Lead, 'id' | 'created_at' | 'tenant_id'>
@@ -42,7 +75,8 @@ export const indicationService = {
         const sanitizedData = {
             ...leadData,
             cpf: sanitizeCPF(leadData.cpf || ""),
-            telefone: sanitizePhone(leadData.telefone || "")
+            telefone: sanitizePhone(leadData.telefone || ""),
+            status: 'Recebido'
         };
 
         const { data, error } = await supabase
@@ -76,14 +110,16 @@ export const indicationService = {
             throw error;
         }
 
+        const normalizedStatuses = (data || []).map((item) => normalizeLeadStatus(item.status));
+
         const stats = {
             total: data?.length || 0,
-            recebidas: data?.filter(l => l.status === 'Recebido' || l.status === 'PENDENTE' || l.status === 'pendente' || !l.status) || [],
-            emContato: data?.filter(l => l.status === 'Em contato') || [],
-            aceitas: data?.filter(l => l.status === 'Aceito') || [],
-            instaladas: data?.filter(l => l.status === 'Instalado') || [],
-            pagos: data?.filter(l => l.status === 'Pago' || l.status === 'PAGO') || [],
-            canceladas: data?.filter(l => l.status === 'Cancelado') || [],
+            recebidas: (data || []).filter((_, idx) => normalizedStatuses[idx] === 'Recebido'),
+            emContato: (data || []).filter((_, idx) => normalizedStatuses[idx] === 'Em contato'),
+            aceitas: (data || []).filter((_, idx) => normalizedStatuses[idx] === 'Aceito'),
+            instaladas: (data || []).filter((_, idx) => normalizedStatuses[idx] === 'Instalado'),
+            pagos: (data || []).filter((_, idx) => normalizedStatuses[idx] === 'Pago'),
+            canceladas: (data || []).filter((_, idx) => normalizedStatuses[idx] === 'Cancelado'),
         };
 
         return stats;

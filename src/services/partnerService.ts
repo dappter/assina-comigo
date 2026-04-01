@@ -19,6 +19,7 @@ export interface Profile {
     saldo_pontos?: number;
     grupo?: {
         nome: string;
+        slug?: string;
         tipo_remuneracao?: 'dinheiro' | 'pontos';
         valor_recompensa: number;
         meta_vendas: number;
@@ -34,7 +35,7 @@ export const partnerService = {
     async getPartners(tenantId: string): Promise<Profile[]> {
         const { data, error } = await supabase
             .from('profiles')
-            .select('*, grupo:grupos_parceiros(nome, valor_recompensa, tipo_remuneracao, meta_vendas, descricao)')
+            .select('*, grupo:grupos_parceiros(nome, slug, valor_recompensa, tipo_remuneracao, meta_vendas, descricao)')
             .eq('tenant_id', tenantId)
             .eq('tipo_usuario', 'parceiro')
             .order('created_at', { ascending: false });
@@ -52,7 +53,7 @@ export const partnerService = {
     async getPartnerById(tenantId: string, partnerId: string): Promise<Profile | null> {
         const { data, error } = await supabase
             .from('profiles')
-            .select('*, grupo:grupos_parceiros(nome, valor_recompensa, tipo_remuneracao, meta_vendas, descricao)')
+            .select('*, grupo:grupos_parceiros(nome, slug, valor_recompensa, tipo_remuneracao, meta_vendas, descricao)')
             .eq('tenant_id', tenantId)
             .eq('id', partnerId)
             .single();

@@ -10,9 +10,12 @@ if (!tenantId || !profileId) {
     return Astro.redirect("/parceiro/login");
 }
 
-const rewards = await rewardService.getRewards(tenantId, profileId);
-const stats = await rewardService.getRewardStats(tenantId, profileId);
-const partner = await partnerService.getPartnerById(tenantId, profileId);
+const [rewards, stats, partner] = await Promise.all([
+    rewardService.getRewards(tenantId, profileId),
+    rewardService.getRewardStats(tenantId, profileId),
+    partnerService.getPartnerById(tenantId, profileId)
+]);
+
 const userName = partner?.nome || "Parceiro";
 const userAvatar = userName.substring(0, 2).toUpperCase();
 
@@ -66,7 +69,7 @@ const statusClass = (status: string | null) => {
             <p>Visualize seus valores pagos e pendentes.</p>
         </header>
 
-        <section class="summary-grid">
+        <section class="summary-grid" data-onboarding-target="earnings-summary">
             <article class="summary-card total">
                 <span>Ganhos Totais</span>
                 <strong>{formatBR(stats.total)}</strong>
