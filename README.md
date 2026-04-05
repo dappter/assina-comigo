@@ -1,103 +1,110 @@
 <div align="center">
-  <img src="https://ui-avatars.com/api/?name=Ligeira+Telecom&background=6028FF&color=FFFFFF&size=150&rounded=true" alt="Logo Ligeira Telecom"/>
+  <img src="https://ui-avatars.com/api/?name=Assina+Comigo&background=6028FF&color=FFFFFF&size=200&rounded=false&bold=true" width="100" alt="Assina Comigo Logo"/>
   <br/>
-  <h1>🚀 Assina Comigo - Ligeira Telecom</h1>
-  <p><b>Plataforma de Indicação e Gestão de Vendas Premium para Provedores de Internet.</b></p>
-
-  <p>
-    <img src="https://img.shields.io/badge/Astro-0C1120?style=for-the-badge&logo=astro&logoColor=white" alt="Astro"/>
-    <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind"/>
-    <img src="https://img.shields.io/badge/Supabase-181818?style=for-the-badge&logo=supabase&logoColor=3ECF8E" alt="Supabase"/>
-    <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TS"/>
-  </p>
+  
+  # 🚀 Assina Comigo - Ligeira Telecom
+  
+  [![Vercel Deploy](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/)
+  [![Supabase Powered](https://img.shields.io/badge/Supabase-181818?style=for-the-badge&logo=supabase&logoColor=3ECF8E)](https://supabase.com/)
+  [![Astro Framework](https://img.shields.io/badge/Astro-0C1120?style=for-the-badge&logo=astro&logoColor=white)](https://astro.build/)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+  
+  **Transformando indicações em assinaturas com a velocidade da Ligeira Telecom.**
+  
+  [Visão Geral](#-visão-geral) • [Funcionalidades](#-funcionalidades-premium) • [Stack](#-stack-tecnológica) • [Segurança](#-segurança--arquitetura) • [Instalação](#-instalação)
 </div>
 
 ---
 
 ## 📖 Visão Geral
 
-O **Assina Comigo** é uma solução *SaaS Multi-tenant* de alta performance projetada para a **Ligeira Telecom**. O sistema automatiza o ciclo completo de indicações: desde o link de convite do parceiro até a instalação e o pagamento de comissões, com foco total em **conversão** e **segurança**.
+O **Assina Comigo** é uma plataforma inovadora de indicações para provedores de internet, focada no crescimento acelerado da **Ligeira Telecom**. Construído com uma arquitetura **Multi-tenant** robusta, o sistema permite que parceiros e vendedores colaborem de forma segura e eficiente para expandir a base de clientes no Cariri.
 
-### 🌟 Diferenciais Premium
-*   **Design de Alto Impacto**: Interface moderna com transparências (glassmorphism) e animações fluidas.
-*   **Inteligência de Localização**: Validação automática de CEP com trava regional para o **Cariri (CE)**.
-*   **Gestão Unificada**: Admin e Vendedores compartilham o mesmo ecossistema com permissões inteligentes.
-*   **Segurança Militar**: Row Level Security (RLS) no Supabase garante o isolamento total de dados.
+### 🌟 Diferenciais da V1.2.2
+- **Dashboard Integrado**: Vendedores e Admin unificados em uma única experiência de gestão.
+- **Inteligência Cariri**: Validação geográfica automática para Juazeiro, Crato e Barbalha.
+- **Google OAuth Fix**: Recuperação de sessão e troca de PKCE estabilizada para ambientes Vercel.
+- **Cookie Resilience**: Persistência de login entre subdomínios (www vs naked domain).
+
+---
+
+## ✨ Funcionalidades Premium
+
+### 🏢 Gestão de Leads e Vendas
+- **Funil em Tempo Real**: Visualize o status de cada instalação instantaneamente.
+- **Auditoria Administrativa**: Controle total sobre as operações da equipe de vendas no mesmo dashboard.
+- **Cards Dinâmicos**: KPIs que funcionam como atalhos para navegação rápida.
+
+### 📍 Experiência do Parceiro (Landing Pages)
+- **Auto-fill de Endereço**: Integração ViaCEP para preenchimento zero-erro.
+- **Validação Regional**: Filtro estrito baseado no CEP para garantir lead qualificado.
+- **UX Gamificada**: Uso de micro-animações e paleta Ligeira Premium para conversão máxima.
 
 ---
 
 ## 🛠️ Stack Tecnológica
 
-| Camada | Tecnologia |
+| Camada | Ferramentas |
 | :--- | :--- |
-| **Frontend** | [Astro](https://astro.build/) + [JavaScript](https://developer.mozilla.org/pt-BR/docs/Web/JavaScript) |
-| **Estilização** | [Tailwind CSS](https://tailwindcss.com/) (Vanilla CSS para componentes core) |
-| **Backend/DB** | [Supabase](https://supabase.com/) (PostgreSQL + Auth + Storage) |
-| **Infra** | [Vercel](https://vercel.com/) |
-| **Automação** | [n8n](https://n8n.io/) |
+| **Núcleo** | Astro 4.0 (SSR), TypeScript, JavaScript |
+| **Estética** | Tailwind CSS (Visual Glassmorphism), Lucide Icons |
+| **Backend** | Supabase (PostgreSQL, Auth PKCE, Storage) |
+| **Segurança** | Row Level Security (RLS), Tenant Isolation |
+| **Infra** | Vercel (Edge Functions, SSR Hosting) |
 
 ---
 
-## 🚀 Novidades das últimas versões
+## 🔒 Segurança & Arquitetura
 
-### 📦 Módulo de Vendas Integrado
-Integramos o dashboard de vendedores diretamente ao painel administrativo. 
-*   **Acesso Unificado**: Administradores podem auditar e gerenciar a equipe de vendas sem trocar de conta.
-*   **Cards Interativos**: KPIs do dashboard agora são atalhos diretos para as ferramentas de gestão.
+Nossa base tecnológica segue princípios rigorosos de proteção de dados:
 
-### 📍 Validação Geo-Localizada (Cariri)
-Aprimoramos o formulário de indicação para garantir que apenas leads viáveis sejam capturados:
-*   **Auto-CEP**: Preenchimento automático de logradouro e bairro via API.
-*   **Filtro Regional**: Restrição estrita para as cidades de **Juazeiro do Norte**, **Crato** e **Barbalha**. Leads fora dessa zona são alertados instantaneamente.
+- **Isolamento de Tenants**: Cada dado é blindado por um `tenant_id` em nível de banco de dados.
+- **Zero Leak Policy**: Configuração estrita de `.gitignore` e gestão de segredos via Vercel Edge.
+- **Auth Moderno**: Implementação de fluxos PKCE para evitar interceptação de tokens.
+- **Documentação de IA**: O projeto utiliza agentes especializados (`.agents/skills`) para garantir que novos códigos sigam as regras de segurança estabelecidas.
 
 ---
 
-## 📂 Estrutura do Projeto
+## 📂 Estrutura de Diretórios
 
 ```bash
 📦 assina-comigo
- ┣ 📂 .agents         # Inteligência e regras estritas da IA (Arquitetura e Segurança).
- ┣ 📂 src             # Código-fonte da aplicação.
- ┃ ┣ 📂 pages         # Rotas (Admin, Parceiro, Vendedor, Landing Pages).
- ┃ ┣ 📂 services      # Camada de lógica de negócio e integração DB.
- ┃ ┣ 📂 layouts       # Estruturas padrão (AdminLayout, PublicLayout).
- ┃ ┗ 📂 components    # Componentes de UI reutilizáveis.
- ┣ 📂 supabase        # Migrations e políticas RLS.
- ┗ 📜 README.md       # Esta documentação.
+ ┣ 📂 .agents         # Documentação e regras para a IA (Skills)
+ ┣ 📂 src             # O coração da aplicação
+ ┃ ┣ 📂 pages         # Rotas SSR (Public, Admin, Parceiro, Vendedor)
+ ┃ ┣ 📂 services      # Lógica de integração e regras de negócio
+ ┃ ┣ 📂 layouts       # Estruturas de página (Master Layouts)
+ ┃ ┗ 📂 components    # UI Atomic components
+ ┣ 📂 supabase        # Esquemas de banco e políticas RLS
+ ┗ 📜 README.md       # Você está aqui
 ```
 
 ---
 
-## 🔒 Security First (ISO/OWASP inspired)
+## ⚙️ Instalação
 
-Este projeto foi construído sob uma arquitetura de segurança rígida:
-*   **Zero Leak Policy**: Todos os secrets de banco e chaves de API são gerenciados via variáveis de ambiente (`.env`), com `gitignore` configurado para impedir uploads acidentais.
-*   **Isolamento RLS**: Políticas de *Row Level Security* aplicadas via PostgreSQL garantem que usuários de diferentes empresas (Tenants) nunca vejam dados uns dos outros.
-*   **Sanitização Proativa**: Validação de dados (CPF, Telefone, CEP) tanto no backend quanto no frontend para evitar injeções ou lixo na base de dados.
+1. **Clone e Instale**
+   ```bash
+   git clone https://github.com/vendedor/assina-comigo.git
+   cd assina-comigo
+   npm install
+   ```
 
----
+2. **Variáveis de Ambiente** (`.env`)
+   ```env
+   PUBLIC_SUPABASE_URL=seu_url
+   PUBLIC_SUPABASE_ANON_KEY=seu_key
+   SUPABASE_SERVICE_ROLE=seu_secret
+   ```
 
-## ⚙️ Instalação e Desenvolvimento
-
-1.  **Clone o repositório**:
-    ```bash
-    git clone https://github.com/vendedor/assina-comigo.git
-    ```
-2.  **Instale as dependências**:
-    ```bash
-    npm install
-    ```
-3.  **Configure o Ambiente**:
-    Crie um arquivo `.env` com suas credenciais do Supabase.
-4.  **Inicie o ambiente de desenvolvimento**:
-    ```bash
-    npm run dev
-    ```
+3. **Rodar em Desenvolvimento**
+   ```bash
+   npm run dev
+   ```
 
 ---
 
 <div align="center">
-  <p>Desenvolvido com ❤️ para a <b>Ligeira Telecom</b>. Focado em velocidade e conversão.</p>
-  <img src="https://forthebadge.com/images/featured/featured-built-with-love.svg" alt="Built with love"/>
-  <img src="https://forthebadge.com/images/featured/featured-prouder-than-ever.svg" alt="Prouder than ever"/>
+  <p>Construído por <b>Ligeira Telecom</b> & Antigravity</p>
+  <img src="https://img.shields.io/badge/Made%20with-Passion-red?style=for-the-badge" alt="Made with Passion"/>
 </div>

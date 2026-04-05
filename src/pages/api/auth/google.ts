@@ -3,9 +3,15 @@ import { getSupabaseServerClient } from '../../../lib/supabaseSSR';
 import { logger } from '../../../utils/logger';
 
 export const GET: APIRoute = async ({ request, url, cookies, redirect }) => {
-    const host = request.headers.get("host") || url.host;
+    // Tenta obter o host do header ou da URL, priorizando x-forwarded-host (Vercel)
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || url.host;
     const proto = request.headers.get("x-forwarded-proto") || (url.protocol?.replace(":", "") || "http");
-    const finalProto = host.includes("localhost") || host.includes("127.0.0.1") ? proto : "https";
+    
+    // Força HTTPS em produção (fora de localhost)
+    const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1") || host.includes("0.0.0.0");
+    const finalProto = isLocalhost ? proto : "https";
+    
+    // Constrói a origem absoluta de forma segura
     const origin = `${finalProto}://${host}`;
 
     const modeField = url.searchParams.get("mode") || "login";
@@ -14,7 +20,9 @@ export const GET: APIRoute = async ({ request, url, cookies, redirect }) => {
 
     const supabaseSSR = getSupabaseServerClient(cookies);
 
-    let callbackUrl = `${origin}/api/auth/callback?next=/parceiro/dashboard`;
+    // Constrói o callback apontando sempre para o domínio de origem
+    const callbackPath = "/api/auth/callback";
+    let callbackUrl = `${origin}${callbackPath}?next=/parceiro/dashboard`;
     if (modeField === "register" && grupoId) {
         callbackUrl += `&grupo_id=${grupoId}`;
         if (tenantId) callbackUrl += `&tenant_id=${tenantId}`;
