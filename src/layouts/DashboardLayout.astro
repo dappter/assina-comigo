@@ -26,8 +26,9 @@ const isActive = (path: string) =>
   pathname === path || pathname.startsWith(path + "/");
 
 let latestNotificationAt = "";
+let needsPix = false;
 if (tenantId && profileId) {
-  const [{ data: latestLead }, { data: latestComissao }] = await Promise.all([
+  const [{ data: latestLead }, { data: latestComissao }, { data: profile }] = await Promise.all([
     supabaseAdmin
       .from("leads")
       .select("created_at")
@@ -44,6 +45,11 @@ if (tenantId && profileId) {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabaseAdmin
+      .from("profiles")
+      .select("chave_pix")
+      .eq("id", profileId)
+      .maybeSingle()
   ]);
 
   const leadTs = latestLead?.created_at ? new Date(latestLead.created_at).getTime() : 0;
@@ -52,6 +58,7 @@ if (tenantId && profileId) {
     : 0;
   const maxTs = Math.max(leadTs, comissaoTs);
   latestNotificationAt = maxTs > 0 ? new Date(maxTs).toISOString() : "";
+  needsPix = !profile?.chave_pix;
 }
 ---
 
@@ -71,8 +78,13 @@ if (tenantId && profileId) {
     />
     <title>{title} | Assina Comigo</title>
   </head>
-  <body class="dashboard-body">
-    <div class="dashboard-shell">
+  <body class="dashboard-body flex flex-col items-center">
+    {needsPix && (
+        <a href="/parceiro/completar-cadastro" class="w-full bg-red-600 text-white font-bold text-center py-2 z-[9999] opacity-95 block hover:bg-red-700 hover:opacity-100 transition font-headline shadow-md text-sm md:text-base sticky top-0">
+            ⚠️ Atenção: Sua chave PIX não está configurada! Clique aqui para adicionar e poder sacar seus ganhos.
+        </a>
+    )}
+    <div class="dashboard-shell w-full flex-1 relative">
       <!-- Sidebar -->
       <aside class="sidebar" id="sidebar" aria-label="Menu de navegação">
         <!-- Brand Area -->

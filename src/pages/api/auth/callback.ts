@@ -12,7 +12,6 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
         return new Response('Nenhum código de autorização providenciado (Auth Code was missing)', { status: 400 });
     }
 
-    // Troca o código pela sessão usando o cliente SSR
     const supabaseSSR = getSupabaseServerClient(cookies);
     
     console.log(`[AUTH_CALLBACK_EXCHANGE] Iniciando troca de código por sessão...`);
@@ -27,20 +26,18 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
     const { user } = data.session;
     console.log(`[AUTH_CALLBACK_SUCCESS] Sessão obtida para: ${user.email}`);
 
-    // VERIFICAÇÃO E CRIAÇÃO DE PERFIL (CYBERSECURITY SKILL)
-    // Se o usuário não existe na tabela profiles, precisamos criá-lo com um tenant padrão
     const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .select('id, tipo_usuario')
+        .select('id, tipo_usuario, telefone, chave_pix, tipo_pix')
         .eq('id', user.id)
         .maybeSingle();
 
+    let needsCompletion = false;
+
     if (!profile) {
-        // Buscamos o ID do Tenant Principal para associar ao novo usuário
         let finalTenantId = tenantIdParam || import.meta.env.PUBLIC_MAIN_TENANT_ID;
         
         if (!finalTenantId) {
-            // Fallback para o tenant do primeiro admin encontrado ou ID fixo seguro
             const { data: adminProfile } = await supabaseAdmin
                 .from('profiles')
                 .select('tenant_id')
@@ -58,24 +55,52 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
             tenant_id: finalTenantId,
             email: user.email,
             nome: user.user_metadata.full_name || user.email?.split('@')[0],
-            tipo_usuario: 'parceiro', // OAuth do Google sempre cria como parceiro
+            tipo_usuario: 'parceiro',
             status: 'ativo'
         };
 
-        if (grupoId) {
-            novoPerfil.grupo_id = grupoId;
+        let resolvedGrupoId = grupoId;
+        if (!resolvedGrupoId) {
+            const { data: defaultGroup } = await supabaseAdmin
+                .from('grupos_parceiros')
+                .select('id')
+                .eq('tenant_id', finalTenantId)
+                .order('created_at', { ascending: true })
+                .limit(1)
+                .maybeSingle();
+            resolvedGrupoId = defaultGroup?.id || null;
+        }
+
+        if (resolvedGrupoId) {
+            novoPerfil.grupo_id = resolvedGrupoId;
         }
 
         const { error: insertError } = await supabaseAdmin.from('profiles').insert(novoPerfil);
         if (insertError) {
             console.error(`[AUTH_CALLBACK_INSERT_ERROR] Erro ao criar perfil:`, insertError);
         }
+        
+        // Novo perfil acabou de nascer, logo precisará completar (falta telefone e PIX)
+        needsCompletion = true;
+    } else {
+        // Se já existe, checa os campos obrigatórios atualizados
+        if (!profile.telefone || !profile.chave_pix || !profile.tipo_pix) {
+            needsCompletion = true;
+        }
     }
 
-    // Lógica de redirecionamento final com base no tipo de usuário real ou solicitado
+    let destination = next;
     const isActuallyAdmin = profile?.tipo_usuario === 'admin';
-    const destination = (isActuallyAdmin && next.includes('/admin')) ? '/admin/dashboard' : next;
+    const isVendedor = profile?.tipo_usuario === 'vendedor';
 
-    console.log(`[AUTH_CALLBACK_REDIRECT] Finalizando fluxo. Destino: ${destination}`);
+    if (isActuallyAdmin) {
+        destination = '/admin/dashboard';
+    } else if (isVendedor) {
+        destination = '/vendedor/dashboard';
+    } else if (!profile || needsCompletion) {
+        destination = '/parceiro/completar-cadastro';
+    }
+
+    console.log(`[AUTH_CALLBACK_REDIRECT] Redirecionando para: ${destination}`);
     return redirect(destination);
 };

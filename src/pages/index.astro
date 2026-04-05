@@ -60,6 +60,26 @@ if (!requestedMode && !effectiveGrupoId) {
     activeMode = "login";
 }
 
+const googleError = Astro.url.searchParams.get("error");
+const googleMessage = Astro.url.searchParams.get("message");
+if (googleError === "oauth_error") {
+    errorMessage = googleMessage ? `Erro do Google: ${decodeURIComponent(googleMessage)}` : "Erro interno ao iniciar acesso ao Google.";
+}
+
+if (!effectiveGrupoId) {
+    const { data: defaultGroup } = await supabaseAdmin
+        .from("grupos_parceiros")
+        .select("id")
+        .eq("tenant_id", effectiveTenantId)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+    
+    if (defaultGroup) {
+        effectiveGrupoId = defaultGroup.id;
+    }
+}
+
 if (Astro.request.method === "POST") {
     const data = await Astro.request.formData();
     const action = data.get("action")?.toString() || "";
@@ -102,8 +122,15 @@ if (Astro.request.method === "POST") {
         const password = data.get("password")?.toString() || "";
         const passwordConfirm = data.get("password_confirm")?.toString() || "";
 
-        if (!formGrupoId) {
-            errorMessage = "Cadastro disponível apenas por link de grupo. Solicite seu convite ao time de marketing.";
+        let resolvedGrupoId = formGrupoId;
+        if (!resolvedGrupoId) {
+            const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+            const { data: defaultGroup } = await supabaseSSR.from('grupos_parceiros').select('id').eq('tenant_id', formTenantId).order('created_at', { ascending: true }).limit(1).maybeSingle();
+            resolvedGrupoId = defaultGroup?.id || null;
+        }
+
+        if (!resolvedGrupoId) {
+            errorMessage = "Sistema em manutenção: Nenhum grupo padrão encontrado para cadastro.";
         } else if (!formNome || !formEmail || !formWhatsapp) {
             errorMessage = "Preencha nome, e-mail e WhatsApp para concluir seu cadastro.";
         } else if (!password || password.length < 8) {
@@ -153,7 +180,7 @@ if (Astro.request.method === "POST") {
                                 telefone: cleanWhatsapp,
                                 cpf: cleanCpf || null,
                                 tipo_usuario: "parceiro",
-                                grupo_id: formGrupoId,
+                                grupo_id: resolvedGrupoId,
                                 status: "ativo",
                             },
                             {
@@ -187,56 +214,11 @@ if (Astro.request.method === "POST") {
                 }
             }
         }
-    }
+    } // fim: if (action === "register_password")
+} // fim: if (Astro.request.method === "POST")
 
-    if (action === "oauth_google") {
-        if (modeField === "register" && !formGrupoId) {
-            errorMessage = "Cadastro com Google disponível apenas por link de grupo.";
-        } else {
-            const host = Astro.request.headers.get("host") || Astro.url.host;
-            const proto = Astro.request.headers.get("x-forwarded-proto") || (Astro.url.protocol?.replace(":", "") || "http");
-            const finalProto = host.includes("localhost") || host.includes("127.0.0.1") ? proto : "https";
-            const origin = `${finalProto}://${host}`;
-
-            const supabaseSSR = getSupabaseServerClient(Astro.cookies);
-
-            let callbackUrl = `${origin}/api/auth/callback?next=/parceiro/dashboard`;
-            if (modeField === "register" && formGrupoId) {
-                callbackUrl += `&grupo_id=${formGrupoId}`;
-                callbackUrl += `&tenant_id=${formTenantId}`;
-            }
-
-            const { data: authData, error } = await supabaseSSR.auth.signInWithOAuth({
-                provider: "google",
-                options: {
-                    redirectTo: callbackUrl,
-                },
-            });
-
-            if (error) {
-                logger.error("[AUTH_OAUTH_ERROR] Falha ao iniciar OAuth na landing", { host, origin }, error);
-                errorMessage = "Erro ao conectar com Google. Tente novamente.";
-            } else if (authData?.url) {
-                return Astro.redirect(authData.url);
-            } else {
-                errorMessage = "Não foi possível gerar o link de autenticação do Google.";
-            }
-        }
-    }
-}
-
-const modeBaseQuery = new URLSearchParams();
-if (captacaoContexto?.grupoSlug) modeBaseQuery.set("grupo_slug", captacaoContexto.grupoSlug);
-else if (grupoSlugParam) modeBaseQuery.set("grupo_slug", grupoSlugParam);
-if (effectiveGrupoId) modeBaseQuery.set("grupo_id", effectiveGrupoId);
-
-const loginQuery = new URLSearchParams(modeBaseQuery);
-loginQuery.set("mode", "login");
-const loginUrl = `/?${loginQuery.toString()}#signup`;
-
-const registerQuery = new URLSearchParams(modeBaseQuery);
-registerQuery.set("mode", "register");
-const registerUrl = `/?${registerQuery.toString()}#signup`;
+// URL para o botão "Já sou parceiro" da navbar/footer — SSR define activeMode=login
+const loginUrl = `/?mode=login#signup`;
 ---
 <!DOCTYPE html>
 <html class="scroll-smooth" lang="pt-BR">
@@ -762,16 +744,32 @@ const registerUrl = `/?${registerQuery.toString()}#signup`;
                     </div>
                 )}
 
-                <div class="mb-8 grid grid-cols-2 gap-3 rounded-2xl bg-surface-container-high p-2">
-                    <a href={registerUrl} class={`text-center rounded-xl px-4 py-3 font-headline font-extrabold text-sm transition-all ${activeMode === "register" ? "bg-white text-slate-900 shadow" : "text-on-surface-variant hover:text-slate-900"}`}>
+                <!-- Abas controladas por JS (sem reload) -->
+                <div class="mb-8 grid grid-cols-2 gap-3 rounded-2xl bg-surface-container-high p-2" role="tablist">
+                    <button
+                        type="button"
+                        id="tab-register"
+                        role="tab"
+                        data-tab="register"
+                        aria-selected={activeMode === "register" ? "true" : "false"}
+                        class={`text-center rounded-xl px-4 py-3 font-headline font-extrabold text-sm transition-all ${activeMode === "register" ? "bg-white text-slate-900 shadow" : "text-on-surface-variant hover:text-slate-900"}`}
+                    >
                         Quero me cadastrar
-                    </a>
-                    <a href={loginUrl} class={`text-center rounded-xl px-4 py-3 font-headline font-extrabold text-sm transition-all ${activeMode === "login" ? "bg-white text-slate-900 shadow" : "text-on-surface-variant hover:text-slate-900"}`}>
+                    </button>
+                    <button
+                        type="button"
+                        id="tab-login"
+                        role="tab"
+                        data-tab="login"
+                        aria-selected={activeMode === "login" ? "true" : "false"}
+                        class={`text-center rounded-xl px-4 py-3 font-headline font-extrabold text-sm transition-all ${activeMode === "login" ? "bg-white text-slate-900 shadow" : "text-on-surface-variant hover:text-slate-900"}`}
+                    >
                         Já sou parceiro
-                    </a>
+                    </button>
                 </div>
 
-                {activeMode === "register" ? (
+                <!-- Painel: Cadastro -->
+                <div id="panel-register" role="tabpanel" class={activeMode !== "register" ? "hidden" : ""}>
                     <form class="grid md:grid-cols-2 gap-6 relative z-10" method="POST">
                         <input type="hidden" name="action" value="register_password" />
                         <input type="hidden" name="mode" value="register" />
@@ -780,97 +778,78 @@ const registerUrl = `/?${registerQuery.toString()}#signup`;
 
                         <div class="md:col-span-2">
                             <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Nome Completo</label>
-                            <input name="nome" value={formNome} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Digite seu nome completo" type="text" required/>
+                            <input name="nome" value={formNome} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Digite seu nome completo" type="text" required />
                         </div>
                         <div>
                             <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">E-mail Principal</label>
-                            <input name="email" value={formEmail} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="exemplo@email.com" type="email" required/>
+                            <input name="email" value={formEmail} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="exemplo@email.com" type="email" required />
                         </div>
                         <div>
                             <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">WhatsApp</label>
-                            <input id="whatsapp" name="whatsapp" value={formWhatsapp} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="(11) 90000-0000" inputmode="numeric" autocomplete="tel" type="tel" required/>
+                            <input id="whatsapp" name="whatsapp" value={formWhatsapp} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="(11) 90000-0000" inputmode="numeric" autocomplete="tel" type="tel" required />
                             <p class="mt-2 text-xs text-on-surface-variant">Use um número brasileiro com DDD e WhatsApp ativo.</p>
                         </div>
                         <div>
                             <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">CPF (Opcional)</label>
-                            <input id="cpf" name="cpf" value={formatCPFDisplay(formCpf)} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="000.000.000-00" inputmode="numeric" type="text"/>
+                            <input id="cpf" name="cpf" value={formatCPFDisplay(formCpf)} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="000.000.000-00" inputmode="numeric" type="text" />
                         </div>
                         <div>
                             <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Senha</label>
-                            <input name="password" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Mínimo 8 caracteres" type="password" minlength="8" required/>
+                            <input name="password" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Mínimo 8 caracteres" type="password" minlength="8" required />
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Confirmar Senha</label>
-                            <input name="password_confirm" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Repita sua senha" type="password" minlength="8" required/>
+                            <input name="password_confirm" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Repita sua senha" type="password" minlength="8" required />
                         </div>
 
                         <div class="md:col-span-2 mt-2">
                             <button class="w-full bg-tertiary text-on-tertiary py-5 rounded-[1.5rem] font-headline font-black text-xl hover:scale-[1.02] active:scale-98 transition-all btn-glow shadow-xl" type="submit">
                                 Criar conta e entrar
                             </button>
-
                             <div class="relative flex items-center justify-center mt-6 mb-2">
                                 <span class="absolute px-4 bg-surface-container-lowest text-on-surface-variant text-sm z-10 font-bold">OU</span>
                                 <div class="w-full h-px bg-slate-900/10"></div>
                             </div>
-
-                                                        <input type="hidden" name="mode" value="register" />
-                                                        <input type="hidden" name="grupo_id" value={effectiveGrupoId} />
-                                                        <input type="hidden" name="tenant_id" value={effectiveTenantId} />
-                                                        <button type="submit" name="action" value="oauth_google" class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3">
-                                <svg class="w-6 h-6" viewBox="0 0 24 24">
-                                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                                </svg>
-                                Cadastrar com Google
-                            </button>
                         </div>
                     </form>
-                ) : (
+
+                    <a href={`/api/auth/google?mode=register&grupo_id=${effectiveGrupoId}&tenant_id=${effectiveTenantId}`} class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3 relative z-10 block text-center">
+                        <svg class="w-6 h-6" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
+                        Cadastrar com Google
+                    </a>
+                </div>
+
+                <!-- Painel: Login -->
+                <div id="panel-login" role="tabpanel" class={activeMode !== "login" ? "hidden" : ""}>
                     <form class="grid gap-6 relative z-10" method="POST">
                         <input type="hidden" name="action" value="login_password" />
                         <input type="hidden" name="mode" value="login" />
 
                         <div>
                             <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">E-mail</label>
-                            <input name="email" value={formEmail} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="seu@email.com" type="email" required/>
+                            <input name="email" value={formEmail} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="seu@email.com" type="email" required />
                         </div>
                         <div>
                             <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">Senha</label>
-                            <input name="password" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Sua senha" type="password" minlength="6" required/>
+                            <input name="password" class="w-full bg-surface-container-highest border-none rounded-2xl py-4 px-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Sua senha" type="password" minlength="6" required />
                         </div>
 
                         <div class="mt-2">
                             <button class="w-full bg-tertiary text-on-tertiary py-5 rounded-[1.5rem] font-headline font-black text-xl hover:scale-[1.02] active:scale-98 transition-all btn-glow shadow-xl" type="submit">
                                 Entrar no painel
                             </button>
-
                             <div class="relative flex items-center justify-center mt-6 mb-2">
                                 <span class="absolute px-4 bg-surface-container-lowest text-on-surface-variant text-sm z-10 font-bold">OU</span>
                                 <div class="w-full h-px bg-slate-900/10"></div>
                             </div>
-
-                            <input type="hidden" name="mode" value="login" />
-                            <button type="submit" name="action" value="oauth_google" class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3">
-                                <svg class="w-6 h-6" viewBox="0 0 24 24">
-                                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                                </svg>
-                                Entrar com Google
-                            </button>
                         </div>
                     </form>
-                )}
 
-                {!captacaoContexto && activeMode === "register" && (
-                    <p class="mt-6 text-center text-sm font-bold text-red-600">
-                        O cadastro de parceiro é feito apenas por convite de grupo. Solicite seu link ao time de marketing.
-                    </p>
-                )}
+                    <a href="/api/auth/google?mode=login" class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3 relative z-10 block text-center">
+                        <svg class="w-6 h-6" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
+                        Entrar com Google
+                    </a>
+                </div>
             </div>
         </div>
     </section>
@@ -961,6 +940,48 @@ const registerUrl = `/?${registerQuery.toString()}#signup`;
             const cpfInput = document.getElementById("cpf");
             applyPhoneMask(whatsappInput);
             applyCPFMask(cpfInput);
+
+            // ── Controle de Abas Client-Side (Zero Reload) ──────────────────
+            const tabRegister   = document.getElementById('tab-register');
+            const tabLogin      = document.getElementById('tab-login');
+            const panelRegister = document.getElementById('panel-register');
+            const panelLogin    = document.getElementById('panel-login');
+
+            function activateTab(tab) {
+                const isRegister = tab === 'register';
+
+                // Alterna visibilidade dos painéis
+                panelRegister.classList.toggle('hidden', !isRegister);
+                panelLogin.classList.toggle('hidden', isRegister);
+
+                // Estilo do botão Cadastro
+                tabRegister.classList.toggle('bg-white', isRegister);
+                tabRegister.classList.toggle('text-slate-900', isRegister);
+                tabRegister.classList.toggle('shadow', isRegister);
+                tabRegister.classList.toggle('text-on-surface-variant', !isRegister);
+                tabRegister.setAttribute('aria-selected', isRegister ? 'true' : 'false');
+
+                // Estilo do botão Login
+                tabLogin.classList.toggle('bg-white', !isRegister);
+                tabLogin.classList.toggle('text-slate-900', !isRegister);
+                tabLogin.classList.toggle('shadow', !isRegister);
+                tabLogin.classList.toggle('text-on-surface-variant', isRegister);
+                tabLogin.setAttribute('aria-selected', isRegister ? 'false' : 'true');
+
+                // Re-aplicar máscaras ao mostrar painel de cadastro
+                if (isRegister) {
+                    applyPhoneMask(document.getElementById('whatsapp'));
+                    applyCPFMask(document.getElementById('cpf'));
+                }
+            }
+
+            tabRegister && tabRegister.addEventListener('click', () => activateTab('register'));
+            tabLogin    && tabLogin.addEventListener('click',    () => activateTab('login'));
+
+            // Abre aba de login via hash na URL (ex: link externo)
+            if (window.location.hash === '#login') {
+                activateTab('login');
+            }
         });
     </script>
 

@@ -30,3 +30,13 @@ pnpm-debug.log*
 
 # AI agents
 .agents/
+
+# Local scripts and diagnostics (Security)
+create_admin_api.ts
+create_admin.sql
+purple_hero.cjs
+update_theme.cjs
+query.mjs
+reset_database.sql
+stitch_lp.html
+*.log

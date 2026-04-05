@@ -137,7 +137,7 @@ export const adminService = {
         if (error) throw error;
 
         // Regra de segurança: ao instalar, cria no máximo uma comissão por lead
-        // e sempre inicia em pendente para aprovação humana antes de virar a_pagar.
+        // e já inicia como a_pagar para seguir o fluxo operacional atual.
         if (status === 'Instalado' || status === 'instalado') {
             const { data: existingComissao, error: existingError } = await supabase
                 .from('comissoes')
@@ -192,7 +192,7 @@ export const adminService = {
                         recompensa = grupo?.valor_recompensa || 0;
                     }
 
-                    // Segurança: comissão nasce em pendente e depende de aprovação financeira.
+                    // Comissão já nasce em a_pagar (sem etapa manual de aprovação).
                     const { error: comissaoError } = await supabase
                         .from('comissoes')
                         .insert({
@@ -200,13 +200,13 @@ export const adminService = {
                             lead_id: leadId,
                             parceiro_id: leadData.parceiro_id,
                             valor: recompensa,
-                            status: 'pendente'
+                            status: 'a_pagar'
                         });
 
                     if (comissaoError) {
                         console.error('[adminService] Erro ao criar comissão pendente:', comissaoError);
                     } else {
-                        console.log(`[adminService] Comissão pendente de R$${recompensa} criada para lead ${leadId} e atribuída ao parceiro ${leadData.parceiro_id}`);
+                        console.log(`[adminService] Comissão a pagar de R$${recompensa} criada para lead ${leadId} e atribuída ao parceiro ${leadData.parceiro_id}`);
                     }
                 }
             }
@@ -277,8 +277,17 @@ export const adminService = {
             throw new Error('Comissão não encontrada.');
         }
 
-        if (comissaoAtual.status !== 'a_pagar') {
-            throw new Error('A comissão precisa estar aprovada (a_pagar) para ser concluída.');
+        // Normalizar status para comparação segura (case-insensitive)
+        const currentStatus = (comissaoAtual.status || "").toLowerCase();
+        
+        console.log(`[PAGAMENTO] Iniciando atualização da comissão ${comissaoId}:`, {
+            statusAtual: currentStatus,
+            novoStatus: status,
+            valorManual: valor
+        });
+
+        if (currentStatus !== 'a_pagar' && currentStatus !== 'pendente') {
+            throw new Error(`A comissão já possui o status "${comissaoAtual.status}" e não pode ser alterada.`);
         }
 
         if (status !== 'pago' && status !== 'pago_pontos') {
@@ -289,7 +298,7 @@ export const adminService = {
             throw new Error('Confirme o pagamento real antes de concluir como pago.');
         }
 
-        let finalStatus = status;
+        let finalStatus = 'pago';
         let finalTipo: string | undefined = undefined;
 
         // Se for pagamento em pontos, precisamos creditar no perfil do parceiro
@@ -316,13 +325,16 @@ export const adminService = {
 
                 console.log(`[PONTOS] Creditando ${valorFinal} pts. Antigo: ${profile?.saldo_pontos || 0}, Novo: ${novoSaldo}`);
 
-                await supabase
+                const { error: creditError } = await supabase
                     .from('profiles')
                     .update({ saldo_pontos: novoSaldo })
                     .eq('id', comissao.parceiro_id)
                     .eq('tenant_id', tenantId);
 
-                finalStatus = 'pago';
+                if (creditError) {
+                    throw creditError;
+                }
+
                 finalTipo = 'pontos';
             }
         }
@@ -331,13 +343,24 @@ export const adminService = {
         if (finalTipo) updateData.tipo = finalTipo;
         if (valor !== undefined) updateData.valor = valor;
 
-        const { error } = await supabase
+        const { data: updateResult, error: updateError } = await supabase
             .from('comissoes')
             .update(updateData)
             .eq('id', comissaoId)
-            .eq('tenant_id', tenantId);
+            .eq('tenant_id', tenantId)
+            .select();
 
-        if (error) throw error;
+        if (updateError) {
+            console.error('[PAGAMENTO] Erro ao atualizar comissão:', updateError);
+            throw updateError;
+        }
+
+        if (!updateResult || updateResult.length === 0) {
+             console.warn('[PAGAMENTO] Aviso: Nenhuma linha afetada pelo update. Verifique se o ID e Tenant conferem.');
+             throw new Error('Não foi possível atualizar o registro no banco de dados.');
+        }
+
+        console.log(`[PAGAMENTO] Sucesso ao atualizar comissão para ${finalStatus}:`, updateResult[0]);
 
         // ─── ATUALIZAR O STATUS DO LEAD PARA 'PAGO' ───────────────────────────
         try {

@@ -22,10 +22,7 @@ if (Astro.request.method === "POST") {
         const valorEditado = formData.get("valor") ? Number(formData.get("valor")) : undefined;
         const paymentConfirmed = formData.get("confirm_payment")?.toString() === "yes";
         
-        if (action === "approve" && comissaoId) {
-            await adminService.approvePagamento(comissaoId, tenantId);
-            notification = "success|Comissão aprovada e movida para A Pagar.";
-        } else if (action === "delete" && comissaoId) {
+        if (action === "delete" && comissaoId) {
             await adminService.deletePagamento(comissaoId, tenantId);
             notification = "success|Comissão excluída com sucesso.";
         } else if (action === "pay" && comissaoId) {
@@ -35,14 +32,16 @@ if (Astro.request.method === "POST") {
             await adminService.updatePagamento(comissaoId, "pago", tenantId, valorEditado, true);
             notification = "success|Pagamento marcado como pago com sucesso!";
         } else if (action === "pay_points" && comissaoId) {
+            console.log(`[POST_PAY_POINTS] Tentando pagar com pontos: ${comissaoId}, Valor: ${valorEditado}`);
             if (!paymentConfirmed) {
-                throw new Error("Confirme a conversão real antes de concluir em pontos.");
+                throw new Error("Confirme que a liberação técnica foi efetuada antes de marcar como pago.");
             }
             await adminService.updatePagamento(comissaoId, "pago_pontos", tenantId, valorEditado, true);
-            notification = "success|Pontos creditados com sucesso ao parceiro!";
+            notification = "success|Pontos creditados com sucesso!";
         }
     } catch (err: any) {
-        notification = `error|${err.message || "Erro."}`;
+        console.error('[POST_ERROR]', err);
+        notification = `error|${err.message || "Erro ao processar ação."}`;
     }
 }
 
@@ -55,9 +54,14 @@ const formatMoney = (v: number) =>
         currency: "BRL",
     }).format(v || 0);
 
-const pendentesAprovacao = pagamentos.filter((p) => (p.status || "").toLowerCase() === "pendente");
-const aPagar = pagamentos.filter((p) => (p.status || "").toLowerCase() === "a_pagar");
-const pagos = pagamentos.filter((p) => (p.status || "").toLowerCase() === "pago");
+const aPagar = pagamentos.filter((p) => {
+    const status = (p.status || "").toLowerCase();
+    return status === "a_pagar" || status === "pendente";
+});
+const pagos = pagamentos.filter((p) => {
+    const status = (p.status || "").toLowerCase();
+    return status === "pago" || status === "pago_pontos";
+});
 
 const totalAPagarDinheiro = aPagar.filter(p => p.tipo !== 'pontos').reduce((acc, curr) => acc + (curr.valor || 0), 0);
 const totalAPagarPontos = aPagar.filter(p => p.tipo === 'pontos').reduce((acc, curr) => acc + (curr.valor || 0), 0);
@@ -72,8 +76,7 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
             <div>
                 <h1 class="page-title">Pagamentos aos Parceiros</h1>
                 <p class="subtitle">
-                    Aprovações de comissões e gestão financeira de indicações
-                    instaladas.
+                    Gestão financeira de comissões das indicações instaladas.
                 </p>
             </div>
         </header>
@@ -116,10 +119,7 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
         <div class="table-container">
             <div class="tabs-header">
                 <div class="tabs-list">
-                    <button class="tab active" onclick="showTab('pendentes')"
-                        >Aprovação ({pendentesAprovacao.length})</button
-                    >
-                    <button class="tab" onclick="showTab('apagar')"
+                    <button class="tab active" onclick="showTab('apagar')"
                         >A Pagar ({aPagar.length})</button
                     >
                     <button class="tab" onclick="showTab('pagos')"
@@ -137,70 +137,7 @@ const totalHistoricoPontos = pagos.filter(p => p.tipo === 'pontos').reduce((acc,
                 </div>
             </div>
 
-            <div id="tab-pendentes" class="tab-content active">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Parceiro</th>
-                            <th>Referência</th>
-                            <th>Tipo</th>
-                            <th>Valor/Qtd</th>
-                            <th class="text-right">Ação</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {
-                            pendentesAprovacao.length === 0 ? (
-                                <tr>
-                                    <td colspan="5" class="text-center empty-state">
-                                        Nenhuma comissão aguardando aprovação.
-                                    </td>
-                                </tr>
-                            ) : (
-                                pendentesAprovacao.map((p) => (
-                                    <tr
-                                        class="payment-row"
-                                        data-partner={p.parceiro?.nome?.toLowerCase() || ""}
-                                        data-value={p.valor || 0}
-                                        data-tipo={p.tipo || 'dinheiro'}
-                                    >
-                                        <td><strong>{p.parceiro?.nome || "Desconhecido"}</strong></td>
-                                        <td>{p.lead?.nome || "N/A"}</td>
-                                        <td>
-                                            <Badge variant={p.tipo === 'pontos' ? 'neutral' : 'warning'}>
-                                                {p.tipo === 'pontos' ? '🏆 Pontos' : '💰 Dinheiro'}
-                                            </Badge>
-                                        </td>
-                                        <td class="money-text">
-                                            {p.tipo === 'pontos' ? `${p.valor} pts` : formatMoney(p.valor)}
-                                        </td>
-                                        <td class="text-right">
-                                            <div class="row-actions">
-                                                <form method="POST" style="display: inline;">
-                                                    <input type="hidden" name="action" value="approve" />
-                                                    <input type="hidden" name="comissao_id" value={p.id} />
-                                                    <button type="submit" class="btn-pay-modal" style="background: #0f766e; border-color: #0f766e;">
-                                                        <CheckCircle2 size={16} /> Aprovar
-                                                    </button>
-                                                </form>
-                                                <form method="POST" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja excluir esta comissão?');">
-                                                    <input type="hidden" name="action" value="delete" />
-                                                    <input type="hidden" name="comissao_id" value={p.id} />
-                                                    <button type="submit" class="btn-delete" title="Excluir comissão">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )
-                        }
-                    </tbody>
-                </table>
-            </div>
-
-            <div id="tab-apagar" class="tab-content" style="display: none;">
+            <div id="tab-apagar" class="tab-content active">
                 <table class="admin-table">
                     <thead>
                         <tr>

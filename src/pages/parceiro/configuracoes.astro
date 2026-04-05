@@ -2,20 +2,10 @@
 import DashboardLayout from "../../layouts/DashboardLayout.astro";
 import { partnerService } from "../../services/partnerService";
 import { getSupabaseServerClient } from "../../lib/supabaseSSR";
-import { formatCPFDisplay, isValidWhatsApp, isValidPixKey, isStrongEnough, sanitizePhone } from "../../utils/validation";
+import { formatCPFDisplay, formatPhoneDisplay, isValidWhatsApp, isValidPixKey, isStrongEnough, sanitizePhone } from "../../utils/validation";
 
 const tenantId = Astro.locals.tenantId;
 const profileId = Astro.locals.profileId;
-
-// Função auxiliar para formatar telefone no servidor
-function formatPhoneDisplay(phone: string): string {
-    const digits = sanitizePhone(phone).slice(0, 11);
-    if (!digits) return '';
-    if (digits.length <= 2) return `(${digits}`;
-    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-}
 
 if (!tenantId || !profileId) {
     return Astro.redirect("/parceiro/login");
@@ -45,6 +35,7 @@ if (Astro.request.method === "POST") {
         } else if (action === "update_profile") {
             const nome = formData.get("nome") as string;
             const phone = formData.get("phone") as string;
+            const cpf = formData.get("cpf") as string;
             const tipo_pix = formData.get("tipo_pix") as string;
             const chave_pix = formData.get("chave_pix") as string;
 
@@ -58,6 +49,7 @@ if (Astro.request.method === "POST") {
             }
 
             const cleanPhone = sanitizePhone(phone);
+            const cleanCpf = cpf ? cpf.replace(/\D/g, "") : undefined;
 
             // Valida telefone se fornecido
             if (phone && !isValidWhatsApp(cleanPhone)) {
@@ -67,6 +59,7 @@ if (Astro.request.method === "POST") {
             await partnerService.updatePartner(tenantId, profileId, {
                 nome,
                 telefone: cleanPhone || undefined,
+                cpf: cleanCpf,
                 tipo_pix: tipo_pix || null,
                 chave_pix: chave_pix || null
             });
@@ -160,6 +153,21 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
                     />
                     <span class="field-hint"
                         >Usado para contato sobre suas comissões.</span
+                    >
+                </div>
+
+                <div class="form-field">
+                    <label for="cpfInput" class="field-label">CPF</label>
+                    <input
+                        type="text"
+                        id="cpfInput"
+                        name="cpf"
+                        class="field-input"
+                        value={formatCPFDisplay((partner as any)?.cpf || "")}
+                        placeholder="000.000.000-00"
+                    />
+                    <span class="field-hint"
+                        >Documento para validação de pagamentos.</span
                     >
                 </div>
 
@@ -445,6 +453,31 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
             return { label: map[s]?.[0] ?? '', color: map[s]?.[1] ?? '' };
         }
 
+        // Máscaras de CPF
+        function sanitizeCPF(cpf) { return cpf ? cpf.replace(/\D/g, '') : ''; }
+        function formatCPFDisplay(cpf) {
+            const digits = sanitizeCPF(cpf).slice(0, 11);
+            if (!digits) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+            if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+            return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+        }
+
+        function applyCPFMask(input) {
+            if (!input) return;
+            input.addEventListener('input', function() {
+                this.value = formatCPFDisplay(this.value);
+                this.dataset.rawValue = sanitizeCPF(this.value);
+            });
+            const form = input.closest('form');
+            if (form) {
+                form.addEventListener('submit', function() {
+                    input.value = input.dataset.rawValue || sanitizeCPF(input.value);
+                });
+            }
+        }
+
         const novaSenhaEl = document.getElementById('novaSenhaInput');
         const cfgFill     = document.getElementById('cfgStrengthFill');
         const cfgLabel    = document.getElementById('cfgStrengthLabel');
@@ -455,9 +488,12 @@ const userAvatar = userName.substring(0, 2).toUpperCase();
             if (cfgLabel) { cfgLabel.textContent = label ? `Senha ${label}` : ''; cfgLabel.style.color = color; }
         });
 
-        // ── Máscara de telefone ─────────────────────────────────────────────────
+        // ── Máscaras ────────────────────────────────────────────────────────────
         const phoneInputEl = document.getElementById('phoneInput');
         applyPhoneMask(phoneInputEl);
+        
+        const cpfInputEl = document.getElementById('cpfInput');
+        applyCPFMask(cpfInputEl);
 
         // ── PIX placeholder dinâmico ───────────────────────────────────────────
         const pixTipoEl  = document.querySelector('select[name="tipo_pix"]');

@@ -1,0 +1,181 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { getSupabaseServerClient } from "../../lib/supabaseSSR";
+import { supabaseAdmin } from "../../lib/supabaseAdmin";
+
+const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+const { data: { user }, error: authError } = await supabaseSSR.auth.getUser();
+
+if (authError || !user) {
+    return Astro.redirect("/admin/login");
+}
+
+const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("tipo_usuario, tenant_id, nome")
+    .eq("id", user.id)
+    .single();
+
+if (!profile || (profile.tipo_usuario !== "vendedor" && profile.tipo_usuario !== "admin")) {
+    return Astro.redirect("/admin/login");
+}
+
+const vTenant = profile.tenant_id;
+
+const { data: unassignedLeads } = await supabaseAdmin
+    .from("leads")
+    .select("id, nome, telefone, status, created_at")
+    .eq("tenant_id", vTenant)
+    .is("vendedor_id", null)
+    .order("created_at", { ascending: false });
+
+const { data: myLeads } = await supabaseAdmin
+    .from("leads")
+    .select("id, nome, telefone, status, created_at")
+    .eq("tenant_id", vTenant)
+    .eq("vendedor_id", user.id)
+    .order("created_at", { ascending: false });
+
+// Ações via POST (Claim / Update Status)
+let actionMessage = "";
+if (Astro.request.method === "POST") {
+    const formData = await Astro.request.formData();
+    const action = formData.get("action")?.toString();
+
+    if (action === "claim") {
+        const leadId = formData.get("lead_id")?.toString();
+        if (leadId) {
+            const { error: claimError } = await supabaseSSR
+                .from("leads")
+                .update({ vendedor_id: user.id })
+                .eq("id", leadId)
+                .is("vendedor_id", null) // Previne corrida
+                .select();
+                
+            if (claimError) {
+                actionMessage = "Erro ao assumir lead. Pode já ter sido pego por outro.";
+                console.error("Erro no claim:", claimError);
+            } else {
+                return Astro.redirect("/vendedor/dashboard");
+            }
+        }
+    }
+}
+---
+<Layout title="Dashboard de Vendas | Assina Comigo">
+    <div class="min-h-screen bg-slate-50 font-body">
+        <header class="bg-indigo-900 border-b border-indigo-800 sticky top-0 z-50 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 bg-indigo-800 rounded-xl flex items-center justify-center font-bold text-white shadow-inner">
+                        AC
+                    </div>
+                    <h1 class="text-white font-headline font-bold text-xl tracking-tight hidden sm:block">Painel de Vendas</h1>
+                </div>
+                
+                <div class="flex items-center gap-4 text-sm">
+                    <span class="text-indigo-200 font-medium hidden sm:inline-block">Olá, {profile.nome}</span>
+                    <form action="/api/auth/logout" method="POST" class="m-0">
+                        <button type="submit" class="bg-indigo-800 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold transition flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm">logout</span> Sair
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+            
+            {actionMessage && (
+                <div class="mb-8 bg-red-100 border border-red-200 text-red-800 px-6 py-4 rounded-2xl flex gap-3 text-sm font-semibold animate-pulse shadow-sm">
+                    <span class="material-symbols-outlined">error</span>
+                    {actionMessage}
+                </div>
+            )}
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                
+                <!-- Coluna 1: Oportunidades Nuvem -->
+                <div class="bg-white rounded-[2rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden flex flex-col">
+                    <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-headline font-black tracking-tight text-slate-800">Nuvem de Vendas</h2>
+                            <p class="text-sm text-slate-500 font-medium mt-1">Leads aguardando atendimento imediato</p>
+                        </div>
+                        <span class="bg-blue-100 text-blue-700 py-1 px-3 rounded-full text-sm font-bold shadow-sm">{unassignedLeads?.length || 0}</span>
+                    </div>
+                    
+                    <div class="p-8 max-h-[600px] overflow-y-auto space-y-4">
+                        {unassignedLeads && unassignedLeads.length > 0 ? unassignedLeads.map(lead => (
+                            <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between hover:border-blue-300 transition group">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <div class="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></div>
+                                        <h3 class="font-bold text-slate-800 capitalize leading-tight">{lead.nome}</h3>
+                                    </div>
+                                    <p class="text-sm text-slate-500 font-medium flex items-center gap-1">Entrou em: {new Date(lead.created_at).toLocaleDateString('pt-BR', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'})}</p>
+                                </div>
+                                
+                                <form method="POST" class="m-0 sm:w-auto w-full">
+                                    <input type="hidden" name="action" value="claim" />
+                                    <input type="hidden" name="lead_id" value={lead.id} />
+                                    <button class="w-full bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 active:scale-95 transition group-hover:scale-[1.02]">
+                                        Assumir
+                                    </button>
+                                </form>
+                            </div>
+                        )) : (
+                            <div class="text-center py-12 px-6 flex flex-col items-center">
+                                <span class="material-symbols-outlined text-4xl text-slate-300 mb-3 block">cloud_done</span>
+                                <p class="text-slate-500 font-medium">Nenhum lead disponível na nuvem no momento.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <!-- Coluna 2: Meu Funil -->
+                <div class="bg-white rounded-[2rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden flex flex-col">
+                    <div class="px-8 py-6 border-b border-slate-100 flex justify-between items-center text-white bg-indigo-900">
+                        <div>
+                            <h2 class="text-xl font-headline font-black tracking-tight drop-shadow-md">Seu Funil</h2>
+                            <p class="text-sm text-indigo-200 mt-1">Oportunidades sendo trabalhadas por você</p>
+                        </div>
+                        <span class="bg-indigo-800 text-indigo-100 py-1 px-3 rounded-full text-sm font-bold border border-indigo-700">{myLeads?.length || 0}</span>
+                    </div>
+
+                    <div class="p-8 max-h-[600px] overflow-y-auto space-y-4">
+                        {myLeads && myLeads.length > 0 ? myLeads.map(lead => (
+                            <div class="bg-white border border-slate-200 shadow-sm p-5 rounded-2xl flex flex-col gap-3">
+                                <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+                                    <div>
+                                        <h3 class="font-bold text-slate-800 capitalize text-lg leading-tight">{lead.nome}</h3>
+                                        <span class="inline-block mt-1 bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-semibold uppercase border border-slate-200">
+                                            {lead.status}
+                                        </span>
+                                    </div>
+                                    <span class="text-green-600 bg-green-50 px-2 py-1 rounded-lg text-xs font-bold border border-green-200 whitespace-nowrap">Seu Lead</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <div class="flex items-center gap-2 text-slate-600">
+                                        <span class="material-symbols-outlined text-sm">phone</span>
+                                        <span class="font-medium text-sm">{lead.telefone || "N/A"}</span>
+                                    </div>
+                                    <a href={`https://wa.me/55${lead.telefone?.replace(/\D/g, '')}?text=Olá,%20vi%20que%20você%20tem%20interesse%20na%20Ligeira!`} target="_blank" class="text-blue-600 hover:text-blue-800 font-bold text-sm flex items-center gap-1 transition p-2 hover:bg-blue-50 rounded-lg">
+                                        <span class="material-symbols-outlined text-base">forum</span> Chamar
+                                    </a>
+                                </div>
+                            </div>
+                        )) : (
+                            <div class="text-center py-12 px-6 flex flex-col items-center">
+                                <span class="material-symbols-outlined text-4xl text-slate-300 mb-3 block">assignment_ind</span>
+                                <p class="text-slate-500 font-medium">Você ainda não assumiu nenhuma oportunidade.</p>
+                                <p class="text-sm text-slate-400 mt-1">Pegue leads na nuvem ao lado.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+</Layout>

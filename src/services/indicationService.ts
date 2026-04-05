@@ -1,5 +1,5 @@
 import { supabaseAdmin as supabase } from '../lib/supabaseAdmin';
-import { sanitizePhone, sanitizeCPF } from '../utils/validation';
+import { sanitizePhone, sanitizeCPF, isValidWhatsApp } from '../utils/validation';
 import { logError } from '../utils/logger';
 import { normalizeLeadStatus } from '../utils/leadStatus';
 
@@ -71,11 +71,16 @@ export const indicationService = {
         tenantId: string,
         leadData: Omit<Lead, 'id' | 'created_at' | 'tenant_id'>
     ): Promise<Lead> {
+        const cleanPhone = sanitizePhone(leadData.telefone || '');
+        if (!isValidWhatsApp(cleanPhone)) {
+            throw new Error('Número de WhatsApp inválido. Use um número brasileiro com DDD e 11 dígitos.');
+        }
+
         // Sanitizar dados para evitar falhas no Insert
         const sanitizedData = {
             ...leadData,
             cpf: sanitizeCPF(leadData.cpf || ""),
-            telefone: sanitizePhone(leadData.telefone || ""),
+            telefone: cleanPhone,
             status: 'Recebido'
         };
 

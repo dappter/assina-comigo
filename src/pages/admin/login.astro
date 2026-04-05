@@ -90,18 +90,19 @@ if (Astro.request.method === "POST") {
                         );
                         errorMessage = "Nao foi possivel validar suas permissoes agora. Tente novamente em instantes.";
                         await supabaseSSR.auth.signOut();
-                    } else if (!profile || profile.tipo_usuario !== "admin") {
-                        logger.warn("[ADMIN_LOGIN_UNAUTHORIZED] Conta sem privilegio admin", {
+                    } else if (!profile || (profile.tipo_usuario !== "admin" && profile.tipo_usuario !== "vendedor")) {
+                        logger.warn("[ADMIN_LOGIN_UNAUTHORIZED] Conta sem privilegio corporativo", {
                             email: emailAddress,
                             userId: sessionData.session.user.id,
                             profileRole: profile?.tipo_usuario,
                         });
-                        errorMessage = "Acesso negado. Esta conta nao possui privilegios administrativos.";
+                        errorMessage = "Acesso negado. Esta conta nao possui privilegios administrativos ou de vendas.";
                         await supabaseSSR.auth.signOut();
                     } else {
-                        logger.info("[ADMIN_LOGIN_REDIRECT] Redirecionando para dashboard", {
-                            userId: sessionData.session.user.id,
-                        });
+                        logger.info("[ADMIN_LOGIN_SUCCESS_REDIRECT] Redirecionando para painel correto", { email: emailAddress });
+                        if (profile.tipo_usuario === 'vendedor') {
+                            return Astro.redirect("/vendedor/dashboard");
+                        }
                         return Astro.redirect("/admin/dashboard");
                     }
                 }

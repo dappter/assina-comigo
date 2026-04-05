@@ -1,0 +1,291 @@
+---
+import { getSupabaseServerClient } from '../../lib/supabaseSSR';
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { formatCPFDisplay, formatPhoneDisplay, sanitizePhone, isValidWhatsApp } from '../../utils/validation';
+import raioLogo from "../../assets/icons/RAIO.png";
+
+const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+const { data, error } = await supabaseSSR.auth.getUser();
+
+if (error || !data.user) {
+    return Astro.redirect('/?mode=login');
+}
+
+const user = data.user;
+let errorMessage = "";
+
+// Buscar dados atuais do perfil para evitar redundância
+const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("telefone, cpf, chave_pix, tipo_pix")
+    .eq("id", user.id)
+    .single();
+
+let formWhatsapp = profile?.telefone ? profile.telefone : "";
+let formCpf = profile?.cpf ? profile.cpf : "";
+let formTipoPix = profile?.tipo_pix || "";
+let formChavePix = profile?.chave_pix || "";
+
+const hasInitialData = !!(profile?.telefone && profile?.cpf);
+
+if (Astro.request.method === "POST") {
+    const formData = await Astro.request.formData();
+    formWhatsapp = (formData.get("whatsapp")?.toString() || formWhatsapp).trim();
+    formCpf = (formData.get("cpf")?.toString() || formCpf).trim();
+    formTipoPix = formData.get("tipo_pix")?.toString() || "";
+    formChavePix = formData.get("chave_pix")?.toString() || "";
+
+    const cleanWhatsapp = sanitizePhone(formWhatsapp);
+    const cleanCpf = formCpf.replace(/\D/g, "");
+    
+    // Basic validations
+    if (!isValidWhatsApp(cleanWhatsapp)) {
+        errorMessage = "Informe um WhatsApp brasileiro válido com DDD e 11 dígitos.";
+    } else if (!formTipoPix || !formChavePix) {
+        errorMessage = "A chave PIX e o tipo são obrigatórios para receber seus ganhos.";
+    } 
+    
+    if (!errorMessage) {
+        const { error: updateError } = await supabaseAdmin
+            .from("profiles")
+            .update({
+                telefone: cleanWhatsapp,
+                cpf: cleanCpf || null,
+                chave_pix: formChavePix,
+                tipo_pix: formTipoPix as "cpf"|"cnpj"|"email"|"telefone"|"aleatoria"
+            })
+            .eq("id", user.id);
+
+        if (updateError) {
+            errorMessage = "Erro ao atualizar dados. Tente novamente.";
+            console.error("Erro ao atualizar profile no completar-cadastro:", updateError);
+        } else {
+            return Astro.redirect("/parceiro/dashboard");
+        }
+    }
+}
+
+// Formatar para exibição inicial se não for POST
+if (Astro.request.method !== "POST") {
+    if (formWhatsapp) formWhatsapp = formatPhoneDisplay(formWhatsapp);
+    if (formCpf) formCpf = formatCPFDisplay(formCpf);
+}
+---
+<!DOCTYPE html>
+<html class="scroll-smooth" lang="pt-BR">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Assina Comigo | Completar Cadastro</title>
+    
+    <script is:inline src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    
+    <script is:inline>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        background: "#F1F1F1",
+                        primary: "#6028FF",
+                        "primary-container": "#E6DEFF",
+                        tertiary: "#FFBF1A",
+                        "on-tertiary": "#402D00",
+                        "surface-container-highest": "#DFDFDF",
+                        "surface-container-lowest": "#FFFFFF",
+                        "on-surface-variant": "#49454E",
+                    },
+                    fontFamily: {
+                        headline: ["Plus Jakarta Sans", "sans-serif"],
+                        body: ["Manrope", "sans-serif"],
+                        label: ["Manrope", "sans-serif"]
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        .btn-glow {
+            box-shadow: 0 0 25px rgba(96, 40, 255, 0.4);
+            animation: pulse-glow 3s infinite alternate;
+        }
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 15px rgba(96, 40, 255, 0.2); }
+            100% { box-shadow: 0 0 35px rgba(96, 40, 255, 0.6); }
+        }
+    </style>
+</head>
+<body class="bg-background font-body text-slate-900 antialiased selection:bg-primary-container min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
+    
+    <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
+    <div class="absolute bottom-0 left-0 w-[600px] h-[600px] bg-tertiary/10 rounded-full blur-[150px] pointer-events-none"></div>
+
+    <div class="w-full max-w-lg bg-surface-container-lowest p-8 md:p-12 rounded-[2.5rem] flex flex-col items-center justify-center shadow-2xl shadow-black/10 border border-slate-900/5 relative z-10 w-full">
+        
+        <div class="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mb-6 shadow-inner">
+            <img alt="Ligeira Telecom" class="w-10 h-10 object-contain" src={raioLogo.src} />
+        </div>
+
+        <h1 class="text-3xl font-headline font-black tracking-tight text-center mb-2">Falta pouco!</h1>
+        <p class="text-on-surface-variant text-center mb-8">Configure seus dados e sua chave PIX para poder receber suas comissões.</p>
+        
+        {errorMessage && (
+            <div class="w-full mb-6 rounded-2xl px-5 py-4 text-sm font-semibold bg-red-100 text-red-800 border border-red-200 text-center">
+                {errorMessage}
+            </div>
+        )}
+
+        <form class="w-full grid gap-5" method="POST">
+            {!hasInitialData && (
+                <>
+                    <div>
+                        <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">WhatsApp <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-bold material-symbols-outlined">chat</span>
+                            <input id="whatsapp" name="whatsapp" value={formWhatsapp} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 pl-12 pr-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all text-base" placeholder="(11) 90000-0000" inputmode="numeric" autocomplete="tel" type="tel" required/>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-label font-bold text-on-surface-variant mb-2 ml-1">CPF <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/50 font-bold material-symbols-outlined">badge</span>
+                            <input id="cpf" name="cpf" value={formCpf} class="w-full bg-surface-container-highest border-none rounded-2xl py-4 pl-12 pr-6 text-slate-900 focus:ring-2 focus:ring-primary-container transition-all text-base" placeholder="000.000.000-00" inputmode="numeric" type="text" required/>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            <div class="bg-primary/5 p-4 rounded-2xl border border-primary/20">
+                <h3 class="font-headline font-bold text-primary mb-4 flex items-center gap-2"><span class="material-symbols-outlined">payments</span> Dados para Pagamento PIX</h3>
+                
+                <div class="grid gap-4">
+                    <div>
+                        <label class="block text-xs font-label font-bold text-on-surface-variant mb-2 ml-1">Tipo de Chave <span class="text-red-500">*</span></label>
+                        <select id="tipo_pix" name="tipo_pix" required class="w-full bg-surface-container-lowest border border-surface-container-highest rounded-xl py-3 px-4 text-slate-900 focus:ring-2 focus:ring-primary transition-all text-sm font-medium outline-none">
+                            <option value="">Selecione o tipo de chave</option>
+                            <option value="cpf" selected={formTipoPix === 'cpf'}>CPF</option>
+                            <option value="cnpj" selected={formTipoPix === 'cnpj'}>CNPJ</option>
+                            <option value="telefone" selected={formTipoPix === 'telefone'}>Telefone (Celular)</option>
+                            <option value="email" selected={formTipoPix === 'email'}>E-mail</option>
+                            <option value="aleatoria" selected={formTipoPix === 'aleatoria'}>Chave Aleatória</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-label font-bold text-on-surface-variant mb-2 ml-1">Chave PIX <span class="text-red-500">*</span></label>
+                        <input id="chave_pix" name="chave_pix" value={formChavePix} required class="w-full bg-surface-container-lowest border border-surface-container-highest rounded-xl py-3 px-4 text-slate-900 focus:ring-2 focus:ring-primary transition-all text-sm outline-none placeholder:text-slate-400" placeholder="Informe a chave associada..."/>
+                    </div>
+                </div>
+            </div>
+
+            <button class="w-full bg-tertiary text-on-tertiary py-4 mt-2 rounded-2xl font-headline font-black text-lg hover:scale-[1.02] active:scale-98 transition-all btn-glow shadow-xl" type="submit">
+                Concluir Cadastro
+            </button>
+        </form>
+
+    </div>
+
+    <script is:inline>
+        function sanitizePhone(phone) {
+            if (!phone) return '';
+            const digitsOnly = phone.replace(/\D/g, '');
+            if (digitsOnly.length === 13 && digitsOnly.startsWith('55')) {
+                return digitsOnly.slice(2);
+            }
+            return digitsOnly;
+        }
+
+        function formatPhoneDisplay(phone) {
+            const digits = sanitizePhone(phone).slice(0, 11);
+            if (!digits) return '';
+            if (digits.length <= 2) return `(${digits}`;
+            if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+            if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+            return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+        }
+
+        function sanitizeCPF(cpf) { return cpf ? cpf.replace(/\D/g, '') : ''; }
+
+        function formatCPFDisplay(cpf) {
+            const digits = sanitizeCPF(cpf).slice(0, 11);
+            if (!digits) return '';
+            if (digits.length <= 3) return digits;
+            if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+            if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+            return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+        }
+        
+        function formatCNPJDisplay(cnpj) {
+            let digits = cnpj.replace(/\D/g, '').slice(0, 14);
+            if (!digits) return '';
+            let formatted = digits.replace(/^(\d{2})(\d)/, "$1.$2");
+            formatted = formatted.replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3");
+            formatted = formatted.replace(/\.(\d{3})(\d)/, ".$1/$2");
+            formatted = formatted.replace(/(\d{4})(\d)/, "$1-$2");
+            return formatted;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const wInput = document.getElementById("whatsapp");
+            const cInput = document.getElementById("cpf");
+            const tipoPix = document.getElementById("tipo_pix");
+            const chavePix = document.getElementById("chave_pix");
+            
+            if(wInput) {
+                wInput.addEventListener('input', function() {
+                    this.value = formatPhoneDisplay(this.value);
+                    this.dataset.rawValue = sanitizePhone(this.value);
+                });
+            }
+
+            if(cInput) {
+                cInput.addEventListener('input', function() {
+                    this.value = formatCPFDisplay(this.value);
+                    this.dataset.rawValue = sanitizeCPF(this.value);
+                });
+            }
+
+            // Máscara Dinâmica PIX
+            if(tipoPix && chavePix) {
+                function applyPixMask() {
+                    const tipo = tipoPix.value;
+                    let val = chavePix.value;
+                    
+                    if (tipo === 'cpf') {
+                        chavePix.value = formatCPFDisplay(val);
+                    } else if (tipo === 'cnpj') {
+                        chavePix.value = formatCNPJDisplay(val);
+                    } else if (tipo === 'telefone') {
+                        chavePix.value = formatPhoneDisplay(val);
+                    }
+                    // Email e Aleatória não formatam on-the-fly de forma destrutiva
+                }
+
+                tipoPix.addEventListener('change', function() {
+                    chavePix.value = ''; // reseta ao trocar
+                    chavePix.focus();
+                });
+
+                chavePix.addEventListener('input', applyPixMask);
+            }
+
+            const form = document.querySelector('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    if (wInput) wInput.value = wInput.dataset.rawValue || sanitizePhone(wInput.value);
+                    if (cInput) cInput.value = cInput.dataset.rawValue || sanitizeCPF(cInput.value);
+                    
+                    // Envia a chave vazando os caracteres quando necessário
+                    if (tipoPix && chavePix) {
+                        if (tipoPix.value === 'cpf') chavePix.value = sanitizeCPF(chavePix.value);
+                        else if (tipoPix.value === 'telefone') chavePix.value = sanitizePhone(chavePix.value);
+                        else if (tipoPix.value === 'cnpj') chavePix.value = chavePix.value.replace(/\D/g, '');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
