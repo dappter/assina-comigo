@@ -13,9 +13,9 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
     }
 
     const supabaseSSR = getSupabaseServerClient(cookies);
-    
+
     console.log(`[AUTH_CALLBACK_EXCHANGE] Iniciando troca de código por sessão...`);
-    
+
     const { data, error } = await supabaseSSR.auth.exchangeCodeForSession(authCode);
 
     if (error || !data.session) {
@@ -36,7 +36,7 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
 
     if (!profile) {
         let finalTenantId = tenantIdParam || import.meta.env.PUBLIC_MAIN_TENANT_ID;
-        
+
         if (!finalTenantId) {
             const { data: adminProfile } = await supabaseAdmin
                 .from('profiles')
@@ -44,17 +44,17 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
                 .eq('tipo_usuario', 'admin')
                 .limit(1)
                 .maybeSingle();
-            
+
             finalTenantId = adminProfile?.tenant_id || "4a254f52-99bd-43dd-86e2-ec031206077a";
         }
 
         console.log(`[AUTH_CALLBACK_NEW_USER] Criando perfil 'parceiro' para: ${user.email} (Tenant: ${finalTenantId})`);
-        
+
         const novoPerfil: any = {
             id: user.id,
             tenant_id: finalTenantId,
             email: user.email,
-            nome: user.user_metadata.full_name || user.email?.split('@')[0],
+            nome: user.user_metadata?.full_name || user.email?.split('@')[0] || "Sem Nome",
             tipo_usuario: 'parceiro',
             status: 'ativo'
         };
@@ -75,11 +75,17 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
             novoPerfil.grupo_id = resolvedGrupoId;
         }
 
-        const { error: insertError } = await supabaseAdmin.from('profiles').insert(novoPerfil);
+        // UPSERT elimina os problemas de duplicação do callback / race-condition
+        const { data: insertedProfile, error: insertError } = await supabaseAdmin
+            .from('profiles')
+            .upsert(novoPerfil, { onConflict: 'id' })
+            .select()
+            .single();
+
         if (insertError) {
-            console.error(`[AUTH_CALLBACK_INSERT_ERROR] Erro ao criar perfil:`, insertError);
+            console.error(`[AUTH_CALLBACK_POST_ERROR] Falha Crítica HTTP 400 - Motivo detalhado:`, insertError.message, insertError.details);
         }
-        
+
         // Novo perfil acabou de nascer, logo precisará completar (falta telefone e PIX)
         needsCompletion = true;
     } else {

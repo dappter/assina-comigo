@@ -6,11 +6,11 @@ export const GET: APIRoute = async ({ request, url, cookies, redirect }) => {
     // Tenta obter o host do header ou da URL, priorizando x-forwarded-host (Vercel)
     const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || url.host;
     const proto = request.headers.get("x-forwarded-proto") || (url.protocol?.replace(":", "") || "http");
-    
+
     // Força HTTPS em produção (fora de localhost)
     const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1") || host.includes("0.0.0.0");
     const finalProto = isLocalhost ? proto : "https";
-    
+
     // Constrói a origem absoluta de forma segura
     const origin = `${finalProto}://${host}`;
 
@@ -23,10 +23,10 @@ export const GET: APIRoute = async ({ request, url, cookies, redirect }) => {
     // Constrói o callback apontando sempre para o domínio de origem
     const callbackPath = "/api/auth/callback";
     let callbackUrl = `${origin}${callbackPath}?next=/parceiro/dashboard`;
-    if (modeField === "register" && grupoId) {
-        callbackUrl += `&grupo_id=${grupoId}`;
-        if (tenantId) callbackUrl += `&tenant_id=${tenantId}`;
-    }
+    
+    // Repassa os parâmetros do front para o back sempre
+    if (grupoId) callbackUrl += `&grupo_id=${grupoId}`;
+    if (tenantId) callbackUrl += `&tenant_id=${tenantId}`;
 
     console.log(`[OAUTH_INIT] Iniciando fluxo Google OAuth. Callback: ${callbackUrl}`);
 
@@ -34,6 +34,7 @@ export const GET: APIRoute = async ({ request, url, cookies, redirect }) => {
         provider: "google",
         options: {
             redirectTo: callbackUrl,
+            queryParams: { prompt: 'consent', access_type: 'offline' } 
         },
     });
 
