@@ -12,6 +12,11 @@ export interface Lead {
     telefone: string | null;
     status: string | null;
     created_at: string;
+    // Campos estendidos (podem vir de joins ou calculados)
+    observacoes?: string | null;
+    venda_confirmada?: boolean;
+    valor_comissao?: number;
+    comissao_status?: string;
 }
 
 export const indicationService = {
@@ -52,7 +57,8 @@ export const indicationService = {
     },
 
     async getIndicationById(tenantId: string, parceiroId: string, leadId: string): Promise<Lead | null> {
-        const { data, error } = await supabase
+        // Busca o lead
+        const { data: lead, error: leadError } = await supabase
             .from('leads')
             .select('*')
             .eq('tenant_id', tenantId)
@@ -60,11 +66,26 @@ export const indicationService = {
             .eq('id', leadId)
             .single();
 
-        if (error && error.code !== 'PGRST116') {
-            console.error('Error fetching indication by ID:', error);
-            throw error;
+        if (leadError && leadError.code !== 'PGRST116') {
+            console.error('Error fetching indication by ID:', leadError);
+            throw leadError;
         }
-        return data || null;
+
+        if (!lead) return null;
+
+        // Tenta buscar comissão associada para enriquecer o objeto
+        const { data: comissao } = await supabase
+            .from('comissoes')
+            .select('valor, status')
+            .eq('lead_id', leadId)
+            .maybeSingle();
+
+        return {
+            ...lead,
+            valor_comissao: comissao?.valor,
+            comissao_status: comissao?.status,
+            venda_confirmada: comissao?.status === 'pago' || comissao?.status === 'a_pagar'
+        } as Lead;
     },
 
     async createIndication(

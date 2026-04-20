@@ -15,19 +15,31 @@ let notification = "";
 if (Astro.request.method === "POST") {
     try {
         const formData = await Astro.request.formData();
+        const action = formData.get("action") as string || "update_status";
         const leadId = formData.get("lead_id") as string;
-        const newStatus = formData.get("status") as string;
-        
-        if (leadId && newStatus) {
-            await adminService.updateIndicacaoStatus(leadId, newStatus, tenantId);
-            notification = "success|Status da indicação atualizado com sucesso!";
+
+        if (action === "assign_vendor") {
+            const vendedorId = formData.get("vendedor_id") as string | null;
+            if (leadId) {
+                await adminService.updateLeadVendedor(leadId, vendedorId || null, tenantId);
+                notification = "success|Vendedor atribuído com sucesso!";
+            }
+        } else {
+            const newStatus = formData.get("status") as string;
+            if (leadId && newStatus) {
+                await adminService.updateIndicacaoStatus(leadId, newStatus, tenantId);
+                notification = "success|Status da indicação atualizado com sucesso!";
+            }
         }
     } catch (err: any) {
         notification = `error|${err.message || "Erro ao atualizar indicação."}`;
     }
 }
 
-const indicacoes = await adminService.getIndicacoes(tenantId);
+const [indicacoes, vendedores] = await Promise.all([
+    adminService.getIndicacoes(tenantId),
+    adminService.getVendedores(tenantId),
+]);
 
 const listStats = {
     todos: indicacoes.length,
@@ -85,6 +97,7 @@ function getStatusGroup(status: string | undefined): string {
                         <th>Lead</th>
                         <th>Contato</th>
                         <th>Parceiro Origem</th>
+                        <th>Vendedor</th>
                         <th>Data Recebimento</th>
                         <th>Status / Ação</th>
                     </tr>
@@ -100,11 +113,35 @@ function getStatusGroup(status: string | undefined): string {
                                     <div style="font-size: 0.8rem; color: var(--color-subtle);">CPF: {l.cpf || 'Não informado'}</div>
                                 </td>
                                 <td>{l.telefone || l.whatsapp}</td>
-                                <td><strong>{l.parceiro?.nome || 'N/A'}</strong></td>
+                                <td><strong>{(l as any).parceiro?.nome || 'N/A'}</strong></td>
+                                <td>
+                                    <!-- Select inline de vendedor -->
+                                    <form method="POST" class="vendor-form">
+                                        <input type="hidden" name="action" value="assign_vendor" />
+                                        <input type="hidden" name="lead_id" value={l.id} />
+                                        <select 
+                                            name="vendedor_id" 
+                                            class="vendor-select" 
+                                            onchange="this.form.submit()"
+                                            title="Atribuir vendedor"
+                                        >
+                                            <option value="">— Não atribuído —</option>
+                                            {vendedores.map(v => (
+                                                <option 
+                                                    value={v.id} 
+                                                    selected={(l as any).vendedor_id === v.id}
+                                                >
+                                                    {v.nome}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </form>
+                                </td>
                                 <td class="col-date">{new Date(l.created_at).toLocaleString('pt-BR')}</td>
                                 <td>
                                     <!-- Formulário inline nativo Astro para status -->
                                     <form method="POST" class="status-form">
+                                        <input type="hidden" name="action" value="update_status" />
                                         <input type="hidden" name="lead_id" value={l.id} />
                                         <select name="status" class="status-select" onchange="this.form.submit()">
                                             <option value="Recebido" selected={l.status === 'Recebido' || l.status === 'pendente' || l.status === 'PENDENTE' || !l.status}>Recebido</option>
@@ -201,5 +238,15 @@ function getStatusGroup(status: string | undefined): string {
         }
         .status-select:focus { border-color: var(--color-brand-primary); outline: none; }
         .col-date { font-size: 0.85rem; color: var(--color-subtle); }
+
+        /* Vendor select */
+        .vendor-form { display: inline-block; width: 100%; }
+        .vendor-select {
+            width: 100%; max-width: 180px; padding: 0.4rem 0.5rem;
+            border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+            font-size: 0.8rem; font-weight: 600; color: var(--color-heading);
+            background: #fff; cursor: pointer;
+        }
+        .vendor-select:focus { border-color: var(--color-brand-secondary); outline: none; }
     </style>
 </AdminLayout>

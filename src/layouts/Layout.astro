@@ -1,12 +1,24 @@
+---
+import faviconIco from "../assets/icons/favicon.ico";
+import favicon16 from "../assets/icons/favicon-16x16.png";
+import favicon32 from "../assets/icons/favicon-32x32.png";
+import appleTouchIcon from "../assets/icons/apple-touch-icon.png";
+import android192 from "../assets/icons/android-chrome-192x192.png";
+import android512 from "../assets/icons/android-chrome-512x512.png";
+---
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
+		<link rel="icon" type="image/x-icon" href={faviconIco.src} />
+		<link rel="apple-touch-icon" sizes="180x180" href={appleTouchIcon.src} />
+		<link rel="icon" type="image/png" sizes="32x32" href={favicon32.src} />
+		<link rel="icon" type="image/png" sizes="16x16" href={favicon16.src} />
+		<link rel="icon" type="image/png" sizes="192x192" href={android192.src} />
+		<link rel="icon" type="image/png" sizes="512x512" href={android512.src} />
 		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
+		<title>Ligeira Telecom</title>
 	</head>
 	<body>
 		<slot />

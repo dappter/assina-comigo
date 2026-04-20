@@ -1,5 +1,10 @@
 ---
 // Página pública — sem autenticação necessária
+import raioLogo from "../assets/icons/RAIO.png";
+import faviconIco from "../assets/icons/favicon.ico";
+import favicon16 from "../assets/icons/favicon-16x16.png";
+import favicon32 from "../assets/icons/favicon-32x32.png";
+import appleTouchIcon from "../assets/icons/apple-touch-icon.png";
 // Exibida após cadastro quando a confirmação de e-mail está ativada no Supabase Auth
 const email = Astro.url.searchParams.get('email') || '';
 const maskedEmail = email
@@ -12,6 +17,10 @@ const maskedEmail = email
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Verifique seu e-mail — Assina Comigo</title>
+    <link rel="icon" type="image/x-icon" href={faviconIco.src} />
+    <link rel="apple-touch-icon" sizes="180x180" href={appleTouchIcon.src} />
+    <link rel="icon" type="image/png" sizes="32x32" href={favicon32.src} />
+    <link rel="icon" type="image/png" sizes="16x16" href={favicon16.src} />
     <meta name="description" content="Confirme seu e-mail para ativar sua conta no Assina Comigo." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

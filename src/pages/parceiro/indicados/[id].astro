@@ -1,10 +1,10 @@
 ---
 import DashboardLayout from "../../../layouts/DashboardLayout.astro";
 import Badge from "../../../components/ui/Badge.astro";
-import { indicationService } from "../../../services/indicationService";
-import { partnerService } from "../../../services/partnerService";
+import { indicationService, type Lead } from "../../../services/indicationService";
+import { partnerService, type Profile } from "../../../services/partnerService";
 import { normalizeLeadStatus } from "../../../utils/leadStatus";
-import { CircleCheck, Clock, CircleX, ArrowLeft } from "@lucide/astro";
+import { CircleCheck, Clock, CircleX, ArrowLeft, CircleDot } from "@lucide/astro";
 
 const tenantId = Astro.locals.tenantId;
 const profileId = Astro.locals.profileId;
@@ -16,32 +16,51 @@ if (!tenantId || !profileId) {
 const { id } = Astro.params;
 if (!id) return Astro.redirect("/parceiro/indicados");
 
-const [partner, lead] = await Promise.all([
-    partnerService.getPartnerById(tenantId, profileId),
-    indicationService.getIndicationById(tenantId, profileId, id)
-]);
+let lead: Lead | null = null;
+let partner: Profile | null = null;
 
-if (!lead) return Astro.redirect("/parceiro/indicados");
+try {
+    [partner, lead] = await Promise.all([
+        partnerService.getPartnerById(tenantId, profileId),
+        indicationService.getIndicationById(tenantId, profileId, id),
+    ]);
+} catch (error) {
+    console.error("[DETALHE_INDICADO] Erro ao carregar dados:", error);
+}
+
+if (!lead) {
+    return Astro.redirect("/parceiro/indicados");
+}
 
 const userName = partner?.nome || "Parceiro";
 const userAvatar = userName.substring(0, 2).toUpperCase();
 
-const formatDateFull = (d: string) =>
-    new Date(d).toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-
-/** Ordem dos status para a timeline */
+// Configuração de Status
 const STATUS_ORDER = ["Recebido", "Em contato", "Aceito", "Instalado", "Pago"];
 const normalizedStatus = normalizeLeadStatus(lead.status);
 const currentStatusIndex = STATUS_ORDER.indexOf(normalizedStatus);
 const isCancelled = normalizedStatus === "Cancelado";
 const safeStatusIndex = currentStatusIndex >= 0 ? currentStatusIndex : 0;
-const nextStatusLabel = STATUS_ORDER[safeStatusIndex + 1] || "Finalizado";
+const nextStatusLabel = normalizedStatus === "Pago" ? "Finalizado" : STATUS_ORDER[safeStatusIndex + 1] || "Finalizado";
+const nextStatusIcon = normalizedStatus === "Pago" ? CircleCheck : CircleDot;
+
+// Formatação
+const formatBR = (v: number) =>
+    new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+    }).format(v);
+
+const formatDateFull = (d?: string) => {
+    if (!d) return "Data não disponível";
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return "Data inválida";
+    return date.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+    });
+};
 ---
 
 <DashboardLayout

@@ -1,8 +1,13 @@
 ---
-// Standalone Landing Page (Ligeira Telecom)
-// Gerada via Google Stitch MCP e aprimorada para Conversão.
 import raioLogo from "../assets/icons/RAIO.png";
-import logoVerticalSemAdesivo from "../assets/branding/LOGO LIGEIRA VERTICAL SEM ADESIVO 2026.png";
+import faviconIco from "../assets/icons/favicon.ico";
+import favicon16 from "../assets/icons/favicon-16x16.png";
+import favicon32 from "../assets/icons/favicon-32x32.png";
+import appleTouchIcon from "../assets/icons/apple-touch-icon.png";
+import android192 from "../assets/icons/android-chrome-192x192.png";
+import android512 from "../assets/icons/android-chrome-512x512.png";
+import logoLigeiraHorizontal from "../assets/branding/LOGO LIGEIRA HORIZONTAL COM ADESIVO 2026.png";
+import ligiaHeroImage from "../assets/branding/LIGIA LP ASSINA COMIGO.png";
 import { getSupabaseServerClient } from "../lib/supabaseSSR";
 import { supabaseAdmin } from "../lib/supabaseAdmin";
 import { captacaoService } from "../services/captacaoService";
@@ -24,7 +29,15 @@ const grupoSlugParam = (Astro.url.searchParams.get("grupo_slug") || "").trim();
 const grupoIdParam = (Astro.url.searchParams.get("grupo_id") || "").trim();
 
 let effectiveGrupoId = grupoIdParam;
-let effectiveTenantId = import.meta.env.PUBLIC_MAIN_TENANT_ID || "4a254f52-99bd-43dd-86e2-ec031206077a";
+let effectiveTenantId = import.meta.env.PUBLIC_MAIN_TENANT_ID;
+
+if (!effectiveTenantId) {
+    console.error("[CONFIG_ERROR] PUBLIC_MAIN_TENANT_ID não definido no arquivo .env");
+    // Em desenvolvimento, podemos usar um valor de segurança caso o .env não tenha carregado
+    if (import.meta.env.DEV) {
+        effectiveTenantId = "4a254f52-99bd-43dd-86e2-ec031206077a";
+    }
+}
 let captacaoContexto: Awaited<ReturnType<typeof captacaoService.getCaptacaoContext>> = null;
 
 if (grupoSlugParam) {
@@ -71,10 +84,9 @@ if (!effectiveGrupoId) {
         .from("grupos_parceiros")
         .select("id")
         .eq("tenant_id", effectiveTenantId)
-        .order("created_at", { ascending: true })
-        .limit(1)
+        .ilike("nome", "%Ligeira%")
         .maybeSingle();
-    
+
     if (defaultGroup) {
         effectiveGrupoId = defaultGroup.id;
     }
@@ -125,14 +137,18 @@ if (Astro.request.method === "POST") {
         let resolvedGrupoId = formGrupoId;
         if (!resolvedGrupoId) {
             const supabaseSSR = getSupabaseServerClient(Astro.cookies);
-            const { data: defaultGroup } = await supabaseSSR.from('grupos_parceiros').select('id').eq('tenant_id', formTenantId).order('created_at', { ascending: true }).limit(1).maybeSingle();
+            const { data: defaultGroup } = await supabaseSSR.from('grupos_parceiros').select('id').eq('tenant_id', formTenantId).ilike('nome', '%Ligeira%').maybeSingle();
             resolvedGrupoId = defaultGroup?.id || null;
         }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         if (!resolvedGrupoId) {
             errorMessage = "Sistema em manutenção: Nenhum grupo padrão encontrado para cadastro.";
         } else if (!formNome || !formEmail || !formWhatsapp) {
             errorMessage = "Preencha nome, e-mail e WhatsApp para concluir seu cadastro.";
+        } else if (!emailRegex.test(formEmail)) {
+            errorMessage = "Forneça um endereço de e-mail válido no formato correto.";
         } else if (!password || password.length < 8) {
             errorMessage = "Sua senha deve ter no mínimo 8 caracteres.";
         } else if (password !== passwordConfirm) {
@@ -218,7 +234,7 @@ if (Astro.request.method === "POST") {
 } // fim: if (Astro.request.method === "POST")
 
 // URL para o botão "Já sou parceiro" da navbar/footer — SSR define activeMode=login
-const loginUrl = `/?mode=login#signup`;
+const loginUrl = `#signup`;
 ---
 <!DOCTYPE html>
 <html class="scroll-smooth" lang="pt-BR">
@@ -226,9 +242,18 @@ const loginUrl = `/?mode=login#signup`;
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Assina Comigo | Seja Parceiro</title>
+    <link rel="icon" type="image/x-icon" href={faviconIco} />
+    <link rel="apple-touch-icon" sizes="180x180" href={appleTouchIcon.src} />
+    <link rel="icon" type="image/png" sizes="32x32" href={favicon32.src} />
+    <link rel="icon" type="image/png" sizes="16x16" href={favicon16.src} />
+    <link rel="icon" type="image/png" sizes="192x192" href={android192.src} />
+    <link rel="icon" type="image/png" sizes="512x512" href={android512.src} />
     
     <!-- Optamos pelo CDN isolado para garantir fidelidade 100% ao Design original do Stitch sem conflitar com o App principal -->
     <script is:inline src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"/>
     <!-- Adicionando classe completa dos ícones do Google Material Symbols -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
@@ -305,14 +330,134 @@ const loginUrl = `/?mode=login#signup`;
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
         }
+
+        /* ── Navbar Premium Glassmorphism ─────────────────────────────── */
         .glass-nav {
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            background-color: rgba(255, 255, 255, 0.8); /* surface color with alpha */
-            border-bottom: 1px solid rgba(0, 0, 0, 0.1); /* outline-variant */
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            background: rgba(84, 28, 220, 0.92);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transition: background 0.3s ease, box-shadow 0.3s ease;
         }
-        
-        /* Otimizações de Conversão - Animações sutis e Sombras Premium */
+        .glass-nav.scrolled {
+            background: rgba(60, 10, 180, 0.97);
+            box-shadow: 0 4px 32px rgba(0,0,0,0.28);
+        }
+
+        /* ── Logo hover ────────────────────────────────────────────────── */
+        .nav-logo {
+            transition: transform 0.35s cubic-bezier(.22,.68,0,1.2), filter 0.3s ease;
+        }
+        .nav-logo:hover {
+            transform: scale(1.045);
+            filter: drop-shadow(0 0 10px rgba(255, 191, 26, 0.45));
+        }
+
+        /* ── Nav link underline animado ────────────────────────────────── */
+        .nav-link {
+            position: relative;
+            transition: color 0.22s ease, background 0.22s ease;
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            right: 50%;
+            height: 2px;
+            background: #FFBF1A;
+            border-radius: 9999px;
+            transition: left 0.28s ease, right 0.28s ease;
+        }
+        .nav-link:hover::after {
+            left: 12px;
+            right: 12px;
+        }
+        .nav-link:hover {
+            background: rgba(255,255,255,0.12);
+            color: #ffffff;
+        }
+
+        /* ── Botão CTA premium ──────────────────────────────────────────── */
+        .btn-cta-nav {
+            background: #FFBF1A;
+            color: #1a1000;
+            font-weight: 800;
+            border-radius: 9999px;
+            padding: 0.45rem 1.2rem;
+            font-size: 0.8125rem;
+            letter-spacing: 0.01em;
+            transition: transform 0.22s cubic-bezier(.22,.68,0,1.2),
+                        box-shadow 0.22s ease,
+                        background 0.22s ease;
+            box-shadow: 0 2px 12px rgba(255, 191, 26, 0.35), 0 1px 3px rgba(0,0,0,0.2);
+            animation: pulse-cta 3.5s infinite alternate;
+        }
+        .btn-cta-nav:hover {
+            transform: scale(1.07);
+            box-shadow: 0 4px 24px rgba(255, 191, 26, 0.55), 0 2px 8px rgba(0,0,0,0.2);
+            background: #ffd24d;
+        }
+        .btn-cta-nav:active {
+            transform: scale(0.97);
+        }
+        @keyframes pulse-cta {
+            0%   { box-shadow: 0 2px 12px rgba(255,191,26,0.25), 0 1px 3px rgba(0,0,0,0.18); }
+            100% { box-shadow: 0 4px 22px rgba(255,191,26,0.55), 0 2px 6px rgba(0,0,0,0.2); }
+        }
+
+        /* ── Instagram icon ─────────────────────────────────────────────── */
+        .nav-instagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 9px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            transition: background 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+            color: rgba(255,255,255,0.75);
+        }
+        .nav-instagram:hover {
+            background: linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+            border-color: transparent;
+            transform: scale(1.15) rotate(-5deg);
+            box-shadow: 0 4px 14px rgba(220,39,67,0.45);
+            color: #fff;
+        }
+        .nav-instagram svg {
+            transition: transform 0.22s ease;
+        }
+
+        /* ── "Já sou parceiro" link ─────────────────────────────────────── */
+        .nav-partner-link {
+            position: relative;
+            color: rgba(255,255,255,0.75);
+            font-size: 0.8125rem;
+            font-weight: 700;
+            transition: color 0.22s ease;
+        }
+        .nav-partner-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 100%;
+            height: 1.5px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 9999px;
+            transition: right 0.28s ease;
+        }
+        .nav-partner-link:hover {
+            color: #fff;
+        }
+        .nav-partner-link:hover::after {
+            right: 0;
+        }
+
+
+        /* ── Otimizações de Conversão - Animações sutis e Sombras Premium ── */
         .btn-glow {
             box-shadow: 0 0 25px rgba(96, 40, 255, 0.4);
             animation: pulse-glow 3s infinite alternate;
@@ -330,40 +475,275 @@ const loginUrl = `/?mode=login#signup`;
         .ambient-shadow {
             box-shadow: 0 20px 40px -12px rgba(0,0,0,0.8);
         }
+
+        /* ── Smooth Scroll Global ───────────────────────────────────────── */
+        html { scroll-behavior: smooth; }
+
+        /* ── Sobre Nos: modelo 3D Meshy ─────────────────────────────────────────────── */
+        .router-model-stage {
+            position: relative;
+            min-height: 420px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            perspective: 1400px;
+        }
+
+        .router-model-frame {
+            position: relative;
+            width: min(100%, 520px);
+            border-radius: 2rem;
+            padding: 1.25rem;
+            background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+            border: 1px solid rgba(255,255,255,0.14);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.42);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+
+        .router-model-glow {
+            position: absolute;
+            inset: 10% 14%;
+            border-radius: 9999px;
+            background: radial-gradient(circle, rgba(255,191,26,0.28) 0%, rgba(96,40,255,0.18) 42%, transparent 72%);
+            filter: blur(18px);
+            z-index: -1;
+        }
+
+        .router-model-viewer {
+            width: 100%;
+            height: 390px;
+            display: block;
+            --poster-color: transparent;
+            --progress-bar-color: #ffbf1a;
+            --progress-mask: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+            background: radial-gradient(circle at 50% 30%, rgba(255,255,255,0.08), transparent 55%);
+            border-radius: 1.5rem;
+            transform: translateZ(0);
+        }
+
+        .router-model-loading {
+            position: absolute;
+            inset: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 1.5rem;
+            background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            color: rgba(255,255,255,0.72);
+            font-size: 0.82rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            font-weight: 800;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .router-model-tag {
+            position: absolute;
+            left: 1.1rem;
+            top: 1.1rem;
+            z-index: 2;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-radius: 9999px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(8, 4, 28, 0.62);
+            color: rgba(255,255,255,0.84);
+            padding: 0.55rem 0.9rem;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .router-model-float {
+            position: absolute;
+            z-index: 2;
+            max-width: 180px;
+            border-radius: 1.25rem;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.08);
+            box-shadow: 0 14px 32px rgba(0,0,0,0.28);
+            color: #fff;
+            padding: 0.9rem 1rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .router-model-float strong {
+            display: block;
+            font-size: 1rem;
+            line-height: 1.1;
+            margin-bottom: 0.2rem;
+        }
+
+        .router-model-float span {
+            display: block;
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.72);
+        }
+
+        .router-model-float-left {
+            left: -0.2rem;
+            bottom: 1.6rem;
+        }
+
+        .router-model-float-right {
+            right: -0.2rem;
+            top: 4.25rem;
+        }
+
+        @media (max-width: 768px) {
+            .router-model-stage {
+                min-height: 360px;
+            }
+
+            .router-model-frame {
+                padding: 1rem;
+            }
+
+            .router-model-viewer {
+                height: 320px;
+            }
+
+            .router-model-float {
+                max-width: 150px;
+                padding: 0.75rem 0.85rem;
+            }
+        }
     </style>
 </head>
 <body class="bg-background font-body text-on-surface antialiased selection:bg-primary-container selection:text-slate-900">
 
-    <!-- Navbar -->
-    <nav class="fixed top-0 w-full z-50 bg-primary/95 backdrop-blur-md transition-all duration-300 shadow-xl border-b border-white/10">
-        <div class="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto">
+    <!-- Navbar Modernizada -->
+    <nav id="main-navbar" class="glass-nav fixed top-0 w-full z-50 transition-all duration-300">
+        <div class="flex justify-between items-center px-6 py-2.5 max-w-screen-xl mx-auto">
+
+            <!-- Logo + Nome -->
+            <a href="/" class="nav-logo flex items-center gap-2.5 flex-shrink-0" aria-label="Página inicial Assina Comigo">
+                <div class="flex h-8 w-auto items-center justify-start">
+                    <img alt="Ligeira Telecom" class="h-full w-auto object-contain" src={logoLigeiraHorizontal.src} />
+                </div>
+                <div class="h-5 w-px bg-white/20 mx-0.5"></div>
+                <span class="text-[0.95rem] font-headline font-black text-white tracking-tighter whitespace-nowrap">Assina Comigo</span>
+            </a>
+
+            <!-- Links de Navegação -->
+            <div class="hidden md:flex items-center gap-1 font-label font-bold text-[0.8rem] tracking-wide text-white/85">
+                <a class="nav-link rounded-full px-3.5 py-1.5" href="#sobre-nos">Sobre Nos</a>
+                <a class="nav-link rounded-full px-3.5 py-1.5" href="#como-funciona">Como Funciona</a>
+                <a class="nav-link rounded-full px-3.5 py-1.5" href="#regras">Regras</a>
+            </div>
+
+            <!-- Ações à direita -->
             <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-white/10 shadow-lg shadow-black/20">
-                    <img alt="Ligeira" class="h-8 w-8 object-contain" src={raioLogo.src} />
-                </div>
-                <div class="leading-none">
-                    <div class="text-[10px] font-bold uppercase tracking-[0.28em] text-white/55">Assina Comigo</div>
-                    <div class="text-2xl font-black italic text-white tracking-tighter">Ligeira <span class="text-tertiary">Telecom</span></div>
-                </div>
-            </div>
-            <div class="hidden md:flex items-center gap-3 font-label font-bold text-sm tracking-wide text-white/90">
-                <a class="rounded-full border border-white/10 bg-white/5 px-4 py-2 transition-all duration-200 hover:border-white/25 hover:bg-white/15 hover:text-white" href="#como-funciona">Como Funciona</a>
-                <a class="rounded-full border border-white/10 bg-white/5 px-4 py-2 transition-all duration-200 hover:border-white/25 hover:bg-white/15 hover:text-white" href="#vantagens">Vantagens</a>
-                <a class="rounded-full border border-white/10 bg-white/5 px-4 py-2 transition-all duration-200 hover:border-white/25 hover:bg-white/15 hover:text-white" href="#regras">Regras</a>
-            </div>
-            <div class="flex items-center space-x-4">
-                <a class="hidden md:flex text-white/80 hover:text-white font-label font-bold text-sm transition-colors" href={loginUrl}>
+                <!-- Instagram -->
+                <a
+                    href="https://www.instagram.com/ligeiratelecom"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="nav-instagram hidden md:flex"
+                    aria-label="Instagram da Ligeira Telecom"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                    </svg>
+                </a>
+
+                <!-- Já sou parceiro -->
+                <a
+                    class="nav-partner-link hidden md:block"
+                    href={loginUrl}
+                    onclick="if(window.activateTab) window.activateTab('login')"
+                >
                     Já sou parceiro
                 </a>
-                <a class="bg-tertiary text-on-tertiary px-6 py-2.5 rounded-full font-headline font-extrabold text-sm hover:scale-105 active:scale-95 transition-all duration-200 btn-glow" href="#signup">
+
+                <!-- Botão CTA -->
+                <a
+                    class="btn-cta-nav"
+                    href="#signup"
+                    onclick="if(window.activateTab) window.activateTab('register')"
+                >
                     Começar Agora
                 </a>
+
+                <!-- Hamburger mobile -->
+                <button
+                    id="mobile-menu-toggle"
+                    class="md:hidden flex flex-col gap-1.5 p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    aria-label="Abrir menu"
+                    aria-expanded="false"
+                >
+                    <span class="hamburger-line block w-5 h-0.5 bg-white rounded-full transition-all duration-300"></span>
+                    <span class="hamburger-line block w-5 h-0.5 bg-white rounded-full transition-all duration-300"></span>
+                    <span class="hamburger-line block w-5 h-0.5 bg-white rounded-full transition-all duration-300"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Menu Mobile -->
+        <div id="mobile-menu" class="md:hidden overflow-hidden max-h-0 transition-all duration-300 ease-in-out">
+            <div class="px-5 pb-4 flex flex-col gap-1 border-t border-white/10">
+                <a class="text-white/80 hover:text-white font-bold text-sm py-2.5 border-b border-white/5 transition-colors" href="#sobre-nos">Sobre Nos</a>
+                <a class="text-white/80 hover:text-white font-bold text-sm py-2.5 border-b border-white/5 transition-colors" href="#como-funciona">Como Funciona</a>
+                <a class="text-white/80 hover:text-white font-bold text-sm py-2.5 border-b border-white/5 transition-colors" href="#regras">Regras</a>
+                <a class="text-white/70 hover:text-white font-bold text-sm py-2.5 border-b border-white/5 transition-colors" href={loginUrl}>Já sou parceiro</a>
+                <a
+                    href="https://www.instagram.com/ligeiratelecom"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-white/70 hover:text-white font-bold text-sm py-2.5 flex items-center gap-2 transition-colors"
+                >Instagram</a>
             </div>
         </div>
     </nav>
 
+    <script is:inline>
+        // ── Navbar scroll effect ──────────────────────────────────────────
+        (function() {
+            const navbar = document.getElementById('main-navbar');
+            if (!navbar) return;
+            const onScroll = () => {
+                if (window.scrollY > 24) {
+                    navbar.classList.add('scrolled');
+                } else {
+                    navbar.classList.remove('scrolled');
+                }
+            };
+            window.addEventListener('scroll', onScroll, { passive: true });
+            onScroll();
+        })();
+
+        // ── Mobile menu toggle ────────────────────────────────────────────
+        (function() {
+            const btn = document.getElementById('mobile-menu-toggle');
+            const menu = document.getElementById('mobile-menu');
+            if (!btn || !menu) return;
+            btn.addEventListener('click', function() {
+                const isOpen = menu.style.maxHeight && menu.style.maxHeight !== '0px';
+                if (isOpen) {
+                    menu.style.maxHeight = '0px';
+                    btn.setAttribute('aria-expanded', 'false');
+                } else {
+                    menu.style.maxHeight = menu.scrollHeight + 'px';
+                    btn.setAttribute('aria-expanded', 'true');
+                }
+            });
+            // Fechar menu ao clicar em link
+            menu.querySelectorAll('a').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    menu.style.maxHeight = '0px';
+                    btn.setAttribute('aria-expanded', 'false');
+                });
+            });
+        })();
+    </script>
+
     <!-- Hero Section -->
-    <header class="relative pt-40 pb-24 overflow-hidden border-b border-primary/10" style="background: linear-gradient(135deg, #140030 0%, #1E0050 60%, #2D0080 100%);">
+    <header class="relative pt-40 pb-24 overflow-hidden" style="background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);">
         <div class="max-w-7xl mx-auto px-6 grid xl:grid-cols-2 gap-16 items-center">
             
             <div class="z-10 relative">
@@ -375,16 +755,16 @@ const loginUrl = `/?mode=login#signup`;
                     Programa de Indicações
                 </div>
                 
-                <h1 class="text-5xl lg:text-[72px] font-headline font-black text-white leading-[1.05] tracking-tighter mb-8">
-                    Sua rede de contatos <br class="hidden md:block"/>vale <span class="text-transparent bg-clip-text bg-gradient-to-r from-tertiary to-yellow-200">dinheiro vivo.</span>
+                <h1 class="text-5xl lg:text-[72px] font-headline font-black text-slate-900 leading-[1.05] tracking-tighter mb-8">
+                    Nossa embaixadora <span class="text-primary italic">Lígia</span><br class="hidden md:block"/> garante: sua rede vale dinheiro vivo.
                 </h1>
                 
-                <p class="text-xl text-white/90 mb-12 max-w-xl leading-relaxed font-body">
-                    Torne-se um parceiro oficial da Ligeira Telecom. Indique nossa internet 100% fibra ótica de baixa latência e <strong>ganhe comissões automáticas</strong> por cada instalação concluída. Sem limites, sem burocracia.
+                <p class="text-xl text-on-surface-variant mb-12 max-w-xl leading-relaxed font-body">
+                    A Lígia já é parceira oficial da Ligeira Telecom e está faturando alto! Faça como ela: indique nossa internet 100% fibra ótica e <strong>ganhe comissões automáticas</strong> direto na sua conta. Sem limites, sem burocracia.
                 </p>
                 
                 <div class="flex flex-col sm:flex-row gap-5 items-start sm:items-center">
-                    <a class="w-full sm:w-auto text-center bg-tertiary text-on-tertiary px-10 py-4 rounded-full font-headline font-extrabold text-lg hover:scale-[1.03] active:scale-95 transition-all btn-glow" href="#signup">
+                    <a class="w-full sm:w-auto text-center bg-tertiary text-on-tertiary px-10 py-4 rounded-full font-headline font-extrabold text-lg hover:scale-[1.03] active:scale-95 transition-all btn-glow" href="#signup" onclick="if(window.activateTab) window.activateTab('register')">
                         Quero me cadastrar
                     </a>
                     <a class="w-full sm:w-auto text-center flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-slate-900 font-headline font-bold text-lg" href="#como-funciona">
@@ -393,12 +773,12 @@ const loginUrl = `/?mode=login#signup`;
                     </a>
                 </div>
                 
-                <div class="mt-12 flex items-center gap-4 text-sm text-white/80 font-label">
+                <div class="mt-12 flex items-center gap-4 text-sm text-on-surface-variant font-label">
                     <div class="flex -space-x-3">
                         <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=11" alt="User">
                         <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=12" alt="User">
                         <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=33" alt="User">
-                        <div class="w-10 h-10 border-2 border-background rounded-full bg-surface-container flex items-center justify-center text-xs font-bold text-slate-900">+5k</div>
+                        <div class="w-10 h-10 border-2 border-background rounded-full bg-white flex items-center justify-center text-xs font-bold text-slate-900">+5k</div>
                     </div>
                     <p>Parceiros já estão ganhando <br/>comissões todos os dias.</p>
                 </div>
@@ -411,60 +791,14 @@ const loginUrl = `/?mode=login#signup`;
                     <!-- Ambient Light -->
                     <div class="absolute inset-0 bg-white/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-                    <!-- Main Dashboard Card Illustration (Asymmetric) -->
-                    <div class="relative bg-white/10 backdrop-blur-xl p-8 rounded-3xl ambient-shadow border border-white/20 transform xl:rotate-3 hover:rotate-0 transition-all duration-500 z-20">
-                        <div class="flex justify-between items-start mb-10">
-                            <div>
-                                <p class="text-white/80 font-label font-bold text-xs uppercase tracking-widest mb-1">Recompensa Pendente</p>
-                                <h3 class="text-5xl font-headline font-black text-white">R$ 450<span class="text-xl text-white/80">,00</span></h3>
-                            </div>
-                            <div class="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-tertiary">
-                                <span class="material-symbols-outlined text-3xl">account_balance_wallet</span>
-                            </div>
-                        </div>
-                        
-                        <div class="space-y-4">
-                            <div class="flex items-center justify-between p-4 bg-white/10 rounded-2xl">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center text-green-400">
-                                        <span class="material-symbols-outlined text-sm font-bold">arrow_downward</span>
-                                    </div>
-                                    <div>
-                                        <p class="font-bold text-white text-sm">Indicação Instalada</p>
-                                        <p class="text-xs text-white/70">Cliente: João S.</p>
-                                    </div>
-                                </div>
-                                <span class="font-bold text-green-400">+ R$ 50,00</span>
-                            </div>
-
-                            <div class="flex items-center justify-between p-4 bg-white/10 rounded-2xl">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center text-green-400">
-                                        <span class="material-symbols-outlined text-sm font-bold">arrow_downward</span>
-                                    </div>
-                                    <div>
-                                        <p class="font-bold text-white text-sm">Indicação Instalada</p>
-                                        <p class="text-xs text-white/70">Cliente: Maria C.</p>
-                                    </div>
-                                </div>
-                                <span class="font-bold text-green-400">+ R$ 50,00</span>
-                            </div>
-                        </div>
-                        
-                        <button class="w-full mt-6 bg-primary-container text-slate-900 py-4 rounded-xl font-headline font-bold hover:bg-primary-container/80 transition-colors">
-                            Sacar para Conta Bancária
-                        </button>
+                    <!-- Ligia Image Hero -->
+                    <div class="relative z-20 flex justify-center items-end h-[500px]">
+                        <img alt="Lígia - Embaixadora Ligeira Telecom" src={ligiaHeroImage.src} class="h-[120%] w-auto object-cover max-w-none ambient-shadow drop-shadow-2xl translate-y-8" />
                     </div>
-
-                    <!-- Floating Notification (Conversion UX) -->
-                    <div class="absolute -bottom-8 -left-8 md:-left-16 bg-surface-container-lowest p-5 rounded-2xl ambient-shadow border border-slate-900/10 flex items-center gap-4 z-30 animate-bounce" style="animation-duration: 3s;">
-                        <div class="w-12 h-12 rounded-full bg-tertiary/20 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-tertiary text-xl">payments</span>
-                        </div>
-                        <div>
-                            <p class="font-headline font-bold text-slate-900 text-sm">Pix Recebido!</p>
-                            <p class="text-xs text-on-surface-variant">Carlos M. acabou de sacar R$ 200.</p>
-                        </div>
+                    
+                    <!-- Logo Horizontal Display -->
+                    <div class="absolute -bottom-16 -right-4 md:-right-12 bg-white p-6 py-8 rounded-3xl ambient-shadow border border-slate-900/5 z-30 transform rotate-3">
+                        <img alt="Ligeira Telecom" src={logoLigeiraHorizontal.src} class="h-16 object-contain" />
                     </div>
 
                 </div>
@@ -472,85 +806,93 @@ const loginUrl = `/?mode=login#signup`;
         </div>
     </header>
 
-    <!-- Advantages Section -->
-    <section class="py-24 relative overflow-hidden bg-surface-container-lowest border-b border-slate-900/5" id="vantagens">
-        <div class="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none"></div>
+    <!-- Seção Sobre Nós: A verdadeira força da Fibra Ligeira -->
+    <section class="relative bg-[#0c0320] py-24 md:py-32 overflow-hidden" id="sobre-nos">
+        <!-- Glows decorativos fixos -->
+        <div class="absolute -left-20 top-12 h-[500px] w-[500px] rounded-full bg-primary/20 blur-[120px] pointer-events-none"></div>
+        <div class="absolute -right-20 bottom-12 h-[500px] w-[500px] rounded-full bg-tertiary/10 blur-[120px] pointer-events-none"></div>
+
         <div class="max-w-7xl mx-auto px-6 relative z-10">
-            <div class="grid xl:grid-cols-[1.1fr_.9fr] gap-10 items-start">
-                <div>
-                    <div class="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-primary mb-5">
-                        Vantagens
+            <div class="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+                <!-- Conteúdo Textual -->
+                <div class="order-2 lg:order-1">
+                    <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-white/60 uppercase tracking-widest mb-8">
+                        <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                        Tecnologia de Ponta
                     </div>
-                    <h2 class="text-4xl lg:text-5xl font-headline font-black text-slate-900 tracking-tighter mb-4">Mais claro para o parceiro. Mais leve para o time.</h2>
-                    <p class="text-xl text-on-surface-variant max-w-2xl">
-                        A landing foi desenhada para mostrar o valor do programa sem poluir a leitura. O parceiro entende o fluxo, vê a vantagem e entra pelo grupo correto.
+
+                    <h2 class="text-4xl md:text-6xl font-headline font-black text-white leading-[1.1] mb-8">
+                        A Ligeira conecta sua cidade.<br/>
+                        <span class="text-tertiary">Você conecta pessoas.</span>
+                    </h2>
+
+                    <p class="text-xl text-white/70 leading-relaxed mb-10 max-w-xl">
+                        A verdadeira fibra ótica exige o melhor equipamento. Nosso roteador de última geração garante que a experiência de quem você indica seja impecável, do Wi-Fi 6 à latência zero.
                     </p>
 
-                    <div class="grid sm:grid-cols-2 gap-5 mt-10">
-                        <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
-                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4">
-                                <img alt="Ligeira" class="h-7 w-7 object-contain" src={raioLogo.src} />
+                    <div class="space-y-6 mb-12">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">
+                                <span class="material-symbols-outlined text-primary">speed</span>
                             </div>
-                            <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Entrada por grupo</h3>
-                            <p class="text-on-surface-variant">Todo parceiro entra associado a um grupo desde o primeiro acesso. Sem links soltos, sem retrabalho.</p>
-                        </div>
-                        <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
-                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-tertiary/20 text-slate-900 mb-4">
-                                <span class="material-symbols-outlined">payments</span>
+                            <div>
+                                <h4 class="text-white font-bold text-lg">Performance Extrema</h4>
+                                <p class="text-white/50">Streaming em 4K e jogos competitivos sem oscilações.</p>
                             </div>
-                            <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Pagamento simples</h3>
-                            <p class="text-on-surface-variant">O ganho já nasce configurado pelo grupo, com preço ou pontos padrão para todas as indicações.</p>
                         </div>
-                        <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
-                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#140030] text-tertiary mb-4">
-                                <span class="material-symbols-outlined">link</span>
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-tertiary/20 flex items-center justify-center shrink-0 border border-tertiary/30">
+                                <span class="material-symbols-outlined text-tertiary">wifi_tethering</span>
                             </div>
-                            <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Link próprio por parceiro</h3>
-                            <p class="text-on-surface-variant">Cada parceiro recebe o seu link individual para captar clientes com rastreamento total.</p>
-                        </div>
-                        <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
-                            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 mb-4">
-                                <span class="material-symbols-outlined">notifications</span>
+                            <div>
+                                <h4 class="text-white font-bold text-lg">Cobertura Ampliada</h4>
+                                <p class="text-white/50">Sinal forte em todos os cômodos da casa.</p>
                             </div>
-                            <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Status visíveis</h3>
-                            <p class="text-on-surface-variant">Status, notificações e pontos ficam centralizados para o parceiro acompanhar sem dúvida.</p>
                         </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-5">
+                        <a href="#signup" class="bg-tertiary text-on-tertiary px-8 py-4 rounded-full font-headline font-black text-lg hover:scale-105 transition-all text-center">
+                            Começar agora
+                        </a>
+                        <a href="https://www.instagram.com/ligeiratelecom" target="_blank" class="flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all">
+                            <span class="material-symbols-outlined text-sm">photo_camera</span>
+                            Seguir a Ligeira
+                        </a>
                     </div>
                 </div>
 
-                <div class="relative">
-                    <div class="absolute inset-0 bg-primary/10 blur-[110px] rounded-full pointer-events-none"></div>
-                    <div class="relative rounded-[2.5rem] border border-slate-900/5 bg-[#140030] p-8 shadow-2xl shadow-black/30 overflow-hidden">
-                        <div class="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.04] to-transparent pointer-events-none"></div>
-                        <div class="flex items-center justify-between mb-8">
-                            <div>
-                                <p class="text-xs uppercase tracking-[0.2em] text-white/50 font-bold">Marca oficial</p>
-                                <h3 class="text-2xl font-headline font-black text-white mt-2">Ligeira Telecom</h3>
-                            </div>
-                            <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
-                                <img alt="Logo Ligeira" class="h-10 w-10 object-contain" src={raioLogo.src} />
-                            </div>
-                        </div>
-
-                        <div class="rounded-[2rem] bg-white/5 border border-white/10 p-6">
-                            <img alt="Ligeira Vertical" class="mx-auto max-h-[320px] w-full object-contain" src={logoVerticalSemAdesivo.src} />
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4 mt-6 text-white/90">
-                            <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
-                                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45 font-bold mb-2">Grupo definido</p>
-                                <p class="font-bold">Preço ou pontos já prontos.</p>
-                            </div>
-                            <div class="rounded-2xl bg-white/5 border border-white/10 p-4">
-                                <p class="text-[11px] uppercase tracking-[0.2em] text-white/45 font-bold mb-2">Captação segura</p>
-                                <p class="font-bold">Entrada por convite sempre associada.</p>
-                            </div>
+                <!-- O Roteador 3D (Vídeo Scroll) -->
+                <div class="order-1 lg:order-2 relative group">
+                    <div class="relative aspect-square w-full max-w-[500px] mx-auto flex items-center justify-center">
+                        <!-- Círculos de órbita decorativos -->
+                        <div class="absolute inset-0 rounded-full border border-white/5 scale-[0.8] animate-[spin_20s_linear_infinite]"></div>
+                        <div class="absolute inset-0 rounded-full border border-white/5 scale-[1.1] animate-[spin_35s_linear_infinite_reverse]"></div>
+                        
+                        <!-- Container do Vídeo -->
+                        <div class="relative w-full h-full flex items-center justify-center" id="v3d-container">
+                             <video 
+                                id="v3d-video"
+                                src="/src/assets/illustrations/modelo-360.mp4" 
+                                class="w-full h-full object-contain pointer-events-none drop-shadow-[0_0_50px_rgba(96,40,255,0.3)]"
+                                playsinline
+                                muted
+                                preload="auto"
+                             ></video>
+                             
+                             <!-- Tag flutuante -->
+                             <div class="absolute bottom-10 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md border border-white/20 px-4 py-2 rounded-full text-[10px] font-bold text-white uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                                Roteador Premium 360°
+                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
+
+    <!-- Vantagens Section Removed per Epic 2 -->
+
 
     <!-- How It Works Section (Glassy Cards) -->
     <section class="py-32 relative" id="como-funciona">
@@ -616,7 +958,7 @@ const loginUrl = `/?mode=login#signup`;
                         </div>
 
                         <div class="rounded-[2rem] bg-white/5 border border-white/10 p-6">
-                            <img alt="Ligeira Vertical" class="mx-auto max-h-[390px] w-full object-contain" src={logoVerticalSemAdesivo.src} />
+                            <img alt="Ligeira Horizontal" class="mx-auto max-h-[390px] w-full object-contain" src={logoLigeiraHorizontal.src} />
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
@@ -813,7 +1155,7 @@ const loginUrl = `/?mode=login#signup`;
                         </div>
                     </form>
 
-                    <a href={`/api/auth/google?mode=register&grupo_id=${effectiveGrupoId}&tenant_id=${effectiveTenantId}`} class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3 relative z-10 block text-center">
+                    <a href={`/api/auth/google?mode=register&grupo_id=${effectiveGrupoId}&tenant_id=${effectiveTenantId}`} class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3 relative z-10 text-center">
                         <svg class="w-6 h-6" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
                         Cadastrar com Google
                     </a>
@@ -845,7 +1187,7 @@ const loginUrl = `/?mode=login#signup`;
                         </div>
                     </form>
 
-                    <a href="/api/auth/google?mode=login" class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3 relative z-10 block text-center">
+                    <a href="/api/auth/google?mode=login" class="w-full bg-white text-gray-800 py-4 rounded-[1.5rem] font-headline font-bold text-lg hover:bg-gray-100 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-3 relative z-10 text-center">
                         <svg class="w-6 h-6" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
                         Entrar com Google
                     </a>
@@ -854,152 +1196,197 @@ const loginUrl = `/?mode=login#signup`;
         </div>
     </section>
 
-    <script is:inline>
-        // Máscaras de input para WhatsApp e CPF
-        function sanitizePhone(phone) {
-            if (!phone) return '';
-            const digitsOnly = phone.replace(/\D/g, '');
-            if (digitsOnly.length === 13 && digitsOnly.startsWith('55')) {
-                return digitsOnly.slice(2);
-            }
-            return digitsOnly;
-        }
+    <script type="module" is:inline>
+        import * as THREE from 'three';
 
-        function formatPhoneDisplay(phone) {
-            const digits = sanitizePhone(phone).slice(0, 11);
-            if (!digits) return '';
-            if (digits.length <= 2) return `(${digits}`;
-            if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-            if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-            return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-        }
-
-        function sanitizeCPF(cpf) {
-            if (!cpf) return '';
-            return cpf.replace(/\D/g, '');
-        }
-
-        function formatCPFDisplay(cpf) {
-            const digits = sanitizeCPF(cpf).slice(0, 11);
-            if (!digits) return '';
-            if (digits.length <= 3) return digits;
-            if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-            if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-            return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-        }
-
-        function applyPhoneMask(input) {
-            if (!input) return;
-
-            input.addEventListener('input', function() {
-                const formatted = formatPhoneDisplay(this.value);
-                const raw = sanitizePhone(this.value);
-                this.value = formatted;
-                this.dataset.rawValue = raw;
-            });
-
-            input.addEventListener('blur', function() {
-                this.dataset.rawValue = sanitizePhone(this.value);
-            });
-
-            const form = input.closest('form');
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    const rawValue = input.dataset.rawValue || sanitizePhone(input.value);
-                    input.value = rawValue;
-                });
-            }
-        }
-
-        function applyCPFMask(input) {
-            if (!input) return;
-
-            input.addEventListener('input', function() {
-                const formatted = formatCPFDisplay(this.value);
-                const raw = sanitizeCPF(this.value);
-                this.value = formatted;
-                this.dataset.rawValue = raw;
-            });
-
-            input.addEventListener('blur', function() {
-                this.dataset.rawValue = sanitizeCPF(this.value);
-            });
-
-            const form = input.closest('form');
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    const rawValue = input.dataset.rawValue || sanitizeCPF(input.value);
-                    input.value = rawValue;
-                });
-            }
-        }
-
-        // Aplica máscaras quando o DOM estiver pronto
+        // Máscaras de input e controle de abas sem recarregar a página.
         document.addEventListener('DOMContentLoaded', function() {
-            const whatsappInput = document.getElementById("whatsapp");
-            const cpfInput = document.getElementById("cpf");
-            applyPhoneMask(whatsappInput);
-            applyCPFMask(cpfInput);
+            function sanitizePhone(phone) {
+                if (!phone) return '';
+                const digitsOnly = phone.replace(/\D/g, '');
+                if (digitsOnly.length === 13 && digitsOnly.startsWith('55')) {
+                    return digitsOnly.slice(2);
+                }
+                return digitsOnly;
+            }
 
-            // ── Controle de Abas Client-Side (Zero Reload) ──────────────────
-            const tabRegister   = document.getElementById('tab-register');
-            const tabLogin      = document.getElementById('tab-login');
+            function formatPhoneDisplay(phone) {
+                const digits = sanitizePhone(phone).slice(0, 11);
+                if (!digits) return '';
+                if (digits.length <= 2) return `(${digits}`;
+                if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+                if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+                return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+            }
+
+            function sanitizeCPF(cpf) {
+                if (!cpf) return '';
+                return cpf.replace(/\D/g, '');
+            }
+
+            function formatCPFDisplay(cpf) {
+                const digits = sanitizeCPF(cpf).slice(0, 11);
+                if (!digits) return '';
+                if (digits.length <= 3) return digits;
+                if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+                if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+                return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+            }
+
+            function applyPhoneMask(input) {
+                if (!input || input.dataset.maskBound === 'true') return;
+
+                input.addEventListener('input', function() {
+                    const formatted = formatPhoneDisplay(this.value);
+                    const raw = sanitizePhone(this.value);
+                    this.value = formatted;
+                    this.dataset.rawValue = raw;
+                });
+
+                input.addEventListener('blur', function() {
+                    this.dataset.rawValue = sanitizePhone(this.value);
+                });
+
+                const form = input.closest('form');
+                if (form) {
+                    form.addEventListener('submit', function() {
+                        const rawValue = input.dataset.rawValue || sanitizePhone(input.value);
+                        input.value = rawValue;
+                    });
+                }
+
+                input.dataset.maskBound = 'true';
+            }
+
+            function applyCPFMask(input) {
+                if (!input || input.dataset.maskBound === 'true') return;
+
+                input.addEventListener('input', function() {
+                    const formatted = formatCPFDisplay(this.value);
+                    const raw = sanitizeCPF(this.value);
+                    this.value = formatted;
+                    this.dataset.rawValue = raw;
+                });
+
+                input.addEventListener('blur', function() {
+                    this.dataset.rawValue = sanitizeCPF(this.value);
+                });
+
+                const form = input.closest('form');
+                if (form) {
+                    form.addEventListener('submit', function() {
+                        const rawValue = input.dataset.rawValue || sanitizeCPF(input.value);
+                        input.value = rawValue;
+                    });
+                }
+
+                input.dataset.maskBound = 'true';
+            }
+
+            const tabRegister = document.getElementById('tab-register');
+            const tabLogin = document.getElementById('tab-login');
             const panelRegister = document.getElementById('panel-register');
-            const panelLogin    = document.getElementById('panel-login');
+            const panelLogin = document.getElementById('panel-login');
 
             function activateTab(tab) {
+                if (!tabRegister || !tabLogin || !panelRegister || !panelLogin) return;
                 const isRegister = tab === 'register';
 
-                // Alterna visibilidade dos painéis
                 panelRegister.classList.toggle('hidden', !isRegister);
                 panelLogin.classList.toggle('hidden', isRegister);
 
-                // Estilo do botão Cadastro
                 tabRegister.classList.toggle('bg-white', isRegister);
                 tabRegister.classList.toggle('text-slate-900', isRegister);
                 tabRegister.classList.toggle('shadow', isRegister);
                 tabRegister.classList.toggle('text-on-surface-variant', !isRegister);
                 tabRegister.setAttribute('aria-selected', isRegister ? 'true' : 'false');
 
-                // Estilo do botão Login
                 tabLogin.classList.toggle('bg-white', !isRegister);
                 tabLogin.classList.toggle('text-slate-900', !isRegister);
                 tabLogin.classList.toggle('shadow', !isRegister);
                 tabLogin.classList.toggle('text-on-surface-variant', isRegister);
                 tabLogin.setAttribute('aria-selected', isRegister ? 'false' : 'true');
 
-                // Re-aplicar máscaras ao mostrar painel de cadastro
                 if (isRegister) {
                     applyPhoneMask(document.getElementById('whatsapp'));
                     applyCPFMask(document.getElementById('cpf'));
                 }
             }
 
-            tabRegister && tabRegister.addEventListener('click', () => activateTab('register'));
-            tabLogin    && tabLogin.addEventListener('click',    () => activateTab('login'));
+            window.activateTab = activateTab;
+            tabRegister && tabRegister.addEventListener('click', function() { activateTab('register'); });
+            tabLogin && tabLogin.addEventListener('click', function() { activateTab('login'); });
 
-            // Abre aba de login via hash na URL (ex: link externo)
+            const initialRegisterSelected = tabRegister?.getAttribute('aria-selected') === 'true';
+            activateTab(initialRegisterSelected ? 'register' : 'login');
+
+            // ── Lógica do Vídeo 3D Scroll (GSAP) ──────────────────────────
+            const video = document.getElementById('v3d-video');
+            if (video) {
+                // Forçamos o carregamento dos metadados para saber a duração
+                video.addEventListener('loadedmetadata', () => {
+                    const duration = video.duration;
+                    
+                    gsap.to(video, {
+                        currentTime: duration,
+                        ease: "none",
+                        scrollTrigger: {
+                            trigger: "#sobre-nos",
+                            start: "top center",
+                            end: "bottom center",
+                            scrub: 1, // Suavidade no controle do vídeo
+                            // markers: true, // Útil para debug
+                        }
+                    });
+                });
+                
+                // Fallback caso já esteja carregado
+                if (video.readyState >= 2) {
+                    video.dispatchEvent(new Event('loadedmetadata'));
+                }
+            }
+
             if (window.location.hash === '#login') {
                 activateTab('login');
             }
+
         });
     </script>
 
+
+    <style is:inline>
+        /* Animação da barra de scroll-hint */
+        @keyframes scrollHintPulse {
+            0%, 100% { opacity: 0.6; }
+            50%       { opacity: 1; }
+        }
+    </style>
+
     <!-- Footer -->
-    <footer class="w-full pt-16 pb-8 bg-background border-t border-slate-900/10">
-        <div class="flex flex-col md:flex-row justify-between items-center px-8 max-w-7xl mx-auto">
+    <footer class="w-full pt-14 pb-8 bg-background border-t border-slate-900/10">
+        <div class="flex flex-col md:flex-row justify-between items-center px-8 max-w-screen-xl mx-auto">
             <div class="mb-8 md:mb-0 flex flex-col items-center md:items-start text-center md:text-left">
-                <div class="text-2xl font-black text-slate-900 italic font-headline mb-2 flex items-center gap-3">
-                    <img alt="Ligeira" class="h-10 w-10 object-contain" src={raioLogo.src} />
-                    <span>Ligeira Telecom</span>
+                <div class="mb-2 flex items-center gap-3">
+                    <img alt="Ligeira Telecom" class="h-8 w-auto object-contain" src={logoLigeiraHorizontal.src} />
+                    <div class="h-5 w-px bg-slate-900/10 mx-1"></div>
+                    <span class="text-lg font-headline font-black text-slate-900 tracking-tighter">Assina Comigo</span>
                 </div>
                 <p class="text-on-surface-variant font-body text-sm max-w-sm">A velocidade da luz em suas mãos. Programa de parceiros oficiais para indicações recompensadas.</p>
             </div>
             
-            <div class="flex space-x-8">
+            <div class="flex flex-wrap justify-center gap-x-8 gap-y-3">
                 <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href={loginUrl}>Entrar</a>
                 <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href="/admin/login">Área Restrita</a>
                 <a class="text-on-surface-variant hover:text-primary font-label font-bold transition-colors text-sm" href="#">Suporte</a>
+                <a
+                    href="https://www.instagram.com/ligeiratelecom"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-on-surface-variant hover:text-pink-600 font-label font-bold transition-colors text-sm flex items-center gap-1"
+                >
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                    Instagram
+                </a>
             </div>
         </div>
         <div class="text-center mt-12 text-xs text-on-surface-variant/80">

@@ -118,12 +118,58 @@ export const adminService = {
     async getIndicacoes(tenantId: string) {
         const { data, error } = await supabase
             .from('leads')
-            .select('*, parceiro:profiles(nome)')
+            .select('*, parceiro:profiles!leads_parceiro_id_fkey(nome), vendedor:profiles!leads_vendedor_id_fkey(nome)')
             .eq('tenant_id', tenantId)
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+            // Fallback para query sem o join de vendedor (compatibilidade)
+            const { data: fallbackData, error: fallbackError } = await supabase
+                .from('leads')
+                .select('*, parceiro:profiles(nome)')
+                .eq('tenant_id', tenantId)
+                .order('created_at', { ascending: false });
+
+            if (fallbackError) throw fallbackError;
+            return fallbackData || [];
+        }
         return data || [];
+    },
+
+    /**
+     * Busca todos os usuários com papel de vendedor ou admin no tenant.
+     * Usado para popular o select de atribuição de leads.
+     */
+    async getVendedores(tenantId: string) {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, nome, email, tipo_usuario')
+            .eq('tenant_id', tenantId)
+            .in('tipo_usuario', ['vendedor', 'admin'])
+            .order('nome', { ascending: true });
+
+        if (error) {
+            console.warn('[adminService] Erro ao buscar vendedores:', error.message);
+            return [];
+        }
+        return data || [];
+    },
+
+    /**
+     * Atribui ou remove um vendedor de um lead.
+     * @param leadId - ID do lead
+     * @param vendedorId - ID do perfil do vendedor (ou null para desatribuir)
+     * @param tenantId - Tenant de segurança
+     */
+    async updateLeadVendedor(leadId: string, vendedorId: string | null, tenantId: string) {
+        const { error } = await supabase
+            .from('leads')
+            .update({ vendedor_id: vendedorId })
+            .eq('id', leadId)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+        return true;
     },
 
     async updateIndicacaoStatus(leadId: string, status: string, tenantId: string) {
@@ -400,6 +446,7 @@ export const adminService = {
         if (error) throw error;
         return data || [];
     },
+
 
     async saveGrupo(tenantId: string, grupo: any) {
         const payload = { ...grupo, tenant_id: tenantId };

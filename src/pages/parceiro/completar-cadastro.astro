@@ -1,8 +1,12 @@
 ---
 import { getSupabaseServerClient } from '../../lib/supabaseSSR';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
-import { formatCPFDisplay, formatPhoneDisplay, sanitizePhone, isValidWhatsApp } from '../../utils/validation';
+import { formatCPFDisplay, formatPhoneDisplay, sanitizePhone, isValidWhatsApp, isValidPixKey, isValidCPF } from '../../utils/validation';
 import raioLogo from "../../assets/icons/RAIO.png";
+import faviconIco from "../../assets/icons/favicon.ico";
+import favicon16 from "../../assets/icons/favicon-16x16.png";
+import favicon32 from "../../assets/icons/favicon-32x32.png";
+import appleTouchIcon from "../../assets/icons/apple-touch-icon.png";
 
 const supabaseSSR = getSupabaseServerClient(Astro.cookies);
 const { data, error } = await supabaseSSR.auth.getUser();
@@ -38,12 +42,21 @@ if (Astro.request.method === "POST") {
     const cleanWhatsapp = sanitizePhone(formWhatsapp);
     const cleanCpf = formCpf.replace(/\D/g, "");
     
-    // Basic validations
+    // Validações
     if (!isValidWhatsApp(cleanWhatsapp)) {
-        errorMessage = "Informe um WhatsApp brasileiro válido com DDD e 11 dígitos.";
-    } else if (!formTipoPix || !formChavePix) {
+        errorMessage = "Informe um WhatsApp brasileiro válido com DDD e 11 dígitos (ex: 88 99999-9999).";
+    } else if (!formTipoPix || !formChavePix.trim()) {
         errorMessage = "A chave PIX e o tipo são obrigatórios para receber seus ganhos.";
-    } 
+    } else if (!isValidPixKey(formChavePix, formTipoPix)) {
+        const pixErrorMessages: Record<string, string> = {
+            cpf: "A chave PIX informada não é um CPF válido.",
+            cnpj: "A chave PIX informada não é um CNPJ válido.",
+            email: "A chave PIX informada não é um e-mail válido.",
+            telefone: "A chave PIX deve ser um celular brasileiro válido com DDD e 11 dígitos.",
+            aleatoria: "A chave aleatória deve ter entre 26 e 36 caracteres alfanuméricos (formato EVP/UUID).",
+        };
+        errorMessage = pixErrorMessages[formTipoPix] || "Chave PIX inválida para o tipo selecionado.";
+    }
     
     if (!errorMessage) {
         const { error: updateError } = await supabaseAdmin
@@ -77,6 +90,10 @@ if (Astro.request.method !== "POST") {
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Assina Comigo | Completar Cadastro</title>
+    <link rel="icon" type="image/x-icon" href={faviconIco.src} />
+    <link rel="apple-touch-icon" sizes="180x180" href={appleTouchIcon.src} />
+    <link rel="icon" type="image/png" sizes="32x32" href={favicon32.src} />
+    <link rel="icon" type="image/png" sizes="16x16" href={favicon16.src} />
     
     <script is:inline src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"/>

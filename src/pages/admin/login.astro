@@ -1,4 +1,11 @@
 ---
+import raioLogo from "../../assets/icons/RAIO.png";
+import faviconIco from "../../assets/icons/favicon.ico";
+import favicon16 from "../../assets/icons/favicon-16x16.png";
+import favicon32 from "../../assets/icons/favicon-32x32.png";
+import appleTouchIcon from "../../assets/icons/apple-touch-icon.png";
+import android192 from "../../assets/icons/android-chrome-192x192.png";
+import android512 from "../../assets/icons/android-chrome-512x512.png";
 import { getSupabaseServerClient } from "../../lib/supabaseSSR";
 import { logger } from "../../utils/logger";
 import { mapSupabaseAuthErrorMessage } from "../../utils/authErrors";
@@ -121,6 +128,12 @@ if (Astro.request.method === "POST") {
         <meta charset="utf-8" />
         <meta content="width=device-width, initial-scale=1.0" name="viewport" />
         <title>Acesso Admin — Assina Comigo</title>
+        <link rel="icon" type="image/x-icon" href={faviconIco.src} />
+        <link rel="apple-touch-icon" sizes="180x180" href={appleTouchIcon.src} />
+        <link rel="icon" type="image/png" sizes="32x32" href={favicon32.src} />
+        <link rel="icon" type="image/png" sizes="16x16" href={favicon16.src} />
+        <link rel="icon" type="image/png" sizes="192x192" href={android192.src} />
+        <link rel="icon" type="image/png" sizes="512x512" href={android512.src} />
         <link
             href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;800&display=swap"
             rel="stylesheet"

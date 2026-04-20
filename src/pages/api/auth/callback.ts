@@ -45,7 +45,7 @@ export const GET: APIRoute = async ({ url, cookies, redirect }) => {
                 .limit(1)
                 .maybeSingle();
 
-            finalTenantId = adminProfile?.tenant_id || "4a254f52-99bd-43dd-86e2-ec031206077a";
+            finalTenantId = adminProfile?.tenant_id || import.meta.env.PUBLIC_MAIN_TENANT_ID;
         }
 
         console.log(`[AUTH_CALLBACK_NEW_USER] Criando perfil 'parceiro' para: ${user.email} (Tenant: ${finalTenantId})`);
