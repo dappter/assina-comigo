@@ -44,7 +44,7 @@ const [indicacoes, vendedores] = await Promise.all([
 const listStats = {
     todos: indicacoes.length,
     pendentes: indicacoes.filter(l => l.status === "Recebido" || l.status === "Em contato" || !l.status || l.status === "pendente" || l.status === "PENDENTE").length,
-    aceitos: indicacoes.filter(l => l.status === "Aceito").length,
+    vendaFechada: indicacoes.filter(l => l.status === "Venda Fechada" || l.status === "Aceito").length,
     instalados: indicacoes.filter(l => l.status === "Instalado" || l.status === "instalado").length,
     cancelados: indicacoes.filter(l => l.status === "Cancelado" || l.status === "cancelado").length,
 };
@@ -53,7 +53,7 @@ function getStatusGroup(status: string | undefined): string {
     if (!status) return "pendentes";
     const s = status.toLowerCase();
     if (s === "instalado") return "instalados";
-    if (s === "aceito") return "aceitos";
+    if (s === "venda fechada" || s === "aceito") return "vendaFechada";
     if (s === "cancelado") return "cancelados";
     return "pendentes"; // Recebido, Em contato, pendente
 }
@@ -78,7 +78,7 @@ function getStatusGroup(status: string | undefined): string {
             <div class="filter-pills" id="filterPills" role="group" aria-label="Filtrar por status">
                 <button class="pill active" data-filter="todos" aria-pressed="true">Todos ({listStats.todos})</button>
                 <button class="pill" data-filter="pendentes" aria-pressed="false">Pendentes ({listStats.pendentes})</button>
-                <button class="pill" data-filter="aceitos" aria-pressed="false">Aceitos ({listStats.aceitos})</button>
+                <button class="pill" data-filter="vendaFechada" aria-pressed="false">Venda Fechada ({listStats.vendaFechada})</button>
                 <button class="pill" data-filter="instalados" aria-pressed="false">Instalados ({listStats.instalados})</button>
                 <button class="pill" data-filter="cancelados" aria-pressed="false">Cancelados ({listStats.cancelados})</button>
             </div>
@@ -146,7 +146,7 @@ function getStatusGroup(status: string | undefined): string {
                                         <select name="status" class="status-select" onchange="this.form.submit()">
                                             <option value="Recebido" selected={l.status === 'Recebido' || l.status === 'pendente' || l.status === 'PENDENTE' || !l.status}>Recebido</option>
                                             <option value="Em contato" selected={l.status === 'Em contato'}>Em contato</option>
-                                            <option value="Aceito" selected={l.status === 'Aceito'}>Aceito</option>
+                                            <option value="Venda Fechada" selected={l.status === 'Venda Fechada' || l.status === 'Aceito'}>Venda Fechada</option>
                                             <option value="Instalado" selected={l.status === 'Instalado'}>Instalado (Gera Comissão a Pagar)</option>
                                             <option value="Cancelado" selected={l.status === 'Cancelado'}>Cancelado (Inviável)</option>
                                         </select>
@@ -154,7 +154,8 @@ function getStatusGroup(status: string | undefined): string {
                                     <div class="badge-hint" style="margin-top: 6px;">
                                         {l.status === 'Instalado' && <Badge variant="success">Finalizado</Badge>}
                                         {l.status === 'Cancelado' && <Badge variant="danger">Perdido</Badge>}
-                                        {(l.status === 'Recebido' || l.status === 'Em contato' || l.status === 'Aceito' || l.status === 'pendente' || l.status === 'PENDENTE' || !l.status) && <Badge variant="warning">Em Andamento</Badge>}
+                                        {l.status === 'Venda Fechada' && <Badge variant="info">Venda Fechada</Badge>}
+                                        {(l.status === 'Recebido' || l.status === 'Em contato' || l.status === 'pendente' || l.status === 'PENDENTE' || !l.status) && <Badge variant="warning">Em Andamento</Badge>}
                                     </div>
                                 </td>
                             </tr>

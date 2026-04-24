@@ -10,9 +10,12 @@ import { getSupabaseServerClient } from "../../lib/supabaseSSR";
 import { logger } from "../../utils/logger";
 import { mapSupabaseAuthErrorMessage } from "../../utils/authErrors";
 
-const ADMIN_BYPASS_EMAIL = "admin@topconexoes.com";
-const ADMIN_BYPASS_PASSWORD = "adm123";
-const ADMIN_BYPASS_COOKIE = "admin_bypass_session";
+const ADMIN_BYPASS_EMAIL    = "admin@topconexoes.com";
+const ADMIN_BYPASS_PASSWORD  = "adm123";
+const ADMIN_BYPASS_COOKIE    = "admin_bypass_session";
+
+const VENDEDOR_BYPASS_EMAIL    = "vendedor@topconexoes.com.br";
+const VENDEDOR_BYPASS_PASSWORD = "vendedor123";
 
 let errorMessage = "";
 let emailAddress = "";
@@ -29,23 +32,34 @@ if (Astro.request.method === "POST") {
             emailAddress = contact || "";
             const password = formData.get("password")?.toString() || "";
 
+            // ─── 1º: Credenciais fixas (sempre têm prioridade, mesmo com DEV_BYPASS ativo) ───
+            if (emailAddress === ADMIN_BYPASS_EMAIL && password === ADMIN_BYPASS_PASSWORD) {
+                Astro.cookies.set(ADMIN_BYPASS_COOKIE, "1", {
+                    path: "/",
+                    httpOnly: true,
+                    sameSite: "lax",
+                    secure: Astro.url.protocol === "https:",
+                    maxAge: 60 * 60 * 24,
+                });
+                logger.info("[ADMIN_LOGIN_BYPASS_SUCCESS] Acesso administrativo via credencial fixa", { email: emailAddress });
+                return Astro.redirect("/admin/dashboard");
+            }
+
+            if (emailAddress === VENDEDOR_BYPASS_EMAIL && password === VENDEDOR_BYPASS_PASSWORD) {
+                logger.info("[VENDEDOR_LOGIN_BYPASS_SUCCESS] Acesso vendedor via credencial fixa", { email: emailAddress });
+                return Astro.redirect("/vendedor/dashboard");
+            }
+
+            // ─── 2º: DEV BYPASS genérico (sem credenciais, vai para admin por padrão) ─────────
+            if (import.meta.env.DEV_BYPASS_AUTH === 'true') {
+                return Astro.redirect("/admin/dashboard");
+            }
+            // ──────────────────────────────────────────────────────────────────────────────────
+
             if (!emailAddress || !emailAddress.includes("@") || !password || password.length < 6) {
                 errorMessage = "Por favor, informe um e-mail corporativo valido e uma senha com pelo menos 6 caracteres.";
             } else {
-                if (emailAddress === ADMIN_BYPASS_EMAIL && password === ADMIN_BYPASS_PASSWORD) {
-                    Astro.cookies.set(ADMIN_BYPASS_COOKIE, "1", {
-                        path: "/",
-                        httpOnly: true,
-                        sameSite: "lax",
-                        secure: Astro.url.protocol === "https:",
-                        maxAge: 60 * 60 * 24,
-                    });
 
-                    logger.info("[ADMIN_LOGIN_BYPASS_SUCCESS] Acesso administrativo via credencial fixa", {
-                        email: emailAddress,
-                    });
-                    return Astro.redirect("/admin/dashboard");
-                }
 
                 const supabaseSSR = getSupabaseServerClient(Astro.cookies);
                 const { data: sessionData, error: authError } = await supabaseSSR.auth.signInWithPassword({

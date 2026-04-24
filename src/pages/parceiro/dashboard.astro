@@ -69,7 +69,7 @@ const stats = [
     prefix: "Nível",
   },
   {
-    label: "Indicações Ativas",
+    label: "Leads Recebidos",
     value: String(
       indicationStats.recebidas.length +
         indicationStats.emContato.length +
@@ -80,7 +80,7 @@ const stats = [
     prefix: "Processando",
   },
   {
-    label: "Convertidas",
+    label: "Leads Instalados",
     value: String(indicationStats.instaladas.length),
     icon: TrendingUp,
     color: "green",
@@ -190,7 +190,7 @@ const formatDate = (dateString: string) => {
                     <div class="link-row">
                       <code class="link-code">{groupSlug ? recruitmentLink : "Grupo não configurado para recrutamento"}</code>
                       <Button size="sm" variant="outline" id="copyRecruitBtn" data-link={groupSlug ? recruitmentLink : ""} disabled={!groupSlug}>
-                            Conteúdo <Copy size={14} class="ml-1" />
+                            Copiar Link <Copy size={14} class="ml-1" />
                         </Button>
                     </div>
                     {!groupSlug && (
@@ -300,9 +300,9 @@ const formatDate = (dateString: string) => {
                           <Clock size={12} /> Em Contato
                         </Badge>
                       )}
-                      {status === "Aceito" && (
+                      {status === "Venda Fechada" && (
                         <Badge variant="success">
-                          <CircleCheck size={12} /> Aceito
+                          <CircleCheck size={12} /> Venda Fechada
                         </Badge>
                       )}
                       {status === "Instalado" && (

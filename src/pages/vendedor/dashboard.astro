@@ -1,43 +1,45 @@
 ---
-import Layout from "../../layouts/Layout.astro";
+import raioLogo from "../../assets/icons/RAIO.png";
 import { getSupabaseServerClient } from "../../lib/supabaseSSR";
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 
-const supabaseSSR = getSupabaseServerClient(Astro.cookies);
-const { data: { user }, error: authError } = await supabaseSSR.auth.getUser();
+// ─── DEV BYPASS ────────────────────────────────────────────────────────────────
+const isBypass = import.meta.env.DEV_BYPASS_AUTH === "true";
+const BYPASS_TENANT_ID = import.meta.env.PUBLIC_MAIN_TENANT_ID || "4a254f52-99bd-43dd-86e2-ec031206077a";
+const BYPASS_USER_ID   = "00000000-0000-0000-0000-000000000001";
 
-if (authError || !user) {
-    return Astro.redirect("/admin/login");
+let userId   = BYPASS_USER_ID;
+let tenantId = BYPASS_TENANT_ID;
+let nomeVendedor = "Vendedor (DEV)";
+
+if (!isBypass) {
+    const supabaseSSR = getSupabaseServerClient(Astro.cookies);
+    const { data: { user }, error: authError } = await supabaseSSR.auth.getUser();
+
+    if (authError || !user) {
+        return Astro.redirect("/admin/login");
+    }
+
+    const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("tipo_usuario, tenant_id, nome")
+        .eq("id", user.id)
+        .single();
+
+    if (!profile || (profile.tipo_usuario !== "vendedor" && profile.tipo_usuario !== "admin")) {
+        return Astro.redirect("/");
+    }
+
+    userId       = user.id;
+    tenantId     = profile.tenant_id;
+    nomeVendedor = profile.nome || "Vendedor";
 }
+// ───────────────────────────────────────────────────────────────────────────────
 
-const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("tipo_usuario, tenant_id, nome")
-    .eq("id", user.id)
-    .single();
-
-if (!profile || (profile.tipo_usuario !== "vendedor" && profile.tipo_usuario !== "admin")) {
-    return Astro.redirect("/admin/login");
-}
-
-const vTenant = profile.tenant_id;
-
-const { data: unassignedLeads } = await supabaseAdmin
-    .from("leads")
-    .select("id, nome, telefone, status, created_at")
-    .eq("tenant_id", vTenant)
-    .is("vendedor_id", null)
-    .order("created_at", { ascending: false });
-
-const { data: myLeads } = await supabaseAdmin
-    .from("leads")
-    .select("id, nome, telefone, status, created_at")
-    .eq("tenant_id", vTenant)
-    .eq("vendedor_id", user.id)
-    .order("created_at", { ascending: false });
-
-// Ações via POST (Claim / Update Status)
+// Ações via POST (Claim)
 let actionMessage = "";
+let actionSuccess = false;
+
 if (Astro.request.method === "POST") {
     const formData = await Astro.request.formData();
     const action = formData.get("action")?.toString();
@@ -45,137 +47,345 @@ if (Astro.request.method === "POST") {
     if (action === "claim") {
         const leadId = formData.get("lead_id")?.toString();
         if (leadId) {
-            const { error: claimError } = await supabaseSSR
+            const { error: claimError } = await supabaseAdmin
                 .from("leads")
-                .update({ vendedor_id: user.id })
+                .update({ vendedor_id: userId })
                 .eq("id", leadId)
-                .is("vendedor_id", null) // Previne corrida
-                .select();
-                
+                .is("vendedor_id", null);
+
             if (claimError) {
-                actionMessage = "Erro ao assumir lead. Pode já ter sido pego por outro.";
-                console.error("Erro no claim:", claimError);
+                actionMessage = "Erro ao assumir lead. Pode já ter sido capturado por outro vendedor.";
             } else {
-                return Astro.redirect("/vendedor/dashboard");
+                actionMessage = "Lead capturado com sucesso!";
+                actionSuccess = true;
             }
         }
     }
 }
+
+// ─── Dados: Nuvem de vendas (leads sem vendedor) ───────────────────────────────
+const { data: cloudLeads } = await supabaseAdmin
+    .from("leads")
+    .select("id, nome, telefone, status, created_at, endereco")
+    .eq("tenant_id", tenantId)
+    .is("vendedor_id", null)
+    .not("status", "eq", "Cancelado")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+// ─── Dados: Meu funil (leads assumidos por mim) ───────────────────────────────
+const { data: myLeads } = await supabaseAdmin
+    .from("leads")
+    .select("id, nome, telefone, status, created_at, release_date, valor_comissao")
+    .eq("tenant_id", tenantId)
+    .eq("vendedor_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+// ─── KPIs de pagamento ────────────────────────────────────────────────────────
+const totalLeads     = myLeads?.length || 0;
+const instalados     = myLeads?.filter(l => l.status === "Instalado" || l.status === "Venda Fechada").length || 0;
+const aPagar         = myLeads?.filter(l => l.status === "A Pagar").length || 0;
+const totalComissao  = myLeads?.reduce((acc, l) => acc + (Number(l.valor_comissao) || 0), 0) || 0;
+
+const statusColor: Record<string, string> = {
+    "Recebido":      "bg-blue-100 text-blue-700 border-blue-200",
+    "Em contato":    "bg-yellow-100 text-yellow-700 border-yellow-200",
+    "Venda Fechada": "bg-purple-100 text-purple-700 border-purple-200",
+    "Instalado":     "bg-green-100 text-green-700 border-green-200",
+    "A Pagar":       "bg-emerald-100 text-emerald-700 border-emerald-200",
+    "Cancelado":     "bg-red-100 text-red-700 border-red-200",
+};
 ---
-<Layout title="Dashboard de Vendas | Assina Comigo">
-    <div class="min-h-screen bg-slate-50 font-body">
-        <header class="bg-indigo-900 border-b border-indigo-800 sticky top-0 z-50 shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center overflow-hidden shadow-inner border border-white/10">
-                        <img src={raioLogo.src} alt="Logo" class="w-full h-full object-contain" />
-                    </div>
-                    <h1 class="text-white font-headline font-bold text-xl tracking-tight hidden sm:block">Painel de Vendas</h1>
-                </div>
-                
-                <div class="flex items-center gap-4 text-sm">
-                    <span class="text-indigo-200 font-medium hidden sm:inline-block">Olá, {profile.nome}</span>
-                    <form action="/api/auth/logout" method="POST" class="m-0">
-                        <button type="submit" class="bg-indigo-800 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold transition flex items-center gap-2">
-                            <span class="material-symbols-outlined text-sm">logout</span> Sair
-                        </button>
-                    </form>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painel de Vendas | Assina Comigo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { font-family: "Plus Jakarta Sans", sans-serif; -webkit-font-smoothing: antialiased; min-height: 100dvh; }
+        body { background: #0f0a1e; color: #1c1b1e; }
+
+        /* Scrollbar premium */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(96,40,255,0.3); border-radius: 99px; }
+
+        .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
+
+        /* Sidebar */
+        .sidebar {
+            width: 240px; flex-shrink: 0;
+            background: #140030;
+            border-right: 1px solid rgba(255,255,255,0.06);
+            display: flex; flex-direction: column;
+            min-height: 100dvh; position: sticky; top: 0;
+        }
+        .sidebar-logo { padding: 1.5rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .sidebar-logo img { width: 32px; height: 32px; object-fit: contain; }
+        .sidebar-logo-text { display: flex; flex-direction: column; }
+        .sidebar-logo-text span:first-child { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+        .sidebar-logo-text span:last-child  { font-size: 0.9rem; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+
+        .sidebar-nav { padding: 1rem 0.75rem; flex: 1; display: flex; flex-direction: column; gap: 0.25rem; }
+        .nav-section-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.3); padding: 0.75rem 0.75rem 0.375rem; }
+        .nav-item {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.625rem 0.875rem; border-radius: 10px;
+            font-size: 0.825rem; font-weight: 600; color: rgba(255,255,255,0.6);
+            text-decoration: none; transition: all 0.18s ease; cursor: pointer; border: none; background: transparent; width: 100%; text-align: left;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
+        .nav-item.active { background: rgba(96,40,255,0.2); color: #c8bfff; }
+        .nav-item .material-symbols-outlined { font-size: 18px; }
+
+        .sidebar-footer { padding: 1rem 0.75rem; border-top: 1px solid rgba(255,255,255,0.06); }
+        .user-chip { display: flex; align-items: center; gap: 0.625rem; padding: 0.625rem 0.75rem; border-radius: 10px; background: rgba(255,255,255,0.04); }
+        .user-avatar { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #6028FF, #4B1AC8); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; flex-shrink: 0; }
+        .user-info span:first-child { display: block; font-size: 0.75rem; font-weight: 700; color: #fff; }
+        .user-info span:last-child  { display: block; font-size: 0.65rem; color: rgba(255,255,255,0.4); }
+
+        /* Main content */
+        .main-layout { display: flex; min-height: 100dvh; }
+        .content { flex: 1; background: #f5f5f7; overflow: hidden; }
+        .topbar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 0 2rem; height: 60px; display: flex; align-items: center; justify-content: between; gap: 1rem; }
+        .topbar-title { font-size: 1rem; font-weight: 800; color: #1c1b1e; flex: 1; }
+
+        /* Panels */
+        .panels { padding: 1.5rem 2rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; height: calc(100dvh - 60px - 4rem - 60px); }
+        .kpi-bar { padding: 0 2rem 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+
+        .kpi-card { background: #fff; border-radius: 16px; padding: 1rem 1.25rem; border: 1px solid #e5e7eb; }
+        .kpi-card .kpi-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 0.375rem; }
+        .kpi-card .kpi-value { font-size: 1.5rem; font-weight: 900; color: #1c1b1e; }
+        .kpi-card .kpi-sub { font-size: 0.7rem; color: #9ca3af; margin-top: 0.2rem; }
+
+        .panel { background: #fff; border-radius: 20px; border: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow: hidden; }
+        .panel-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+        .panel-title { font-size: 0.9rem; font-weight: 800; color: #1c1b1e; }
+        .panel-sub { font-size: 0.7rem; color: #9ca3af; margin-top: 0.125rem; }
+        .panel-badge { font-size: 0.7rem; font-weight: 700; padding: 0.25rem 0.625rem; border-radius: 99px; }
+        .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+        .badge-purple { background: #ede9fe; color: #5b21b6; }
+        .panel-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
+
+        /* Lead cards */
+        .lead-card { border: 1px solid #f3f4f6; border-radius: 14px; padding: 0.875rem 1rem; display: flex; align-items: center; gap: 0.875rem; transition: border-color 0.15s, box-shadow 0.15s; }
+        .lead-card:hover { border-color: #ddd6fe; box-shadow: 0 2px 12px rgba(96,40,255,0.07); }
+        .lead-card-icon { width: 36px; height: 36px; border-radius: 10px; background: #f5f3ff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .lead-card-icon .material-symbols-outlined { font-size: 18px; color: #7c3aed; }
+        .lead-card-info { flex: 1; min-width: 0; }
+        .lead-card-name { font-size: 0.825rem; font-weight: 700; color: #1c1b1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lead-card-meta { font-size: 0.7rem; color: #9ca3af; margin-top: 0.125rem; }
+        .lead-status-badge { font-size: 0.65rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px; border: 1px solid; white-space: nowrap; }
+
+        /* Capture button */
+        .btn-capture { background: linear-gradient(135deg, #6028FF, #4B1AC8); color: #fff; border: none; border-radius: 10px; padding: 0.5rem 0.875rem; font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.375rem; transition: transform 0.15s, box-shadow 0.15s; white-space: nowrap; }
+        .btn-capture:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(96,40,255,0.35); }
+        .btn-capture:active { transform: scale(0.97); }
+        .btn-capture .material-symbols-outlined { font-size: 14px; }
+
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem 1rem; flex: 1; }
+        .empty-state .material-symbols-outlined { font-size: 2.5rem; color: #d1d5db; margin-bottom: 0.75rem; }
+        .empty-state p { font-size: 0.825rem; color: #9ca3af; text-align: center; font-weight: 500; }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); padding: 0.875rem 1.5rem; border-radius: 14px; font-size: 0.825rem; font-weight: 700; z-index: 9999; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 8px 32px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; }
+        .toast.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .toast.error   { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        @keyframes slideUp { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+        .btn-logout { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); border-radius: 8px; padding: 0.4rem 0.75rem; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.375rem; transition: all 0.15s; }
+        .btn-logout:hover { background: rgba(255,68,68,0.15); border-color: rgba(255,68,68,0.25); color: #fca5a5; }
+        .btn-logout .material-symbols-outlined { font-size: 14px; }
+
+        @media (max-width: 1024px) {
+            .sidebar { display: none; }
+            .panels { grid-template-columns: 1fr; height: auto; }
+            .kpi-bar { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    {actionMessage && (
+        <div class={`toast ${actionSuccess ? 'success' : 'error'}`} id="toast-msg">
+            <span class="material-symbols-outlined">{actionSuccess ? 'check_circle' : 'error'}</span>
+            {actionMessage}
+        </div>
+    )}
+
+    <div class="main-layout">
+
+        <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <img src={raioLogo.src} alt="Raio" />
+                <div class="sidebar-logo-text">
+                    <span>Assina Comigo</span>
+                    <span>Painel de Vendas</span>
                 </div>
             </div>
-        </header>
 
-        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-            
-            {actionMessage && (
-                <div class="mb-8 bg-red-100 border border-red-200 text-red-800 px-6 py-4 rounded-2xl flex gap-3 text-sm font-semibold animate-pulse shadow-sm">
-                    <span class="material-symbols-outlined">error</span>
-                    {actionMessage}
-                </div>
-            )}
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Principal</span>
+                <a class="nav-item active" href="/vendedor/dashboard">
+                    <span class="material-symbols-outlined">bolt</span>
+                    Nuvem de Vendas
+                </a>
+                <a class="nav-item" href="#pagamentos" onclick="showSection('pagamentos'); return false;">
+                    <span class="material-symbols-outlined">payments</span>
+                    Meus Pagamentos
+                </a>
+            </nav>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                
-                <!-- Coluna 1: Oportunidades Nuvem -->
-                <div class="bg-white rounded-[2rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden flex flex-col">
-                    <div class="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                        <div>
-                            <h2 class="text-xl font-headline font-black tracking-tight text-slate-800">Nuvem de Vendas</h2>
-                            <p class="text-sm text-slate-500 font-medium mt-1">Leads aguardando atendimento imediato</p>
-                        </div>
-                        <span class="bg-blue-100 text-blue-700 py-1 px-3 rounded-full text-sm font-bold shadow-sm">{unassignedLeads?.length || 0}</span>
+            <div class="sidebar-footer">
+                <div class="user-chip">
+                    <div class="user-avatar">{nomeVendedor.charAt(0).toUpperCase()}</div>
+                    <div class="user-info">
+                        <span>{nomeVendedor}</span>
+                        <span>Vendedor</span>
                     </div>
-                    
-                    <div class="p-8 max-h-[600px] overflow-y-auto space-y-4">
-                        {unassignedLeads && unassignedLeads.length > 0 ? unassignedLeads.map(lead => (
-                            <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between hover:border-blue-300 transition group">
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2 mb-1">
-                                        <div class="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></div>
-                                        <h3 class="font-bold text-slate-800 capitalize leading-tight">{lead.nome}</h3>
-                                    </div>
-                                    <p class="text-sm text-slate-500 font-medium flex items-center gap-1">Entrou em: {new Date(lead.created_at).toLocaleDateString('pt-BR', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'})}</p>
+                </div>
+                <form action="/api/auth/logout" method="POST" style="margin-top: 0.625rem;">
+                    <button type="submit" class="btn-logout" style="width:100%; justify-content: center;">
+                        <span class="material-symbols-outlined">logout</span>
+                        Sair
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- ── Content ────────────────────────────────────────────────────── -->
+        <div class="content">
+            <!-- Topbar -->
+            <div class="topbar">
+                <span class="topbar-title">Olá, {nomeVendedor} 👋</span>
+                {isBypass && (
+                    <span style="font-size:0.65rem; font-weight:700; background:#fef3c7; color:#92400e; padding:0.25rem 0.625rem; border-radius:99px; border:1px solid #fde68a;">
+                        DEV MODE
+                    </span>
+                )}
+            </div>
+
+            <!-- KPIs -->
+            <div style="padding: 1.5rem 2rem 0;">
+                <div class="kpi-bar" style="padding:0; margin-bottom:1.5rem;">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Meus Leads</div>
+                        <div class="kpi-value">{totalLeads}</div>
+                        <div class="kpi-sub">total capturado</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Instalados</div>
+                        <div class="kpi-value" style="color:#16a34a;">{instalados}</div>
+                        <div class="kpi-sub">vendas fechadas</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">A Receber</div>
+                        <div class="kpi-value" style="color:#6028FF;">{aPagar}</div>
+                        <div class="kpi-sub">comissões liberadas</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Comissão Total</div>
+                        <div class="kpi-value" style="color:#6028FF;">
+                            R$ {totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </div>
+                        <div class="kpi-sub">acumulado</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Painéis lado a lado -->
+            <div class="panels" style="padding-top:0;">
+
+                <!-- Nuvem de Vendas -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <div class="panel-title">⚡ Nuvem de Vendas</div>
+                            <div class="panel-sub">Leads aguardando atendimento — capture antes da concorrência</div>
+                        </div>
+                        <span class="panel-badge badge-blue">{cloudLeads?.length || 0} disponíveis</span>
+                    </div>
+                    <div class="panel-body">
+                        {cloudLeads && cloudLeads.length > 0 ? cloudLeads.map(lead => (
+                            <div class="lead-card">
+                                <div class="lead-card-icon">
+                                    <span class="material-symbols-outlined">person</span>
                                 </div>
-                                
-                                <form method="POST" class="m-0 sm:w-auto w-full">
+                                <div class="lead-card-info">
+                                    <div class="lead-card-name">{lead.nome}</div>
+                                    <div class="lead-card-meta">
+                                        📅 {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                        {lead.telefone && ` · 📞 ${lead.telefone}`}
+                                    </div>
+                                </div>
+                                <form method="POST" style="margin:0;">
                                     <input type="hidden" name="action" value="claim" />
                                     <input type="hidden" name="lead_id" value={lead.id} />
-                                    <button class="w-full bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 active:scale-95 transition group-hover:scale-[1.02]">
-                                        Assumir
+                                    <button type="submit" class="btn-capture">
+                                        <span class="material-symbols-outlined">bolt</span>
+                                        Capturar
                                     </button>
                                 </form>
                             </div>
                         )) : (
-                            <div class="text-center py-12 px-6 flex flex-col items-center">
-                                <span class="material-symbols-outlined text-4xl text-slate-300 mb-3 block">cloud_done</span>
-                                <p class="text-slate-500 font-medium">Nenhum lead disponível na nuvem no momento.</p>
+                            <div class="empty-state">
+                                <span class="material-symbols-outlined">cloud_done</span>
+                                <p>Nenhum lead disponível na nuvem agora.<br/>Volte em breve!</p>
                             </div>
                         )}
                     </div>
                 </div>
 
-                <!-- Coluna 2: Meu Funil -->
-                <div class="bg-white rounded-[2rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden flex flex-col">
-                    <div class="px-8 py-6 border-b border-slate-100 flex justify-between items-center text-white bg-indigo-900">
+                <!-- Meu Funil / Pagamentos -->
+                <div class="panel">
+                    <div class="panel-header">
                         <div>
-                            <h2 class="text-xl font-headline font-black tracking-tight drop-shadow-md">Seu Funil</h2>
-                            <p class="text-sm text-indigo-200 mt-1">Oportunidades sendo trabalhadas por você</p>
+                            <div class="panel-title">💼 Meu Funil & Pagamentos</div>
+                            <div class="panel-sub">Seus leads e status de comissão</div>
                         </div>
-                        <span class="bg-indigo-800 text-indigo-100 py-1 px-3 rounded-full text-sm font-bold border border-indigo-700">{myLeads?.length || 0}</span>
+                        <span class="panel-badge badge-purple">{myLeads?.length || 0} leads</span>
                     </div>
-
-                    <div class="p-8 max-h-[600px] overflow-y-auto space-y-4">
+                    <div class="panel-body">
                         {myLeads && myLeads.length > 0 ? myLeads.map(lead => (
-                            <div class="bg-white border border-slate-200 shadow-sm p-5 rounded-2xl flex flex-col gap-3">
-                                <div class="flex justify-between items-start border-b border-slate-100 pb-3">
-                                    <div>
-                                        <h3 class="font-bold text-slate-800 capitalize text-lg leading-tight">{lead.nome}</h3>
-                                        <span class="inline-block mt-1 bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-semibold uppercase border border-slate-200">
-                                            {lead.status}
-                                        </span>
-                                    </div>
-                                    <span class="text-green-600 bg-green-50 px-2 py-1 rounded-lg text-xs font-bold border border-green-200 whitespace-nowrap">Seu Lead</span>
+                            <div class="lead-card">
+                                <div class="lead-card-icon" style="background:#f0fdf4;">
+                                    <span class="material-symbols-outlined" style="color:#16a34a;">assignment_ind</span>
                                 </div>
-                                <div class="flex justify-between items-center">
-                                    <div class="flex items-center gap-2 text-slate-600">
-                                        <span class="material-symbols-outlined text-sm">phone</span>
-                                        <span class="font-medium text-sm">{lead.telefone || "N/A"}</span>
+                                <div class="lead-card-info">
+                                    <div class="lead-card-name">{lead.nome}</div>
+                                    <div class="lead-card-meta">
+                                        {lead.valor_comissao ? `💰 R$ ${Number(lead.valor_comissao).toFixed(2)} · ` : ''}
+                                        {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                                        {lead.release_date ? ` · Liberação: ${new Date(lead.release_date).toLocaleDateString('pt-BR')}` : ''}
                                     </div>
-                                    <a href={`https://wa.me/55${lead.telefone?.replace(/\D/g, '')}?text=Olá,%20vi%20que%20você%20tem%20interesse%20na%20Ligeira!`} target="_blank" class="text-blue-600 hover:text-blue-800 font-bold text-sm flex items-center gap-1 transition p-2 hover:bg-blue-50 rounded-lg">
-                                        <span class="material-symbols-outlined text-base">forum</span> Chamar
-                                    </a>
                                 </div>
+                                <span class={`lead-status-badge ${statusColor[lead.status] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                                    {lead.status || 'Recebido'}
+                                </span>
                             </div>
                         )) : (
-                            <div class="text-center py-12 px-6 flex flex-col items-center">
-                                <span class="material-symbols-outlined text-4xl text-slate-300 mb-3 block">assignment_ind</span>
-                                <p class="text-slate-500 font-medium">Você ainda não assumiu nenhuma oportunidade.</p>
-                                <p class="text-sm text-slate-400 mt-1">Pegue leads na nuvem ao lado.</p>
+                            <div class="empty-state">
+                                <span class="material-symbols-outlined">assignment_ind</span>
+                                <p>Você ainda não capturou nenhum lead.<br/>Veja a Nuvem de Vendas ao lado!</p>
                             </div>
                         )}
                     </div>
                 </div>
 
             </div>
-        </main>
+        </div>
     </div>
-</Layout>
+
+    <script>
+        // Auto-dismiss toast
+        const toast = document.getElementById('toast-msg');
+        if (toast) setTimeout(() => toast.remove(), 4000);
+    </script>
+</body>
+</html>

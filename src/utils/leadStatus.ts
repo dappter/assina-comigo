@@ -1,7 +1,7 @@
 export type LeadStatusCanonical =
   | "Recebido"
   | "Em contato"
-  | "Aceito"
+  | "Venda Fechada"
   | "Instalado"
   | "Pago"
   | "Cancelado";
@@ -19,8 +19,9 @@ export function normalizeLeadStatus(status?: string | null): LeadStatusCanonical
     case "em_contato":
     case "emcontato":
       return "Em contato";
-    case "aceito":
-      return "Aceito";
+    case "aceito":        // retrocompatibilidade com dados legados
+    case "venda fechada":
+      return "Venda Fechada";
     case "instalado":
       return "Instalado";
     case "pago":

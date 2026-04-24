@@ -1,0 +1,706 @@
+---
+interface Props {
+	splineRouterUrl?: string;
+}
+
+const { splineRouterUrl = "" } = Astro.props;
+const hasSpline = splineRouterUrl.trim().length > 0;
+
+const techCards = [
+	{
+		icon: "bolt",
+		title: "Ultra velocidade",
+		description: "Internet de alta performance para qualquer necessidade.",
+	},
+	{
+		icon: "shield",
+		title: "Estabilidade",
+		description: "Conexão estável mesmo nos momentos mais críticos.",
+	},
+	{
+		icon: "wifi_tethering",
+		title: "Cobertura",
+		description: "Alcance potente para toda sua casa ou empresa.",
+	},
+	{
+		icon: "rocket_launch",
+		title: "Tecnologia",
+		description: "Infraestrutura moderna com equipamentos de última geração.",
+	},
+];
+---
+
+<section
+	class="about-tech-section is-active"
+	id="sobre-nos"
+	data-tech-about-root
+	data-has-spline={hasSpline ? "true" : "false"}
+>
+	<div class="about-tech-bg" aria-hidden="true">
+		<div class="about-tech-grid"></div>
+		<svg class="about-tech-network" viewBox="0 0 1200 680" preserveAspectRatio="none">
+			<path d="M0 118 L220 188 L412 120 L596 196 L802 88 L1014 156 L1200 110" />
+			<path d="M0 442 L188 365 L376 428 L558 326 L760 390 L924 344 L1200 420" />
+			<circle cx="220" cy="188" r="4" />
+			<circle cx="412" cy="120" r="4" />
+			<circle cx="596" cy="196" r="4" />
+			<circle cx="802" cy="88" r="4" />
+			<circle cx="760" cy="390" r="4" />
+			<circle cx="924" cy="344" r="4" />
+		</svg>
+		<span class="about-particle particle-a"></span>
+		<span class="about-particle particle-b"></span>
+		<span class="about-particle particle-c"></span>
+		<span class="about-particle particle-d"></span>
+	</div>
+
+	<div class="about-tech-shell">
+		<div class="about-copy about-reveal is-visible" data-about-reveal>
+			<p class="about-kicker">Ligeira Telecom // Fiber Intelligence</p>
+			<h2>Conectando você ao futuro</h2>
+			<p class="about-subtitle">
+				Tecnologia de ponta em internet fibra óptica com velocidade e estabilidade incomparáveis.
+			</p>
+			<a class="about-cta" href="#signup">Conheça nossos planos</a>
+		</div>
+
+		<div class="about-scene-wrap about-reveal is-visible" data-about-reveal data-delay="120">
+			<div class="about-scene" data-router-stage>
+				<div class="about-router-shell" id="about-router-shell">
+					<div class="about-router-glow" aria-hidden="true"></div>
+					<div class="about-router-reflection" aria-hidden="true"></div>
+
+					<span class="about-wave wave-1" aria-hidden="true"></span>
+					<span class="about-wave wave-2" aria-hidden="true"></span>
+					<span class="about-wave wave-3" aria-hidden="true"></span>
+
+					<div class="about-router-tag">FUTURE WI-FI ROUTER</div>
+
+					<div class="about-router-frame">
+						<div class="router-3d-layer" data-router-3d-layer>
+							<iframe 
+								title="3D Router"
+								id="main-3d-router"
+								loading="lazy"
+								style="width: 100%; height: 100%; position: absolute; inset: 0; z-index: 5; background: transparent; border: 0;"
+								allow="autoplay; fullscreen; xr-spatial-tracking"
+								allowfullscreen
+								src="https://sketchfab.com/models/fc90c018647c4fd1a3a9f62559bf67f0/embed?autostart=1&autospin=0.25&transparent=1&ui_infos=0&ui_controls=0&ui_stop=0&ui_watermark=0&ui_theme=dark&dnt=1"
+							></iframe>
+						</div>
+						<div class="mobile-scene-note" aria-hidden="true">Experiência 3D disponível no desktop</div>
+					</div>
+
+					<div class="about-chip chip-left">
+						<strong>Wi-Fi 6+</strong>
+						<span>Low latency core</span>
+					</div>
+					<div class="about-chip chip-right">
+						<strong>Fiber Mesh</strong>
+						<span>Coverage intelligence</span>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="about-cards">
+		{
+			techCards.map((card, index) => (
+				<article class="about-card about-reveal is-visible" data-about-reveal data-delay={String(170 + index * 80)}>
+					<div class="about-card-icon">
+						<span class="material-symbols-outlined">{card.icon}</span>
+					</div>
+					<h3>{card.title}</h3>
+					<p>{card.description}</p>
+				</article>
+			))
+		}
+	</div>
+<style>
+	.about-tech-section {
+		--about-accent: var(--color-brand-primary, #6028ff);
+		--about-accent-2: #4cb6ff;
+		--about-highlight: var(--color-brand-secondary, #ffbf1a);
+		--about-bg-deep: #0b0f1a;
+		--about-bg-mid: #130c2c;
+		--router-idle-rotation: 0deg;
+		--router-scroll-rotation: 0deg;
+		--router-tilt-x: 0deg;
+		--router-tilt-y: 0deg;
+		--router-scale: 1;
+		--wave-growth: 1;
+		--network-intensity: 0.45;
+		--router-signal-boost: 1;
+		--router-cursor-x: 50%;
+		--router-cursor-y: 50%;
+
+		position: relative;
+		width: 100%;
+		background:
+			radial-gradient(circle at 8% 12%, color-mix(in srgb, var(--about-accent-2) 36%, transparent), transparent 44%),
+			radial-gradient(circle at 88% 14%, color-mix(in srgb, var(--about-accent) 34%, transparent), transparent 42%),
+			radial-gradient(circle at 50% 96%, color-mix(in srgb, var(--about-highlight) 22%, transparent), transparent 48%),
+			linear-gradient(105deg, var(--about-bg-deep), var(--about-bg-mid));
+		color: #e8f4ff;
+		overflow: hidden;
+		padding: clamp(5rem, 9vw, 8rem) clamp(1rem, 3vw, 3rem) clamp(4.5rem, 8vw, 7rem);
+	}
+
+	.about-tech-section.is-hovered {
+		--router-scale: 1.05;
+	}
+
+	.about-tech-bg {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+
+	.about-tech-grid {
+		position: absolute;
+		inset: 0;
+		background-image:
+			linear-gradient(rgba(61, 100, 186, 0.15) 1px, transparent 1px),
+			linear-gradient(90deg, rgba(61, 100, 186, 0.15) 1px, transparent 1px);
+		background-size: 52px 52px;
+		mask-image: radial-gradient(circle at 50% 32%, #000 18%, transparent 88%);
+		opacity: 0.42;
+	}
+
+	.about-tech-network {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		opacity: clamp(0.2, var(--network-intensity), 0.85);
+	}
+
+	.about-tech-network path {
+		fill: none;
+		stroke: rgba(126, 196, 255, 0.35);
+		stroke-width: 1.5;
+		stroke-dasharray: 9 10;
+		animation: networkFlow 28s linear infinite;
+		animation-play-state: paused;
+	}
+
+	.about-tech-section.is-active .about-tech-network path {
+		animation-play-state: running;
+	}
+
+	.about-tech-network circle {
+		fill: rgba(108, 207, 255, 0.9);
+		filter: drop-shadow(0 0 8px rgba(108, 207, 255, 0.85));
+	}
+
+	.about-particle {
+		position: absolute;
+		width: 10px;
+		height: 10px;
+		border-radius: 9999px;
+		background: radial-gradient(circle, #8fdbff 0%, rgba(143, 219, 255, 0.12) 70%);
+		filter: blur(0.35px);
+		animation: particleFloat 16s ease-in-out infinite;
+		animation-play-state: paused;
+	}
+
+	.about-tech-section.is-active .about-particle {
+		animation-play-state: running;
+	}
+
+	.particle-a { top: 18%; left: 14%; animation-delay: 0s; }
+	.particle-b { top: 61%; left: 20%; animation-delay: 2.8s; }
+	.particle-c { top: 26%; right: 16%; animation-delay: 1.6s; }
+	.particle-d { top: 74%; right: 22%; animation-delay: 4s; }
+
+	.about-tech-shell {
+		position: relative;
+		max-width: 1280px;
+		margin: 0 auto;
+		display: grid;
+		gap: clamp(1.6rem, 4vw, 3.8rem);
+		grid-template-columns: minmax(0, 1fr);
+		align-items: center;
+	}
+
+	.about-kicker {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.55rem;
+		border-radius: 9999px;
+		border: 1px solid rgba(153, 213, 255, 0.28);
+		background: rgba(13, 33, 62, 0.58);
+		color: #9ed9ff;
+		font-size: 0.72rem;
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
+		font-weight: 800;
+		margin-bottom: 1.15rem;
+		padding: 0.52rem 0.95rem;
+	}
+
+	.about-copy h2 {
+		font-size: clamp(2rem, 4.4vw, 4rem);
+		line-height: 1.06;
+		letter-spacing: -0.03em;
+		color: #f5f9ff;
+		margin-bottom: 1rem;
+	}
+
+	.about-subtitle {
+		max-width: 56ch;
+		font-size: clamp(1rem, 1.3vw, 1.2rem);
+		line-height: 1.72;
+		color: rgba(216, 235, 255, 0.86);
+		margin-bottom: 2rem;
+	}
+
+	.about-cta {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 9999px;
+		border: 1px solid rgba(135, 214, 255, 0.45);
+		color: #130c2c;
+		background: linear-gradient(110deg, var(--about-highlight) 0%, #ffd676 30%, var(--about-accent) 100%);
+		font-size: 0.82rem;
+		font-weight: 800;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		padding: 0.92rem 1.48rem;
+		overflow: hidden;
+		box-shadow:
+			0 0 0 1px rgba(135, 214, 255, 0.2),
+			0 14px 30px rgba(50, 115, 255, 0.35);
+		transition: transform 220ms ease, box-shadow 220ms ease;
+	}
+
+	.about-cta::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(circle at center, rgba(255, 255, 255, 0.48), transparent 58%);
+		transform: scale(0.35);
+		opacity: 0;
+		transition: opacity 240ms ease, transform 280ms ease;
+	}
+
+	.about-cta:hover {
+		transform: translateY(-2px);
+		box-shadow:
+			0 0 30px rgba(108, 181, 255, 0.62),
+			0 16px 35px rgba(44, 104, 255, 0.42);
+	}
+
+	.about-cta:hover::after {
+		transform: scale(1.25);
+		opacity: 1;
+	}
+
+	.about-scene-wrap {
+		display: flex;
+		justify-content: center;
+	}
+
+	.about-scene {
+		width: min(100%, 620px);
+		perspective: 1500px;
+	}
+
+	.about-router-shell {
+		position: relative;
+		border-radius: 2rem;
+		border: 1px solid rgba(144, 212, 255, 0.2);
+		background: linear-gradient(160deg, rgba(13, 29, 57, 0.72), rgba(8, 12, 28, 0.88));
+		box-shadow:
+			inset 0 0 0 1px rgba(164, 220, 255, 0.08),
+			0 24px 52px rgba(0, 0, 0, 0.5),
+			0 0 34px rgba(94, 112, 255, 0.34);
+		padding: clamp(1rem, 2vw, 1.35rem);
+		transform-style: preserve-3d;
+		transform:
+			rotateX(var(--router-tilt-x))
+			rotateY(var(--router-tilt-y))
+			scale(var(--router-scale));
+		/* Aplicar apenas transição suave na sombra, evitando travar a transformação (que o JS lida) */
+		transition: box-shadow 260ms ease, transform 100ms ease-out;
+		will-change: transform;
+		contain: layout paint style;
+	}
+
+	.about-tech-section.is-active .about-router-shell {
+		will-change: transform;
+	}
+
+	.about-tech-section.is-hovered .about-router-shell {
+		box-shadow:
+			inset 0 0 0 1px rgba(182, 228, 255, 0.16),
+			0 26px 58px rgba(0, 0, 0, 0.56),
+			0 0 48px rgba(130, 112, 255, 0.48);
+	}
+
+	.about-router-glow {
+		position: absolute;
+		inset: 18% 12%;
+		border-radius: 9999px;
+		background: radial-gradient(circle, rgba(76, 182, 255, 0.32) 0%, rgba(96, 40, 255, 0.3) 42%, transparent 76%);
+		filter: blur(20px);
+		z-index: 0;
+	}
+
+	.about-router-reflection {
+		position: absolute;
+		inset: 1rem;
+		border-radius: 1.45rem;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 45%);
+		pointer-events: none;
+		z-index: 2;
+	}
+
+	.about-router-frame {
+		position: relative;
+		z-index: 3;
+		height: clamp(320px, 34vw, 460px);
+		border-radius: 1.5rem;
+		overflow: hidden;
+		border: 1px solid rgba(163, 220, 255, 0.24);
+		background:
+			radial-gradient(circle at 50% 22%, rgba(118, 179, 255, 0.2), transparent 54%),
+			radial-gradient(circle at 82% 74%, rgba(144, 97, 255, 0.16), transparent 40%),
+			linear-gradient(165deg, rgba(8, 17, 38, 0.9), rgba(3, 8, 19, 0.95));
+		isolation: isolate;
+	}
+
+	.router-3d-layer {
+		display: block;
+		width: 100%;
+		height: 100%;
+		background: transparent;
+	}
+
+	.router-3d-layer {
+		position: relative;
+		isolation: isolate;
+	}
+
+	.mobile-scene-note {
+		display: none;
+		position: absolute;
+		inset: auto 0 1rem 0;
+		margin: 0 auto;
+		width: fit-content;
+		z-index: 6;
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: rgba(232, 243, 255, 0.86);
+		padding: 0.55rem 0.75rem;
+		border-radius: 9999px;
+		border: 1px solid rgba(168, 208, 255, 0.28);
+		background: rgba(11, 20, 42, 0.64);
+	}
+
+	.about-router-tag {
+		position: absolute;
+		top: 1rem;
+		left: 1rem;
+		z-index: 5;
+		border-radius: 9999px;
+		border: 1px solid rgba(172, 224, 255, 0.4);
+		background: rgba(4, 16, 35, 0.74);
+		color: rgba(184, 230, 255, 0.92);
+		font-size: 0.67rem;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		font-weight: 800;
+		padding: 0.5rem 0.84rem;
+	}
+
+	.about-chip {
+		position: absolute;
+		z-index: 5;
+		border-radius: 1rem;
+		border: 1px solid rgba(184, 229, 255, 0.28);
+		background: rgba(11, 22, 46, 0.72);
+		color: #f4fbff;
+		backdrop-filter: blur(9px);
+		-webkit-backdrop-filter: blur(9px);
+		box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+		padding: 0.7rem 0.9rem;
+	}
+
+	.about-chip strong {
+		display: block;
+		font-size: 0.86rem;
+		font-weight: 800;
+		letter-spacing: 0.02em;
+	}
+
+	.about-chip span {
+		display: block;
+		margin-top: 0.12rem;
+		font-size: 0.72rem;
+		color: rgba(188, 222, 255, 0.82);
+	}
+
+	.chip-left {
+		left: -0.35rem;
+		bottom: 1.45rem;
+	}
+
+	.chip-right {
+		right: -0.35rem;
+		top: 4.8rem;
+	}
+
+	.about-wave {
+		--wave-base: 1;
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 58%;
+		aspect-ratio: 1 / 1;
+		border-radius: 9999px;
+		border: 1px solid rgba(109, 196, 255, 0.45);
+		transform: translate(-50%, -50%) scale(calc(var(--wave-base) * var(--wave-growth)));
+		opacity: 0.25;
+		filter: drop-shadow(0 0 7px rgba(109, 196, 255, 0.35));
+		pointer-events: none;
+		animation: wavePulse 3.8s ease-in-out infinite;
+		animation-play-state: paused;
+		z-index: 1;
+	}
+
+	.about-tech-section.is-active .about-wave {
+		animation-play-state: running;
+	}
+
+	.wave-1 { --wave-base: 0.92; animation-delay: 0s; }
+	.wave-2 { --wave-base: 1.16; animation-delay: 1.2s; }
+	.wave-3 { --wave-base: 1.36; animation-delay: 2.4s; }
+
+	.about-cards {
+		position: relative;
+		max-width: 1280px;
+		margin: clamp(2.2rem, 5vw, 3.5rem) auto 0;
+		display: grid;
+		grid-template-columns: repeat(1, minmax(0, 1fr));
+		gap: 1rem;
+	}
+
+	.about-card {
+		position: relative;
+		border-radius: 1.35rem;
+		border: 1px solid rgba(126, 185, 255, 0.2);
+		background: linear-gradient(165deg, rgba(16, 32, 60, 0.78), rgba(7, 12, 24, 0.9));
+		padding: 1.2rem 1.2rem 1.15rem;
+		overflow: hidden;
+		transition: transform 240ms ease, border-color 240ms ease, box-shadow 240ms ease;
+	}
+
+	.about-card::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(circle at 8% 0%, rgba(118, 199, 255, 0.24), transparent 50%);
+		opacity: 0;
+		transition: opacity 220ms ease;
+		pointer-events: none;
+	}
+
+	.about-card:hover {
+		transform: translateY(-6px);
+		border-color: rgba(144, 214, 255, 0.62);
+		box-shadow:
+			0 0 0 1px rgba(144, 214, 255, 0.2),
+			0 18px 28px rgba(0, 0, 0, 0.32),
+			0 0 34px rgba(83, 130, 255, 0.38);
+	}
+
+	.about-card:hover::before {
+		opacity: 1;
+	}
+
+	.about-card-icon {
+		width: 2.75rem;
+		height: 2.75rem;
+		border-radius: 0.85rem;
+		border: 1px solid rgba(145, 213, 255, 0.32);
+		background: rgba(9, 23, 46, 0.82);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		margin-bottom: 0.9rem;
+		color: #80d0ff;
+	}
+
+	.about-card-icon .material-symbols-outlined {
+		font-size: 1.25rem;
+		font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+	}
+
+	.about-card h3 {
+		color: #f2f8ff;
+		font-size: 1.06rem;
+		font-weight: 800;
+		letter-spacing: -0.01em;
+		margin-bottom: 0.45rem;
+	}
+
+	.about-card p {
+		color: rgba(205, 223, 244, 0.85);
+		line-height: 1.6;
+		font-size: 0.94rem;
+	}
+
+	.about-reveal {
+		opacity: 1;
+		transform: translateY(0);
+		transition: opacity 700ms cubic-bezier(0.22, 1, 0.36, 1), transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+
+	.about-tech-section.reveal-enhanced .about-reveal {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	.about-reveal.is-visible {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	.about-tech-section.perf-lite .about-tech-network,
+	.about-tech-section.perf-lite .about-particle,
+	.about-tech-section.perf-lite .about-router-reflection {
+		display: none;
+	}
+
+	.about-tech-section.perf-lite .about-router-shell {
+		box-shadow:
+			inset 0 0 0 1px rgba(164, 220, 255, 0.06),
+			0 12px 24px rgba(0, 0, 0, 0.36);
+		transition: transform 180ms ease, box-shadow 180ms ease;
+	}
+
+	.about-tech-section.perf-lite .about-router-glow {
+		filter: blur(14px);
+		opacity: 0.55;
+	}
+
+	.about-tech-section.perf-lite .about-chip {
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		box-shadow: none;
+	}
+
+	.about-tech-section.perf-lite .about-wave {
+		opacity: 0.18;
+		filter: none;
+	}
+
+	.about-tech-section.perf-lite .about-card:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 10px 18px rgba(0, 0, 0, 0.24);
+	}
+
+	@keyframes networkFlow {
+		from { stroke-dashoffset: 0; }
+		to { stroke-dashoffset: -220; }
+	}
+
+	@keyframes particleFloat {
+		0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.4; }
+		45% { transform: translate3d(-8px, -16px, 0); opacity: 0.9; }
+		75% { transform: translate3d(10px, -28px, 0); opacity: 0.3; }
+	}
+
+	@keyframes wavePulse {
+		0% { opacity: 0.14; }
+		40% { opacity: 0.68; }
+		100% { opacity: 0.1; }
+	}
+
+	@media (min-width: 960px) {
+		.about-tech-shell {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1.04fr);
+		}
+
+		.about-cards {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+			gap: 1.1rem;
+		}
+	}
+
+	@media (max-width: 959px) {
+		.about-copy {
+			order: 2;
+		}
+
+		.about-scene-wrap {
+			order: 1;
+			margin-bottom: 0.8rem;
+		}
+
+		#main-3d-router {
+			display: none;
+		}
+
+		.mobile-scene-note {
+			display: inline-flex;
+		}
+
+		.about-chip {
+			font-size: 0.78rem;
+			padding: 0.62rem 0.78rem;
+		}
+
+		.chip-left {
+			left: 0.25rem;
+			bottom: 0.55rem;
+		}
+
+		.chip-right {
+			right: 0.25rem;
+			top: 3.4rem;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.about-tech-section {
+			padding-inline: 0.9rem;
+		}
+
+		.about-router-shell {
+			border-radius: 1.45rem;
+			padding: 0.75rem;
+		}
+
+		.about-router-frame {
+			height: 260px;
+			border-radius: 1.1rem;
+		}
+
+		.about-router-tag {
+			top: 0.7rem;
+			left: 0.7rem;
+			font-size: 0.6rem;
+			letter-spacing: 0.12em;
+			padding: 0.44rem 0.68rem;
+		}
+
+		.about-chip {
+			display: none;
+		}
+
+		.about-cards {
+			gap: 0.85rem;
+		}
+
+		.about-card {
+			padding: 1rem;
+		}
+	}
+</style>

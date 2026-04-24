@@ -102,6 +102,11 @@ if (Astro.request.method === "POST") {
     const formTenantId = data.get("tenant_id")?.toString() || effectiveTenantId;
 
     if (action === "login_password") {
+        // ─── DEV BYPASS: pula validação e vai direto pro dashboard ────────────
+        if (import.meta.env.DEV_BYPASS_AUTH === 'true') {
+            return Astro.redirect("/parceiro/dashboard");
+        }
+        // ──────────────────────────────────────────────────────────────────────
         const email = (data.get("email")?.toString() || "").trim().toLowerCase();
         const password = data.get("password")?.toString() || "";
 
@@ -233,6 +238,7 @@ if (Astro.request.method === "POST") {
     } // fim: if (action === "register_password")
 } // fim: if (Astro.request.method === "POST")
 
+
 // URL para o botão "Já sou parceiro" da navbar/footer — SSR define activeMode=login
 const loginUrl = `#signup`;
 ---
@@ -254,7 +260,7 @@ const loginUrl = `#signup`;
     <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
     
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700;1,800;1,900&display=swap" rel="stylesheet"/>
     <!-- Adicionando classe completa dos ícones do Google Material Symbols -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
@@ -315,8 +321,8 @@ const loginUrl = `#signup`;
                     },
                     fontFamily: {
                         headline: ["Plus Jakarta Sans", "sans-serif"],
-                        body: ["Manrope", "sans-serif"],
-                        label: ["Manrope", "sans-serif"]
+                        body:    ["Plus Jakarta Sans", "sans-serif"],
+                        label:   ["Plus Jakarta Sans", "sans-serif"]
                     },
                     borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", "2xl": "1.5rem", "3xl": "2rem", full: "9999px"},
                 },
@@ -477,145 +483,17 @@ const loginUrl = `#signup`;
         }
 
         /* ── Smooth Scroll Global ───────────────────────────────────────── */
-        html { scroll-behavior: smooth; }
+        html { scroll-behavior: smooth; font-size: 15px; }
+        body { font-family: "Plus Jakarta Sans", sans-serif; }
 
-        /* ── Sobre Nos: modelo 3D Meshy ─────────────────────────────────────────────── */
-        .router-model-stage {
-            position: relative;
-            min-height: 420px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            perspective: 1400px;
-        }
-
-        .router-model-frame {
-            position: relative;
-            width: min(100%, 520px);
-            border-radius: 2rem;
-            padding: 1.25rem;
-            background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
-            border: 1px solid rgba(255,255,255,0.14);
-            box-shadow: 0 30px 80px rgba(0,0,0,0.42);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-        }
-
-        .router-model-glow {
-            position: absolute;
-            inset: 10% 14%;
-            border-radius: 9999px;
-            background: radial-gradient(circle, rgba(255,191,26,0.28) 0%, rgba(96,40,255,0.18) 42%, transparent 72%);
-            filter: blur(18px);
-            z-index: -1;
-        }
-
-        .router-model-viewer {
-            width: 100%;
-            height: 390px;
-            display: block;
-            --poster-color: transparent;
-            --progress-bar-color: #ffbf1a;
-            --progress-mask: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
-            background: radial-gradient(circle at 50% 30%, rgba(255,255,255,0.08), transparent 55%);
-            border-radius: 1.5rem;
-            transform: translateZ(0);
-        }
-
-        .router-model-loading {
-            position: absolute;
-            inset: 1.25rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 1.5rem;
-            background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-            color: rgba(255,255,255,0.72);
-            font-size: 0.82rem;
-            letter-spacing: 0.16em;
-            text-transform: uppercase;
-            font-weight: 800;
-            z-index: 1;
-            pointer-events: none;
-        }
-
-        .router-model-tag {
-            position: absolute;
-            left: 1.1rem;
-            top: 1.1rem;
-            z-index: 2;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            border-radius: 9999px;
-            border: 1px solid rgba(255,255,255,0.18);
-            background: rgba(8, 4, 28, 0.62);
-            color: rgba(255,255,255,0.84);
-            padding: 0.55rem 0.9rem;
-            font-size: 0.72rem;
-            font-weight: 800;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-        }
-
-        .router-model-float {
-            position: absolute;
-            z-index: 2;
-            max-width: 180px;
-            border-radius: 1.25rem;
-            border: 1px solid rgba(255,255,255,0.16);
-            background: rgba(255,255,255,0.08);
-            box-shadow: 0 14px 32px rgba(0,0,0,0.28);
-            color: #fff;
-            padding: 0.9rem 1rem;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-        }
-
-        .router-model-float strong {
-            display: block;
-            font-size: 1rem;
-            line-height: 1.1;
-            margin-bottom: 0.2rem;
-        }
-
-        .router-model-float span {
-            display: block;
-            font-size: 0.8rem;
-            color: rgba(255,255,255,0.72);
-        }
-
-        .router-model-float-left {
-            left: -0.2rem;
-            bottom: 1.6rem;
-        }
-
-        .router-model-float-right {
-            right: -0.2rem;
-            top: 4.25rem;
-        }
-
-        @media (max-width: 768px) {
-            .router-model-stage {
-                min-height: 360px;
-            }
-
-            .router-model-frame {
-                padding: 1rem;
-            }
-
-            .router-model-viewer {
-                height: 320px;
-            }
-
-            .router-model-float {
-                max-width: 150px;
-                padding: 0.75rem 0.85rem;
-            }
+        /* ── Respiro global: padding lateral mínimo em todos os containers ─ */
+        .max-w-7xl, .max-w-6xl, .max-w-5xl, .max-w-4xl, .max-w-3xl, .max-w-2xl {
+            padding-left:  clamp(1.25rem, 4vw, 4rem);
+            padding-right: clamp(1.25rem, 4vw, 4rem);
         }
     </style>
 </head>
-<body class="bg-background font-body text-on-surface antialiased selection:bg-primary-container selection:text-slate-900">
+<body class="bg-background text-on-surface antialiased selection:bg-primary-container selection:text-slate-900">
 
     <!-- Navbar Modernizada -->
     <nav id="main-navbar" class="glass-nav fixed top-0 w-full z-50 transition-all duration-300">
@@ -742,154 +620,55 @@ const loginUrl = `#signup`;
         })();
     </script>
 
-    <!-- Hero Section -->
-    <header class="relative pt-40 pb-24 overflow-hidden" style="background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);">
-        <div class="max-w-7xl mx-auto px-6 grid xl:grid-cols-2 gap-16 items-center">
-            
-            <div class="z-10 relative">
+    <!-- Hero Section: ocupa exatamente uma dobra sem scroll -->
+    <header class="relative overflow-hidden" style="height: 100vh; background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);">
+        <div class="max-w-6xl mx-auto px-10 lg:px-16 xl:px-20 grid xl:grid-cols-2 gap-8 xl:gap-16 w-full h-full" style="padding-top: 60px;">
+            <!-- Coluna de texto: centralizada verticalmente no espaço abaixo da navbar -->
+            <div class="z-10 relative flex flex-col justify-center pb-8">
                 <!-- Decorative Glow Behind Text -->
                 <div class="absolute -top-32 -left-32 w-96 h-96 bg-tertiary/20 rounded-full blur-[100px] pointer-events-none"></div>
-
-                <div class="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-tertiary text-on-tertiary border-none font-label font-bold text-[11px] uppercase tracking-[0.15em] mb-8">
+                <div class="inline-flex items-center gap-2 py-1.5 px-4 rounded-full bg-tertiary text-on-tertiary border-none font-label font-bold text-[11px] uppercase tracking-[0.15em] mb-6 w-fit">
                     <span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
                     Programa de Indicações
                 </div>
-                
-                <h1 class="text-5xl lg:text-[72px] font-headline font-black text-slate-900 leading-[1.05] tracking-tighter mb-8">
-                    Nossa embaixadora <span class="text-primary italic">Lígia</span><br class="hidden md:block"/> garante: sua rede vale dinheiro vivo.
+                <h1 class="text-3xl lg:text-4xl xl:text-[42px] font-black text-slate-900 leading-[1.1] tracking-tight mb-4">
+                    Indique a internet mais rápida da região e <span class="text-primary italic">ganhe comissão real</span> a cada instalação.
                 </h1>
-                
-                <p class="text-xl text-on-surface-variant mb-12 max-w-xl leading-relaxed font-body">
-                    A Lígia já é parceira oficial da Ligeira Telecom e está faturando alto! Faça como ela: indique nossa internet 100% fibra ótica e <strong>ganhe comissões automáticas</strong> direto na sua conta. Sem limites, sem burocracia.
+                <p class="text-base text-on-surface-variant mb-7 max-w-lg leading-relaxed">
+                    A Lígia já é parceira oficial da Ligeira Telecom e está faturando alto! Faça como ela: indique nossa internet 100% <strong>fibra óptica</strong> e <strong>ganhe comissões reais</strong> direto na sua conta. Sem limites, sem burocracia.
                 </p>
-                
-                <div class="flex flex-col sm:flex-row gap-5 items-start sm:items-center">
-                    <a class="w-full sm:w-auto text-center bg-tertiary text-on-tertiary px-10 py-4 rounded-full font-headline font-extrabold text-lg hover:scale-[1.03] active:scale-95 transition-all btn-glow" href="#signup" onclick="if(window.activateTab) window.activateTab('register')">
+                <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <a class="w-full sm:w-auto text-center bg-tertiary text-on-tertiary px-8 py-3.5 rounded-full font-extrabold text-base hover:scale-[1.03] active:scale-95 transition-all btn-glow" href="#signup" onclick="if(window.activateTab) window.activateTab('register')">
                         Quero me cadastrar
                     </a>
-                    <a class="w-full sm:w-auto text-center flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-slate-900 font-headline font-bold text-lg" href="#como-funciona">
+                    <a class="w-full sm:w-auto text-center flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-slate-900 font-bold text-base" href="#como-funciona">
                         <span class="material-symbols-outlined text-xl">play_circle</span>
                         Ver como funciona
                     </a>
                 </div>
-                
-                <div class="mt-12 flex items-center gap-4 text-sm text-on-surface-variant font-label">
-                    <div class="flex -space-x-3">
-                        <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=11" alt="User">
-                        <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=12" alt="User">
-                        <img class="w-10 h-10 border-2 border-background rounded-full" src="https://i.pravatar.cc/100?img=33" alt="User">
-                        <div class="w-10 h-10 border-2 border-background rounded-full bg-white flex items-center justify-center text-xs font-bold text-slate-900">+5k</div>
-                    </div>
-                    <p>Parceiros já estão ganhando <br/>comissões todos os dias.</p>
-                </div>
             </div>
 
-            <div class="relative z-10 w-full flex justify-center xl:justify-end">
-                <!-- Floating Elements Container -->
-                <div class="relative w-full max-w-md">
-                    
-                    <!-- Ambient Light -->
-                    <div class="absolute inset-0 bg-white/10 rounded-full blur-[120px] pointer-events-none"></div>
+            <!-- Lígia: alinhada ao bottom, altura = 100vh - navbar (60px) -->
+            <div class="relative z-10 w-full hidden xl:flex justify-center items-end overflow-hidden">
+                <div class="relative w-full flex justify-center items-end" style="height: calc(100vh - 60px);">
 
-                    <!-- Ligia Image Hero -->
-                    <div class="relative z-20 flex justify-center items-end h-[500px]">
-                        <img alt="Lígia - Embaixadora Ligeira Telecom" src={ligiaHeroImage.src} class="h-[120%] w-auto object-cover max-w-none ambient-shadow drop-shadow-2xl translate-y-8" />
-                    </div>
-                    
-                    <!-- Logo Horizontal Display -->
-                    <div class="absolute -bottom-16 -right-4 md:-right-12 bg-white p-6 py-8 rounded-3xl ambient-shadow border border-slate-900/5 z-30 transform rotate-3">
-                        <img alt="Ligeira Telecom" src={logoLigeiraHorizontal.src} class="h-16 object-contain" />
-                    </div>
+                    <!-- Ligia Image Hero — sem sombra, encosta no bottom do viewport -->
+                    <img
+                        alt="Lígia - Embaixadora Ligeira Telecom"
+                        src={ligiaHeroImage.src}
+                        class="relative z-20 w-auto object-contain object-bottom select-none"
+                        style="height: 100%; max-height: 100%;"
+                    />
 
+                    <!-- Logo Horizontal Display — dentro do viewport, canto inferior direito -->
+                    <div class="absolute bottom-6 right-2 bg-white p-4 py-5 rounded-2xl border border-slate-900/5 z-30 transform rotate-3 shadow-lg">
+                        <img alt="Ligeira Telecom" src={logoLigeiraHorizontal.src} class="h-12 object-contain" />
+                    </div>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- Seção Sobre Nós: A verdadeira força da Fibra Ligeira -->
-    <section class="relative bg-[#0c0320] py-24 md:py-32 overflow-hidden" id="sobre-nos">
-        <!-- Glows decorativos fixos -->
-        <div class="absolute -left-20 top-12 h-[500px] w-[500px] rounded-full bg-primary/20 blur-[120px] pointer-events-none"></div>
-        <div class="absolute -right-20 bottom-12 h-[500px] w-[500px] rounded-full bg-tertiary/10 blur-[120px] pointer-events-none"></div>
-
-        <div class="max-w-7xl mx-auto px-6 relative z-10">
-            <div class="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
-                <!-- Conteúdo Textual -->
-                <div class="order-2 lg:order-1">
-                    <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-white/60 uppercase tracking-widest mb-8">
-                        <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                        Tecnologia de Ponta
-                    </div>
-
-                    <h2 class="text-4xl md:text-6xl font-headline font-black text-white leading-[1.1] mb-8">
-                        A Ligeira conecta sua cidade.<br/>
-                        <span class="text-tertiary">Você conecta pessoas.</span>
-                    </h2>
-
-                    <p class="text-xl text-white/70 leading-relaxed mb-10 max-w-xl">
-                        A verdadeira fibra ótica exige o melhor equipamento. Nosso roteador de última geração garante que a experiência de quem você indica seja impecável, do Wi-Fi 6 à latência zero.
-                    </p>
-
-                    <div class="space-y-6 mb-12">
-                        <div class="flex items-start gap-4">
-                            <div class="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">
-                                <span class="material-symbols-outlined text-primary">speed</span>
-                            </div>
-                            <div>
-                                <h4 class="text-white font-bold text-lg">Performance Extrema</h4>
-                                <p class="text-white/50">Streaming em 4K e jogos competitivos sem oscilações.</p>
-                            </div>
-                        </div>
-                        <div class="flex items-start gap-4">
-                            <div class="w-12 h-12 rounded-2xl bg-tertiary/20 flex items-center justify-center shrink-0 border border-tertiary/30">
-                                <span class="material-symbols-outlined text-tertiary">wifi_tethering</span>
-                            </div>
-                            <div>
-                                <h4 class="text-white font-bold text-lg">Cobertura Ampliada</h4>
-                                <p class="text-white/50">Sinal forte em todos os cômodos da casa.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row gap-5">
-                        <a href="#signup" class="bg-tertiary text-on-tertiary px-8 py-4 rounded-full font-headline font-black text-lg hover:scale-105 transition-all text-center">
-                            Começar agora
-                        </a>
-                        <a href="https://www.instagram.com/ligeiratelecom" target="_blank" class="flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all">
-                            <span class="material-symbols-outlined text-sm">photo_camera</span>
-                            Seguir a Ligeira
-                        </a>
-                    </div>
-                </div>
-
-                <!-- O Roteador 3D (Vídeo Scroll) -->
-                <div class="order-1 lg:order-2 relative group">
-                    <div class="relative aspect-square w-full max-w-[500px] mx-auto flex items-center justify-center">
-                        <!-- Círculos de órbita decorativos -->
-                        <div class="absolute inset-0 rounded-full border border-white/5 scale-[0.8] animate-[spin_20s_linear_infinite]"></div>
-                        <div class="absolute inset-0 rounded-full border border-white/5 scale-[1.1] animate-[spin_35s_linear_infinite_reverse]"></div>
-                        
-                        <!-- Container do Vídeo -->
-                        <div class="relative w-full h-full flex items-center justify-center" id="v3d-container">
-                             <video 
-                                id="v3d-video"
-                                src="/src/assets/illustrations/modelo-360.mp4" 
-                                class="w-full h-full object-contain pointer-events-none drop-shadow-[0_0_50px_rgba(96,40,255,0.3)]"
-                                playsinline
-                                muted
-                                preload="auto"
-                             ></video>
-                             
-                             <!-- Tag flutuante -->
-                             <div class="absolute bottom-10 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md border border-white/20 px-4 py-2 rounded-full text-[10px] font-bold text-white uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
-                                Roteador Premium 360°
-                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
 
     <!-- Vantagens Section Removed per Epic 2 -->
 
@@ -1005,7 +784,17 @@ const loginUrl = `#signup`;
                             </div>
                             <div>
                                 <h5 class="text-xl font-headline font-bold text-slate-900 mb-2">Produto Fácil de Vender</h5>
-                                <p class="text-on-surface-variant">A Ligeira Telecom possui fibra ótica de alta velocidade e baixa latência garantida. O vizinho quer? Você indica.</p>
+                                <p class="text-on-surface-variant">A Ligeira Telecom possui fibra óptica de alta velocidade e baixa latência garantida. O vizinho quer? Você indica.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-6 group">
+                            <div class="flex-shrink-0 w-14 h-14 rounded-2xl bg-surface-container border border-slate-900/5 flex items-center justify-center group-hover:bg-amber-100 transition-colors">
+                                <span class="material-symbols-outlined text-amber-600 text-2xl">schedule</span>
+                            </div>
+                            <div>
+                                <h5 class="text-xl font-headline font-bold text-slate-900 mb-2">Pagamento Confirmado na 1ª Fatura</h5>
+                                <p class="text-on-surface-variant">A bonificação entra como "A Pagar" logo após a instalação. O crédito é <strong>liberado para pagamento somente após o pagamento da primeira mensalidade</strong> do cliente indicado, garantindo a sustentabilidade do programa para todos.</p>
                             </div>
                         </div>
                     </div>
@@ -1015,42 +804,9 @@ const loginUrl = `#signup`;
         </div>
     </section>
 
-    <!-- Onboarding Section -->
-    <section class="py-24 relative overflow-hidden bg-background border-y border-slate-900/5" id="onboarding">
-        <div class="absolute -top-40 left-1/2 w-[900px] h-[900px] -translate-x-1/2 rounded-full bg-primary/5 blur-[120px] pointer-events-none"></div>
-        <div class="max-w-7xl mx-auto px-6 relative z-10">
-            <div class="text-center mb-14">
-                <div class="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-primary mb-5 shadow-sm">
-                    Onboarding
-                </div>
-                <h2 class="text-4xl lg:text-5xl font-headline font-black text-slate-900 tracking-tighter mb-4">Tudo o que o parceiro precisa entender, em telas curtas.</h2>
-                <p class="text-xl text-on-surface-variant max-w-3xl mx-auto">Antes de começar, mostramos o passo a passo para evitar dúvidas e acelerar a primeira conversão.</p>
-            </div>
 
-            <div class="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
-                <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
-                    <div class="text-xs font-black uppercase tracking-[0.2em] text-primary mb-3">01</div>
-                    <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Conta bancária</h3>
-                    <p class="text-on-surface-variant">Mostramos onde cadastrar a conta para receber os ganhos em dinheiro sem confusão.</p>
-                </div>
-                <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
-                    <div class="text-xs font-black uppercase tracking-[0.2em] text-tertiary mb-3">02</div>
-                    <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Link de indicação</h3>
-                    <p class="text-on-surface-variant">Explicamos como compartilhar o link individual e como ele identifica o parceiro corretamente.</p>
-                </div>
-                <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
-                    <div class="text-xs font-black uppercase tracking-[0.2em] text-emerald-600 mb-3">03</div>
-                    <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Status e notificações</h3>
-                    <p class="text-on-surface-variant">Mostramos onde acompanhar recebido, em análise, instalado e demais alertas do sistema.</p>
-                </div>
-                <div class="rounded-[1.75rem] border border-slate-900/5 bg-white p-6 shadow-lg shadow-black/5">
-                    <div class="text-xs font-black uppercase tracking-[0.2em] text-slate-900 mb-3">04</div>
-                    <h3 class="text-xl font-headline font-bold text-slate-900 mb-2">Pontos e ganhos</h3>
-                    <p class="text-on-surface-variant">A pessoa entende saldo, pontos, ganhos e a área de meus indicados antes mesmo de começar.</p>
-                </div>
-            </div>
-        </div>
-    </section>
+    <!-- Seção Onboarding removida (conteúdo movido para pós-cadastro) -->
+
 
     <!-- Sign Up Form / Final CTA Section -->
     <section class="py-32 relative overflow-hidden" id="signup">
@@ -1319,32 +1075,6 @@ const loginUrl = `#signup`;
 
             const initialRegisterSelected = tabRegister?.getAttribute('aria-selected') === 'true';
             activateTab(initialRegisterSelected ? 'register' : 'login');
-
-            // ── Lógica do Vídeo 3D Scroll (GSAP) ──────────────────────────
-            const video = document.getElementById('v3d-video');
-            if (video) {
-                // Forçamos o carregamento dos metadados para saber a duração
-                video.addEventListener('loadedmetadata', () => {
-                    const duration = video.duration;
-                    
-                    gsap.to(video, {
-                        currentTime: duration,
-                        ease: "none",
-                        scrollTrigger: {
-                            trigger: "#sobre-nos",
-                            start: "top center",
-                            end: "bottom center",
-                            scrub: 1, // Suavidade no controle do vídeo
-                            // markers: true, // Útil para debug
-                        }
-                    });
-                });
-                
-                // Fallback caso já esteja carregado
-                if (video.readyState >= 2) {
-                    video.dispatchEvent(new Event('loadedmetadata'));
-                }
-            }
 
             if (window.location.hash === '#login') {
                 activateTab('login');

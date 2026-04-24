@@ -64,6 +64,23 @@ export const onRequest = defineMiddleware(async (context, next) => {
         return next();
     }
 
+    // ─── DEV BYPASS ───────────────────────────────────────────────────────────
+    // Ative com DEV_BYPASS_AUTH=true no .env para ignorar auth durante dev.
+    // NUNCA ative isso em produção (a variável não está exposta no client-side).
+    if (import.meta.env.DEV_BYPASS_AUTH === 'true') {
+        const bypassTenantId = import.meta.env.PUBLIC_MAIN_TENANT_ID || '4a254f52-99bd-43dd-86e2-ec031206077a';
+        context.locals.tenantId = bypassTenantId;
+        context.locals.role = 'admin';
+        context.locals.profileId = bypassTenantId;
+        context.locals.user = {
+            id: bypassTenantId,
+            email: 'dev-bypass@assina-comigo.local',
+            app_metadata: { tenant_id: bypassTenantId, tipo_usuario: 'admin' },
+        } as any;
+        return next();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     try {
         const hasAdminBypass = context.cookies.get(ADMIN_BYPASS_COOKIE)?.value === '1';
 
